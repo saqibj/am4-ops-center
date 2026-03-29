@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Data
+*.db
+*.sqlite
+*.parquet
+
+# Exports
+exports/*.csv
+exports/*.xlsx
+!exports/.gitkeep
+
+# IDE
+.vscode/
+.cursor/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

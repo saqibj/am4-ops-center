@@ -1,0 +1,14 @@
+[project]
+name = "am4-routemine"
+version = "0.1.0"
+description = "Bulk AM4 route extraction into SQLite, CSV/Excel, and Streamlit."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "am4 @ git+https://github.com/abc8747/am4.git@master",
+  "streamlit>=1.30.0",
+  "pandas>=2.0.0",
+  "openpyxl>=3.1.0",
+  "tqdm>=4.65.0",
+  "rich>=13.0.0",
+]

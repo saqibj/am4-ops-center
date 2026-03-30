@@ -24,3 +24,7 @@ exports/*.xlsx
 # OS
 .DS_Store
 Thumbs.db
+
+# Windows junk
+*:Zone.Identifier
+desktop.ini

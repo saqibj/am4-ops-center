@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.sqlite
+.git/
+.gitignore
+.cursor/
+.vscode/
+*.egg-info/
+dist/
+build/
+exports/*.csv
+exports/*.xlsx
+*.Zone.Identifier

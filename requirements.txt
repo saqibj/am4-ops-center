@@ -1,3 +1,4 @@
+am4 @ git+https://github.com/saqibj/am4.git@msvc-fix
 fastapi>=0.115.0
 uvicorn>=0.30.0
 jinja2>=3.1.0

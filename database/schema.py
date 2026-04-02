@@ -237,6 +237,8 @@ def clear_route_tables(conn: sqlite3.Connection) -> None:
 
 
 def replace_master_tables(conn: sqlite3.Connection) -> None:
+    conn.execute("PRAGMA foreign_keys = OFF")
     conn.execute("DELETE FROM aircraft")
     conn.execute("DELETE FROM airports")
     conn.commit()
+    conn.execute("PRAGMA foreign_keys = ON")

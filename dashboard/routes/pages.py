@@ -127,7 +127,10 @@ def page_route_analyzer(request: Request):
             origins = fetch_all(
                 conn,
                 """
-                SELECT DISTINCT a.iata AS iata FROM route_aircraft ra
+                SELECT DISTINCT a.iata AS iata,
+                       COALESCE(a.name, '') AS name,
+                       COALESCE(a.country, '') AS country
+                FROM route_aircraft ra
                 JOIN airports a ON ra.origin_id = a.id
                 WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
                 ORDER BY a.iata
@@ -138,7 +141,7 @@ def page_route_analyzer(request: Request):
     except FileNotFoundError:
         origins = []
     ctx = base_context(request)
-    ctx.update({"origins": [o["iata"] for o in origins]})
+    ctx.update({"origins": origins})
     return templates.TemplateResponse(request, "route_analyzer.html", ctx)
 
 

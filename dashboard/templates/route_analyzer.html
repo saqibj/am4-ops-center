@@ -15,7 +15,7 @@
                 class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white min-w-[8rem] font-mono">
             <option value="">Origin…</option>
             {% for o in origins %}
-            <option value="{{ o }}">{{ o }}</option>
+            <option value="{{ o.iata }}">{{ o.iata }}{% if o.name %} — {{ o.name }}{% endif %}{% if o.country %} ({{ o.country }}){% endif %}</option>
             {% endfor %}
         </select>
     </div>

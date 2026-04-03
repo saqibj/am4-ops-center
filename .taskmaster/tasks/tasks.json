@@ -484,7 +484,7 @@
         "title": "Add airport badge component and search UX",
         "description": "Upgrade the dashboard from code-first airport handling to human-readable airport search and display.",
         "details": "Create a reusable airport badge partial, add airport and aircraft search endpoints, and upgrade major pages and partials to show airport names, fullname, and country while keeping IATA visible. Prefer HTMX autocomplete over plain datalist-only UX where practical.",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [
           "2",
@@ -498,62 +498,69 @@
             "title": "Create airport badge partial",
             "description": "Add a reusable Jinja macro/component for airport display.",
             "details": "Create dashboard/templates/partials/airport_badge.html for compact and expanded airport rendering with IATA plus airport name/country details.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Render the partial in at least one updated template.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:17:44.247Z"
           },
           {
             "id": 2,
             "title": "Add airport search endpoint",
             "description": "Implement /api/search/airports?q=.",
             "details": "Match IATA, ICAO, name, fullname, and country. Return useful display text for autocomplete results.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Query with code and free-text fragments.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:17:44.254Z"
           },
           {
             "id": 3,
             "title": "Add aircraft search endpoint",
             "description": "Implement /api/search/aircraft?q=.",
             "details": "Match shortname, name, and type. Return display-friendly result rows for autocomplete.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Query with code and aircraft-name fragments.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:17:44.262Z"
           },
           {
             "id": 4,
             "title": "Upgrade Hub Explorer display",
             "description": "Show richer destination context in the hub routes table and selectors.",
             "details": "Use richer airport fields from v_best_routes and, where appropriate, use the airport badge partial.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Open Hub Explorer and confirm destination columns are more informative.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:17:44.269Z"
           },
           {
             "id": 5,
             "title": "Upgrade My Routes form and inventory",
             "description": "Use richer airport search and display in My Routes.",
             "details": "Improve hub and destination entry/search and update inventory display to show names/country, not codes only.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Open My Routes and add a route using the improved UX.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:17:44.278Z"
           },
           {
             "id": 6,
             "title": "Upgrade Route Analyzer selectors and tables",
             "description": "Improve route-analyzer airport selection and display.",
             "details": "Replace or enhance code-only origin/destination selection using richer airport info where practical while preserving performance and HTMX simplicity.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Use Route Analyzer to pick a route and verify the workflow still works.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:17:44.285Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-03T01:17:44.285Z"
       },
       {
         "id": "9",
@@ -660,9 +667,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-03T01:05:47.658Z",
+      "lastModified": "2026-04-03T01:17:44.285Z",
       "taskCount": 10,
-      "completedCount": 7,
+      "completedCount": 8,
       "tags": [
         "master"
       ]

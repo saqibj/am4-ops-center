@@ -1,3 +1,4 @@
+{% from 'partials/airport_badge.html' import airport_badge_expanded %}
 <div {% if flash_err %}data-routes-error="1"{% endif %}>
     {% if flash %}
     <p class="text-emerald-400 text-sm mb-4">{{ flash }}</p>
@@ -26,8 +27,8 @@
             <tbody class="divide-y divide-gray-700">
                 {% for r in routes %}
                 <tr class="hover:bg-gray-800/80 transition-colors">
-                    <td class="px-4 py-3 font-mono text-emerald-400">{{ r.hub }}</td>
-                    <td class="px-4 py-3 font-mono">{{ r.destination }}</td>
+                    <td class="px-4 py-3">{{ airport_badge_expanded(r.hub, name=r.hub_name or '', fullname='', country=r.hub_country or '') }}</td>
+                    <td class="px-4 py-3">{{ airport_badge_expanded(r.destination, name=r.dest_name or '', fullname=r.dest_fullname or '', country=r.dest_country or '') }}</td>
                     <td class="px-4 py-3 font-mono text-gray-400">{{ r.aircraft }}</td>
                     <td class="px-4 py-3 text-right font-mono">{{ r.num_assigned }}</td>
                     <td class="px-4 py-3 text-right font-mono {% if (r.profit_per_ac_day or 0) >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">

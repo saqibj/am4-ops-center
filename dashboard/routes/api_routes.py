@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
+from html import escape as html_escape
 
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
@@ -77,6 +79,95 @@ def _contrib_order(sort_col: str) -> str:
 
 def _truthy_stopover_hide(v: str) -> bool:
     return v in ("1", "on", "true", "yes")
+
+
+_FIELD_ID_OK = re.compile(r"^[a-zA-Z][\w\-]*$")
+
+
+def _safe_field_id(field_id: str, default: str = "hub_iata") -> str:
+    fid = (field_id or default).strip()
+    return fid if _FIELD_ID_OK.fullmatch(fid) else default
+
+
+def _search_term_airports(q: str, hub_iata: str, destination_iata: str) -> str:
+    for raw in (q, hub_iata, destination_iata):
+        t = (raw or "").strip()
+        if t:
+            return t
+    return ""
+
+
+@router.get("/search/airports", response_class=HTMLResponse)
+def api_search_airports(
+    request: Request,
+    q: str = Query(""),
+    hub_iata: str = Query(""),
+    destination_iata: str = Query(""),
+    field_id: str = Query("hub_iata"),
+):
+    term = _search_term_airports(q, hub_iata, destination_iata)
+    if len(term) < 2:
+        return HTMLResponse("")
+    fid = _safe_field_id(field_id, "hub_iata")
+    ut = term.upper()
+    lt = term.lower()
+    sql = """
+        SELECT iata, icao, name, fullname, country
+        FROM airports
+        WHERE iata IS NOT NULL AND TRIM(iata) != ''
+          AND (
+            (iata IS NOT NULL AND INSTR(UPPER(iata), ?) > 0)
+            OR (icao IS NOT NULL AND TRIM(icao) != '' AND INSTR(UPPER(icao), ?) > 0)
+            OR INSTR(LOWER(COALESCE(name, '')), ?) > 0
+            OR INSTR(LOWER(COALESCE(fullname, '')), ?) > 0
+            OR INSTR(LOWER(COALESCE(country, '')), ?) > 0
+          )
+        ORDER BY iata COLLATE NOCASE
+        LIMIT 25
+    """
+    conn = get_db()
+    try:
+        rows = fetch_all(conn, sql, [ut, ut, lt, lt, lt])
+    finally:
+        conn.close()
+    return templates.TemplateResponse(
+        request,
+        "partials/search_airports_results.html",
+        {"rows": rows, "field_id": fid},
+    )
+
+
+@router.get("/search/aircraft", response_class=HTMLResponse)
+def api_search_aircraft(
+    request: Request,
+    q: str = Query(""),
+    aircraft: str = Query(""),
+    field_id: str = Query("aircraft_route"),
+):
+    term = (q or aircraft or "").strip()
+    if len(term) < 1:
+        return HTMLResponse("")
+    fid = _safe_field_id(field_id, "aircraft_route")
+    lt = term.lower()
+    sql = """
+        SELECT shortname, name, type, cost
+        FROM aircraft
+        WHERE INSTR(LOWER(shortname), ?) > 0
+           OR INSTR(LOWER(COALESCE(name, '')), ?) > 0
+           OR INSTR(LOWER(COALESCE(type, '')), ?) > 0
+        ORDER BY shortname COLLATE NOCASE
+        LIMIT 25
+    """
+    conn = get_db()
+    try:
+        rows = fetch_all(conn, sql, [lt, lt, lt])
+    finally:
+        conn.close()
+    return templates.TemplateResponse(
+        request,
+        "partials/search_aircraft_results.html",
+        {"rows": rows, "field_id": fid},
+    )
 
 
 @router.get("/hub-routes", response_class=HTMLResponse)
@@ -330,7 +421,9 @@ def api_route_destinations(request: Request, origin: str = Query("")):
         rows = fetch_all(
             conn,
             """
-            SELECT DISTINCT ad.iata AS iata
+            SELECT DISTINCT ad.iata AS iata,
+                   COALESCE(ad.name, '') AS name,
+                   COALESCE(ad.country, '') AS country
             FROM route_aircraft ra
             JOIN airports ao ON ra.origin_id = ao.id
             JOIN airports ad ON ra.dest_id = ad.id
@@ -343,7 +436,22 @@ def api_route_destinations(request: Request, origin: str = Query("")):
     finally:
         conn.close()
 
-    options = "".join(f'<option value="{d["iata"]}">{d["iata"]}</option>' for d in rows)
+    def _opt_label(d: dict) -> str:
+        iata = d["iata"]
+        nm = (d.get("name") or "").strip()
+        co = (d.get("country") or "").strip()
+        if nm and co:
+            return f"{iata} — {nm} ({co})"
+        if nm:
+            return f"{iata} — {nm}"
+        if co:
+            return f"{iata} ({co})"
+        return iata
+
+    options = "".join(
+        f'<option value="{html_escape(d["iata"])}">{html_escape(_opt_label(d))}</option>'
+        for d in rows
+    )
     return HTMLResponse(
         f"<select name='dest' class='bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white w-full max-w-xs' "
         f"hx-get='/api/route-compare' hx-trigger='change' "
@@ -920,18 +1028,20 @@ def _my_routes_rows(conn) -> list[dict]:
     return fetch_all(
         conn,
         """
-        SELECT mr.id,
-               ho.iata AS hub,
-               hd.iata AS destination,
-               ac.shortname AS aircraft,
-               mr.num_assigned,
-               mr.notes,
+        SELECT v.id,
+               v.hub,
+               v.destination,
+               v.aircraft,
+               v.hub_name,
+               v.hub_country,
+               v.dest_name,
+               v.dest_fullname,
+               v.dest_country,
+               v.num_assigned,
+               v.notes,
                best.p AS profit_per_ac_day,
                best.dkm AS distance_km
-        FROM my_routes mr
-        JOIN airports ho ON mr.origin_id = ho.id
-        JOIN airports hd ON mr.dest_id = hd.id
-        JOIN aircraft ac ON mr.aircraft_id = ac.id
+        FROM v_my_routes v
         LEFT JOIN (
             SELECT origin_id, dest_id, aircraft_id,
                    MAX(profit_per_ac_day) AS p,
@@ -939,10 +1049,10 @@ def _my_routes_rows(conn) -> list[dict]:
             FROM route_aircraft
             WHERE is_valid = 1
             GROUP BY origin_id, dest_id, aircraft_id
-        ) best ON best.origin_id = mr.origin_id
-            AND best.dest_id = mr.dest_id
-            AND best.aircraft_id = mr.aircraft_id
-        ORDER BY hub COLLATE NOCASE, destination COLLATE NOCASE, aircraft COLLATE NOCASE
+        ) best ON best.origin_id = v.origin_id
+            AND best.dest_id = v.dest_id
+            AND best.aircraft_id = v.aircraft_id
+        ORDER BY v.hub COLLATE NOCASE, v.destination COLLATE NOCASE, v.aircraft COLLATE NOCASE
         """,
     )
 

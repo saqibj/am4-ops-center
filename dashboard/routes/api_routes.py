@@ -890,9 +890,28 @@ def _my_fleet_rows(conn) -> list[dict]:
     return fetch_all(
         conn,
         """
-        SELECT id, shortname, ac_name, quantity, notes
-        FROM v_my_fleet
-        ORDER BY shortname COLLATE NOCASE
+        SELECT v.id,
+               v.aircraft_id,
+               v.shortname,
+               v.ac_name,
+               v.ac_type,
+               v.quantity,
+               v.notes,
+               COALESCE(v.cost, 0) AS unit_cost,
+               COALESCE(ass.assigned, 0) AS assigned,
+               CASE
+                   WHEN v.quantity > COALESCE(ass.assigned, 0)
+                   THEN v.quantity - COALESCE(ass.assigned, 0)
+                   ELSE 0
+               END AS free,
+               v.quantity * COALESCE(v.cost, 0) AS total_value
+        FROM v_my_fleet v
+        LEFT JOIN (
+            SELECT aircraft_id, SUM(num_assigned) AS assigned
+            FROM my_routes
+            GROUP BY aircraft_id
+        ) ass ON ass.aircraft_id = v.aircraft_id
+        ORDER BY v.shortname COLLATE NOCASE
         """,
     )
 
@@ -955,28 +974,70 @@ def api_fleet_summary(request: Request):
             row = fetch_one(
                 conn,
                 """
-                SELECT COUNT(*) AS types, COALESCE(SUM(quantity), 0) AS planes
-                FROM my_fleet
+                SELECT COUNT(*) AS types, COALESCE(SUM(mf.quantity), 0) AS planes
+                FROM my_fleet mf
                 """,
             )
             est = _airline_est_profit_from_my_routes(conn)
             rc = fetch_one(conn, "SELECT COUNT(*) AS c FROM my_routes")
             route_rows = int(rc["c"] or 0) if rc else 0
+            val_row = fetch_one(
+                conn,
+                """
+                SELECT COALESCE(SUM(mf.quantity * COALESCE(ac.cost, 0)), 0) AS fleet_value
+                FROM my_fleet mf
+                JOIN aircraft ac ON mf.aircraft_id = ac.id
+                """,
+            )
+            ag_row = fetch_one(
+                conn,
+                """
+                SELECT COALESCE(SUM(num_assigned), 0) AS assigned_total
+                FROM my_routes
+                """,
+            )
+            free_row = fetch_one(
+                conn,
+                """
+                SELECT COALESCE(SUM(
+                    CASE
+                        WHEN mf.quantity > COALESCE(ra.asg, 0)
+                        THEN mf.quantity - COALESCE(ra.asg, 0)
+                        ELSE 0
+                    END
+                ), 0) AS free_total
+                FROM my_fleet mf
+                LEFT JOIN (
+                    SELECT aircraft_id, SUM(num_assigned) AS asg
+                    FROM my_routes
+                    GROUP BY aircraft_id
+                ) ra ON ra.aircraft_id = mf.aircraft_id
+                """,
+            )
         finally:
             conn.close()
     except FileNotFoundError:
         row = {"types": 0, "planes": 0}
         est = 0.0
         route_rows = 0
+        val_row = {"fleet_value": 0}
+        ag_row = {"assigned_total": 0}
+        free_row = {"free_total": 0}
     except sqlite3.OperationalError:
         row = {"types": 0, "planes": 0}
         est = 0.0
         route_rows = 0
+        val_row = {"fleet_value": 0}
+        ag_row = {"assigned_total": 0}
+        free_row = {"free_total": 0}
     stats = {
         "types": int(row["types"] or 0) if row else 0,
         "planes": int(row["planes"] or 0) if row else 0,
         "est_profit": est,
         "route_rows": route_rows,
+        "fleet_value": float(val_row["fleet_value"] or 0) if val_row else 0.0,
+        "assigned_total": int(ag_row["assigned_total"] or 0) if ag_row else 0,
+        "free_total": int(free_row["free_total"] or 0) if free_row else 0,
     }
     return templates.TemplateResponse(
         request,
@@ -1006,18 +1067,36 @@ def api_fleet_add(
             else:
                 q = int(quantity) if quantity else 1
                 q = max(1, min(999, q))
+                prev = fetch_one(
+                    conn,
+                    "SELECT quantity FROM my_fleet WHERE aircraft_id = ?",
+                    [int(ac["id"])],
+                )
                 conn.execute(
                     """
                     INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
                     VALUES (?, ?, ?, datetime('now'))
                     ON CONFLICT(aircraft_id) DO UPDATE SET
-                        quantity = excluded.quantity,
-                        notes = COALESCE(excluded.notes, my_fleet.notes),
+                        quantity = MIN(999, my_fleet.quantity + excluded.quantity),
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_fleet.notes
+                        END,
                         updated_at = datetime('now')
                     """,
                     (int(ac["id"]), q, notes.strip() or None),
                 )
                 conn.commit()
+                after = fetch_one(
+                    conn,
+                    "SELECT quantity FROM my_fleet WHERE aircraft_id = ?",
+                    [int(ac["id"])],
+                )
+                if prev:
+                    msg = f"Merged +{q} (now {int(after['quantity']) if after else q} owned for {aircraft.strip()})."
+                else:
+                    msg = f"Added {q} × {aircraft.strip()}."
         finally:
             conn.close()
     except FileNotFoundError:
@@ -1035,9 +1114,11 @@ def api_fleet_add(
         fleets = []
 
     ctx: dict = {"fleets": fleets}
-    if msg:
+    if msg and ("Database" in msg or "Unknown" in msg or "missing" in msg):
         ctx["flash_err"] = msg
-    else:
+    elif msg:
+        ctx["flash"] = msg
+    elif not ctx.get("flash_err"):
         ctx["flash"] = "Saved fleet row."
     return templates.TemplateResponse(request, "partials/fleet_inventory.html", ctx)
 
@@ -1073,6 +1154,131 @@ def api_fleet_delete(request: Request, fleet_id: int = Form(...)):
     )
 
 
+@router.post("/fleet/{fleet_id}/buy", response_class=HTMLResponse)
+def api_fleet_buy(request: Request, fleet_id: int, add_count: int = Form(1)):
+    flash: str | None = None
+    flash_err: str | None = None
+    try:
+        conn = get_db()
+        try:
+            row = fetch_one(
+                conn,
+                "SELECT id, quantity FROM my_fleet WHERE id = ?",
+                (int(fleet_id),),
+            )
+            if not row:
+                flash_err = "Fleet row not found."
+            else:
+                add = max(1, min(999, int(add_count) if add_count else 1))
+                cur_q = int(row["quantity"] or 0)
+                new_q = min(999, cur_q + add)
+                added = new_q - cur_q
+                conn.execute(
+                    """
+                    UPDATE my_fleet
+                    SET quantity = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (new_q, int(fleet_id)),
+                )
+                conn.commit()
+                flash = f"+{added} bought (now {new_q} owned)."
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        flash_err = "Database not found."
+    except sqlite3.OperationalError as exc:
+        flash_err = str(exc)
+
+    try:
+        conn = get_db()
+        try:
+            fleets = _my_fleet_rows(conn)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        fleets = []
+    ctx: dict = {"fleets": fleets}
+    if flash_err:
+        ctx["flash_err"] = flash_err
+    elif flash:
+        ctx["flash"] = flash
+    return templates.TemplateResponse(request, "partials/fleet_inventory.html", ctx)
+
+
+@router.post("/fleet/{fleet_id}/sell", response_class=HTMLResponse)
+def api_fleet_sell(request: Request, fleet_id: int, sell_count: int = Form(1)):
+    flash: str | None = None
+    flash_err: str | None = None
+    try:
+        conn = get_db()
+        try:
+            row = fetch_one(
+                conn,
+                """
+                SELECT mf.id, mf.quantity, mf.aircraft_id
+                FROM my_fleet mf
+                WHERE mf.id = ?
+                """,
+                (int(fleet_id),),
+            )
+            if not row:
+                flash_err = "Fleet row not found."
+            else:
+                qty = int(row["quantity"] or 0)
+                aid = int(row["aircraft_id"])
+                ag = fetch_one(
+                    conn,
+                    "SELECT COALESCE(SUM(num_assigned), 0) AS s FROM my_routes WHERE aircraft_id = ?",
+                    [aid],
+                )
+                assigned = int(ag["s"] or 0) if ag else 0
+                free = max(0, qty - assigned)
+                want = max(1, int(sell_count) if sell_count else 1)
+                sell_n = min(want, free)
+                if free <= 0:
+                    flash_err = "No unassigned aircraft to sell (reduce My Routes assignments first)."
+                elif sell_n < want:
+                    flash_err = f"Only {free} unassigned; cannot sell {want}."
+                else:
+                    new_q = qty - sell_n
+                    if new_q <= 0:
+                        conn.execute("DELETE FROM my_fleet WHERE id = ?", (int(fleet_id),))
+                        flash = f"Sold all {qty}; removed type from fleet."
+                    else:
+                        conn.execute(
+                            """
+                            UPDATE my_fleet
+                            SET quantity = ?, updated_at = datetime('now')
+                            WHERE id = ?
+                            """,
+                            (new_q, int(fleet_id)),
+                        )
+                        flash = f"Sold {sell_n} (now {new_q} owned)."
+                    conn.commit()
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        flash_err = "Database not found."
+    except sqlite3.OperationalError as exc:
+        flash_err = str(exc)
+
+    try:
+        conn = get_db()
+        try:
+            fleets = _my_fleet_rows(conn)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        fleets = []
+    ctx: dict = {"fleets": fleets}
+    if flash_err:
+        ctx["flash_err"] = flash_err
+    elif flash:
+        ctx["flash"] = flash
+    return templates.TemplateResponse(request, "partials/fleet_inventory.html", ctx)
+
+
 @router.get("/fleet/json")
 def api_fleet_json() -> list[dict]:
     try:
@@ -1088,7 +1294,12 @@ def api_fleet_json() -> list[dict]:
             "id": r["id"],
             "shortname": r["shortname"],
             "ac_name": r["ac_name"],
+            "ac_type": r.get("ac_type"),
             "quantity": r["quantity"],
+            "assigned": r.get("assigned", 0),
+            "free": r.get("free", 0),
+            "unit_cost": r.get("unit_cost", 0),
+            "total_value": r.get("total_value", 0),
             "notes": r["notes"],
         }
         for r in rows

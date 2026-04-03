@@ -29,7 +29,8 @@ FastAPI page routes are defined in `dashboard/routes/pages.py` and mounted at th
 ## `my_fleet` / `my_routes` upsert semantics
 
 - **CLI CSV import** (`python main.py fleet|routes import`): default **`--merge`** adds to `quantity` / `num_assigned` on conflict (capped at 999). **`--replace`** overwrites counts from the file (same SQL as below). Implemented in `commands/airline.py`.
-- **Dashboard HTMX** (`dashboard/routes/api_routes.py`): single-row adds still **overwrite** counts on conflict (`excluded.quantity` / `excluded.num_assigned`).
+- **Dashboard HTMX — My Fleet** (`/api/fleet/add`): **merge** on duplicate aircraft (add to `quantity`, cap 999); **buy/sell** adjust quantity; sell is limited to **free** = `quantity − SUM(my_routes.num_assigned)` for that type.
+- **Dashboard HTMX — My Routes** (`/api/routes/add`): still **overwrite** `num_assigned` on conflict (Task 7 will align with merge + warnings).
 
 ## Extraction modes (CLI)
 

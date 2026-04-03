@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Hub-scoped extraction: **`refresh_single_hub`** / **`refresh_hubs`** in `extractors/routes.py` — delete and recompute **`route_aircraft`** / **`route_demands`** for selected origins only; upsert missing airports via AM4; update **`my_hubs`** extraction fields when rows exist; require existing **`aircraft`** master data (full extract if empty).
 - **CLI:** `extract --refresh-hubs --hubs …` for hub-only refresh; **`fleet import`** / **`routes import`** default to **`--merge`** (add on duplicate) with **`--replace`** to overwrite counts.
 - **Hub Manager** dashboard: **`/my-hubs`** with summary, add (single or comma-separated IATA), per-row refresh, **refresh stale**, and remove from `my_hubs` only; HTMX APIs under **`/api/hubs/*`**.
+- **My Fleet:** GUI add **merges** quantities; **`POST /api/fleet/{id}/buy`** and **`POST /api/fleet/{id}/sell`** (sell only up to **free** = owned − assigned on routes); table shows type, owned, assigned, free, unit/total value; summary adds assigned, free, fleet value.
 - **My Fleet** (`GET /my-fleet`): track fleet slots (hub, aircraft type, quantity, label) in SQLite and optionally assign slots to extracted `route_aircraft` rows; HTMX API under `/api/fleet/*` and JSON at `/api/fleet/json`.
 - Schema tables **`fleet_aircraft`** and **`fleet_route_assignment`** (see `database/schema.py` and `PRD/am4-routemine-FLEET-SPEC.md`).
 - **`CHANGELOG.md`** (this file).

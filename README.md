@@ -379,7 +379,7 @@ am4-routemine/
 | `ModuleNotFoundError: am4` | Activate venv: `source .venv/bin/activate` |
 | Segfault on import | Must call `init()` before any am4 module usage |
 | `init()` downloads data files | Normal on first run — needs internet connection once |
-| Extraction is slow | Use `--workers 1` (parallel hands on large datasets) |
+| Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |
 | SQLite locked | Close other DB connections, enable WAL mode |
 | Dashboard blank page | Check `AM4_ROUTEMINE_DB` path points to an existing `.db` file |
 | Aircraft shortname not found | Use am4 shortnames (e.g., `a342` not `A340-200`) |

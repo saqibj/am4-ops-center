@@ -2,7 +2,7 @@
 {% block title %}My Routes{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">My Routes</h2>
-<p class="text-gray-400 mb-6">Hub–destination–aircraft assignments (<code class="text-gray-500">my_routes</code>). CSV: <code class="text-gray-500">hub,destination,aircraft,num_assigned,notes</code>. Profit columns use matching extracted <code class="text-gray-500">route_aircraft</code> when available.</p>
+<p class="text-gray-400 mb-6">Hub–destination–aircraft assignments (<code class="text-gray-500">my_routes</code>). The same triple <strong class="text-gray-300">merges</strong> (adds <code class="text-gray-500">num_assigned</code>). CSV import defaults to merge; use <code class="text-gray-500">--replace</code> to overwrite. Profit uses matching <code class="text-gray-500">route_aircraft</code> when available.</p>
 
 <div id="routes-summary" class="mb-8"
      hx-get="/api/routes/summary"
@@ -10,7 +10,7 @@
 </div>
 
 <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-8">
-    <h3 class="text-lg font-semibold mb-4">Add or update row</h3>
+    <h3 class="text-lg font-semibold mb-4">Add route (merges if same hub–dest–aircraft)</h3>
     <form id="routes-add-form"
           class="flex flex-wrap gap-4 items-end"
           hx-post="/api/routes/add"
@@ -53,6 +53,20 @@
         </button>
         <span id="routes-inv-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Saving…</span>
     </form>
+    <div id="route-dup-hint"
+         class="mt-4 min-h-[0.5rem]"
+         hx-get="/api/route-exists"
+         hx-trigger="input delay:350ms from:#routes-add-form, change from:#routes-add-form"
+         hx-include="#routes-add-form"
+         hx-target="this">
+    </div>
+    <div id="route-pair-coverage"
+         class="mt-2"
+         hx-get="/api/routes/pair-coverage"
+         hx-trigger="input delay:350ms from:#routes-add-form, change from:#routes-add-form"
+         hx-include="#routes-add-form"
+         hx-target="this">
+    </div>
     <datalist id="routes-airport-list">
         {% for ap in airports %}
         <option value="{{ ap.iata }}">{{ ap.iata }} — {{ ap.name }}</option>

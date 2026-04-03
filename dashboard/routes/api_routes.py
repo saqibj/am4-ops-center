@@ -1309,6 +1309,176 @@ def api_fleet_json() -> list[dict]:
 # --- My routes (my_routes table) ---
 
 
+@router.get("/route-exists", response_class=HTMLResponse)
+def api_route_exists(
+    request: Request,
+    origin: str = Query("", description="Hub IATA (alias for hub_iata)"),
+    dest: str = Query("", description="Destination IATA (alias for destination_iata)"),
+    aircraft: str = Query(""),
+    hub_iata: str = Query(""),
+    destination_iata: str = Query(""),
+    num_assigned: int = Query(1, ge=1, le=999),
+):
+    h = (origin or hub_iata or "").strip()
+    d = (dest or destination_iata or "").strip()
+    ac = (aircraft or "").strip()
+    incomplete = not h or not d or not ac
+    if incomplete:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_exists_hint.html",
+            {"incomplete": True, "exists": False},
+        )
+    try:
+        conn = get_db()
+        try:
+            hub = fetch_one(
+                conn,
+                "SELECT id, iata FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+                [h],
+            )
+            apd = fetch_one(
+                conn,
+                "SELECT id, iata FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+                [d],
+            )
+            acr = fetch_one(
+                conn,
+                "SELECT id, shortname FROM aircraft WHERE LOWER(TRIM(shortname)) = LOWER(TRIM(?)) LIMIT 1",
+                [ac],
+            )
+            if not hub or not apd or not acr:
+                return templates.TemplateResponse(
+                    request,
+                    "partials/route_exists_hint.html",
+                    {
+                        "incomplete": False,
+                        "lookup_failed": True,
+                        "exists": False,
+                        "hub": h,
+                        "dest": d,
+                        "aircraft": ac,
+                    },
+                )
+            row = fetch_one(
+                conn,
+                """
+                SELECT num_assigned FROM my_routes
+                WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                """,
+                [int(hub["id"]), int(apd["id"]), int(acr["id"])],
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_exists_hint.html",
+            {"incomplete": True, "exists": False},
+        )
+    except sqlite3.OperationalError:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_exists_hint.html",
+            {"incomplete": True, "exists": False},
+        )
+
+    add_n = max(1, min(999, int(num_assigned or 1)))
+    if not row:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_exists_hint.html",
+            {
+                "incomplete": False,
+                "exists": False,
+                "hub": h,
+                "dest": d,
+                "aircraft": acr.get("shortname") or ac,
+            },
+        )
+    cur = int(row["num_assigned"] or 0)
+    return templates.TemplateResponse(
+        request,
+        "partials/route_exists_hint.html",
+        {
+            "incomplete": False,
+            "exists": True,
+            "hub": hub.get("iata") or h,
+            "dest": apd.get("iata") or d,
+            "aircraft": acr.get("shortname") or ac,
+            "current": cur,
+            "adding": add_n,
+        },
+    )
+
+
+@router.get("/routes/pair-coverage", response_class=HTMLResponse)
+def api_routes_pair_coverage(
+    request: Request,
+    hub_iata: str = Query(""),
+    destination_iata: str = Query(""),
+):
+    hub = hub_iata.strip().upper()
+    dest = destination_iata.strip().upper()
+    my_rows: list[dict] = []
+    extract_rows: list[dict] = []
+    if not hub or not dest:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_pair_coverage.html",
+            {"hub": hub, "dest": dest, "my_rows": [], "extract_rows": []},
+        )
+    try:
+        conn = get_db()
+        try:
+            my_rows = fetch_all(
+                conn,
+                """
+                SELECT ac.shortname AS aircraft, mr.num_assigned, mr.notes
+                FROM my_routes mr
+                JOIN airports ho ON mr.origin_id = ho.id
+                JOIN airports hd ON mr.dest_id = hd.id
+                JOIN aircraft ac ON mr.aircraft_id = ac.id
+                WHERE UPPER(TRIM(ho.iata)) = UPPER(?) AND UPPER(TRIM(hd.iata)) = UPPER(?)
+                ORDER BY ac.shortname COLLATE NOCASE
+                """,
+                [hub, dest],
+            )
+            extract_rows = fetch_all(
+                conn,
+                """
+                SELECT ac.shortname, MAX(ra.profit_per_ac_day) AS profit_per_ac_day
+                FROM route_aircraft ra
+                JOIN airports a_orig ON ra.origin_id = a_orig.id
+                JOIN airports a_dest ON ra.dest_id = a_dest.id
+                JOIN aircraft ac ON ra.aircraft_id = ac.id
+                WHERE ra.is_valid = 1
+                  AND UPPER(TRIM(a_orig.iata)) = UPPER(?)
+                  AND UPPER(TRIM(a_dest.iata)) = UPPER(?)
+                GROUP BY ra.aircraft_id
+                ORDER BY profit_per_ac_day DESC
+                LIMIT 8
+                """,
+                [hub, dest],
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        pass
+    except sqlite3.OperationalError:
+        pass
+    return templates.TemplateResponse(
+        request,
+        "partials/route_pair_coverage.html",
+        {
+            "hub": hub,
+            "dest": dest,
+            "my_rows": my_rows,
+            "extract_rows": extract_rows,
+        },
+    )
+
+
 @router.get("/routes/inventory", response_class=HTMLResponse)
 def api_routes_inventory(request: Request):
     try:
@@ -1398,13 +1568,25 @@ def api_routes_add(
             else:
                 n = int(num_assigned) if num_assigned else 1
                 n = max(1, min(999, n))
+                prev = fetch_one(
+                    conn,
+                    """
+                    SELECT num_assigned FROM my_routes
+                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                    """,
+                    [int(hub["id"]), int(dest["id"]), int(ac["id"])],
+                )
                 conn.execute(
                     """
                     INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
                     VALUES (?, ?, ?, ?, ?, datetime('now'))
                     ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
-                        num_assigned = excluded.num_assigned,
-                        notes = COALESCE(excluded.notes, my_routes.notes),
+                        num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_routes.notes
+                        END,
                         updated_at = datetime('now')
                     """,
                     (
@@ -1416,6 +1598,24 @@ def api_routes_add(
                     ),
                 )
                 conn.commit()
+                after = fetch_one(
+                    conn,
+                    """
+                    SELECT num_assigned FROM my_routes
+                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                    """,
+                    [int(hub["id"]), int(dest["id"]), int(ac["id"])],
+                )
+                if prev:
+                    msg = (
+                        f"Merged +{n} (now {int(after['num_assigned']) if after else n} assigned for "
+                        f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()} / {aircraft.strip()})."
+                    )
+                else:
+                    msg = (
+                        f"Added {n} × {aircraft.strip()} on "
+                        f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()}."
+                    )
         finally:
             conn.close()
     except FileNotFoundError:
@@ -1433,9 +1633,11 @@ def api_routes_add(
         routes = []
 
     ctx: dict = {"routes": routes}
-    if msg:
+    if msg and ("Unknown" in msg or "Database" in msg or "missing" in msg):
         ctx["flash_err"] = msg
-    else:
+    elif msg:
+        ctx["flash"] = msg
+    elif not ctx.get("flash_err"):
         ctx["flash"] = "Saved route assignment."
     return templates.TemplateResponse(request, "partials/my_routes_inventory.html", ctx)
 

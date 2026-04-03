@@ -414,7 +414,7 @@
         "title": "Implement route duplicate detection and merge-by-default",
         "description": "Make my_routes additive by default in both CLI and GUI and add duplicate detection UX.",
         "details": "Update route import and route add flows to increment num_assigned on duplicates by default rather than overwriting. Add a route-exists endpoint and inline warning/coverage hints on the My Routes page.",
-        "status": "pending",
+        "status": "done",
         "priority": "high",
         "dependencies": [
           "4"
@@ -426,52 +426,58 @@
             "title": "Switch routes import default to merge",
             "description": "Change CLI route import behavior from overwrite to additive by default.",
             "details": "Existing num_assigned should increment by imported count in merge mode, with explicit replace mode still supported.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Import duplicate route rows into a test DB and verify counts add.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:05:47.625Z"
           },
           {
             "id": 2,
             "title": "Switch GUI route add default to additive",
             "description": "Change /api/routes/add behavior.",
             "details": "If the route already exists by origin_id, dest_id, and aircraft_id, increment num_assigned instead of overwriting it. Return clear flash messaging.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Use My Routes page to add the same route twice.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:05:47.633Z"
           },
           {
             "id": 3,
             "title": "Add route-exists endpoint",
             "description": "Implement duplicate-check API for routes.",
             "details": "Add GET /api/route-exists?origin=&dest=&aircraft= to return existing route match data for the current form selection.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Call endpoint with existing and non-existing route combinations.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:05:47.640Z"
           },
           {
             "id": 4,
             "title": "Add duplicate warning UI",
             "description": "Show inline warning before merge.",
             "details": "Display route details and current assigned count, e.g. 'This route already exists (KHI → LHR with A340-200, 2 assigned). Add more aircraft to it?'",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Pick an existing route combination in the form and verify the warning appears.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:05:47.647Z"
           },
           {
             "id": 5,
             "title": "Show pair coverage hint",
             "description": "Surface current route coverage for selected hub-destination pair.",
             "details": "When hub and destination are selected, show which aircraft already serve that pair. Optionally show profitable alternatives if easy to implement safely.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Select a hub and destination known to have existing routes.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:05:47.658Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-03T01:05:47.658Z"
       },
       {
         "id": "8",
@@ -654,9 +660,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-03T01:01:36.201Z",
+      "lastModified": "2026-04-03T01:05:47.658Z",
       "taskCount": 10,
-      "completedCount": 6,
+      "completedCount": 7,
       "tags": [
         "master"
       ]

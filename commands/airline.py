@@ -6,6 +6,7 @@ import csv
 import sys
 from pathlib import Path
 
+from commands.fleet_recommend import fleet_recommend_rows
 from database.schema import create_schema, get_connection
 
 
@@ -246,30 +247,13 @@ def routes_export(db_path: str, output_path: str) -> None:
 
 def recommend(db_path: str, hub: str, budget: int, top_n: int) -> None:
     conn = get_connection(db_path)
-    hub_row = conn.execute(
-        "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
-        [hub],
-    ).fetchone()
-    if not hub_row:
+    try:
+        rows, err = fleet_recommend_rows(conn, hub, int(budget), int(top_n))
+    finally:
+        conn.close()
+    if err == "unknown_hub":
         print(f"Unknown hub IATA: {hub}", file=sys.stderr)
         sys.exit(2)
-    origin_id = int(hub_row[0])
-    rows = conn.execute(
-        """
-        SELECT ac.shortname, ac.name, ac.type, ac.cost,
-               COUNT(*) AS routes,
-               AVG(ra.profit_per_ac_day) AS avg_daily_profit,
-               MAX(ra.profit_per_ac_day) AS best_daily_profit
-        FROM route_aircraft ra
-        JOIN aircraft ac ON ra.aircraft_id = ac.id
-        WHERE ra.is_valid = 1 AND ra.origin_id = ? AND ac.cost <= ?
-        GROUP BY ra.aircraft_id
-        ORDER BY avg_daily_profit DESC
-        LIMIT ?
-        """,
-        (origin_id, int(budget), int(top_n)),
-    ).fetchall()
-    conn.close()
     if not rows:
         print("No aircraft match this hub and budget (or no extraction data).")
         return
@@ -277,9 +261,11 @@ def recommend(db_path: str, hub: str, budget: int, top_n: int) -> None:
         "shortname\tname\ttype\tcost\troutes\tavg_profit_day\tbest_profit_day\tdays_breakeven"
     )
     for r in rows:
-        avg = float(r[5] or 0)
-        cost = int(r[3] or 0)
-        be = round(cost / avg, 1) if avg > 0 and cost > 0 else ""
+        avg = float(r.get("avg_daily_profit") or 0)
+        cost = int(r.get("cost") or 0)
+        be = r.get("days_to_breakeven")
+        be_out = "" if be is None else be
         print(
-            f"{r[0]}\t{r[1]}\t{r[2]}\t{cost}\t{r[4]}\t{round(avg, 2)}\t{round(float(r[6] or 0), 2)}\t{be}"
+            f"{r['shortname']}\t{r['name']}\t{r['type']}\t{cost}\t{r['routes']}\t"
+            f"{round(avg, 2)}\t{round(float(r.get('best_daily_profit') or 0), 2)}\t{be_out}"
         )

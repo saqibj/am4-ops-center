@@ -10,6 +10,7 @@ from html import escape as html_escape
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
+from commands.fleet_recommend import fleet_recommend_rows
 from config import UserConfig
 from dashboard.db import DB_PATH, fetch_all, fetch_one, get_db
 from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
@@ -548,34 +549,12 @@ def api_fleet_plan(
 
     conn = get_db()
     try:
-        hub_row = fetch_one(
-            conn,
-            "SELECT id FROM airports WHERE UPPER(iata) = UPPER(?) LIMIT 1",
-            [hub.strip()],
-        )
-        if not hub_row:
-            return HTMLResponse("<p class='text-amber-400'>Unknown hub.</p>")
-        origin_id = hub_row["id"]
-        sql = """
-            SELECT ac.shortname, ac.name, ac.type, ac.cost,
-                   COUNT(*) AS routes,
-                   AVG(ra.profit_per_ac_day) AS avg_daily_profit,
-                   MAX(ra.profit_per_ac_day) AS best_daily_profit
-            FROM route_aircraft ra
-            JOIN aircraft ac ON ra.aircraft_id = ac.id
-            WHERE ra.is_valid = 1 AND ra.origin_id = ? AND ac.cost <= ?
-            GROUP BY ra.aircraft_id
-            ORDER BY avg_daily_profit DESC
-            LIMIT ?
-        """
-        rows = fetch_all(conn, sql, [origin_id, int(budget), top_n])
+        rows, err = fleet_recommend_rows(conn, hub.strip(), int(budget), int(top_n))
     finally:
         conn.close()
 
-    for r in rows:
-        avg = float(r["avg_daily_profit"] or 0)
-        cost = int(r["cost"] or 0)
-        r["days_to_breakeven"] = round(cost / avg, 1) if avg > 0 and cost > 0 else None
+    if err == "unknown_hub":
+        return HTMLResponse("<p class='text-amber-400'>Unknown hub.</p>")
 
     return templates.TemplateResponse(
         request,

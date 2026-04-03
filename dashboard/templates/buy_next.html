@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Buy Next{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Buy next</h2>
+<p class="text-gray-400 mb-4">Aircraft you can afford at this hub, ranked by <strong class="text-gray-300">average daily profit</strong> across extracted routes. Same engine as <a href="/fleet-planner" class="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">Fleet Planner</a> and <code class="text-gray-500">python main.py recommend</code>.</p>
+<p class="text-gray-500 text-sm mb-6">Uses saved <code class="text-gray-600">route_aircraft</code> data only. Refresh hubs or re-extract if numbers feel stale. <strong class="text-gray-400">MVP:</strong> does not hide aircraft you already own in <code class="text-gray-600">my_fleet</code> (see roadmap in PRD).</p>
+
+<form id="buy-next-filters" class="flex flex-wrap gap-4 mb-6 items-end">
+    <div>
+        <label class="block text-xs text-gray-400 mb-1">Hub</label>
+        <select name="hub"
+                hx-get="/api/fleet-plan"
+                hx-target="#buy-next-results"
+                hx-include="#buy-next-filters"
+                hx-indicator="#buy-next-spinner"
+                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white min-w-[8rem] font-mono">
+            <option value="">Select…</option>
+            {% for h in hubs %}
+            <option value="{{ h }}">{{ h }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-gray-400 mb-1">Budget ($)</label>
+        <input type="number" name="budget" value="200000000" step="1000000" min="0"
+               hx-get="/api/fleet-plan"
+               hx-target="#buy-next-results"
+               hx-trigger="change delay:400ms"
+               hx-include="#buy-next-filters"
+               hx-indicator="#buy-next-spinner"
+               class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white w-44 font-mono">
+    </div>
+    <div>
+        <label class="block text-xs text-gray-400 mb-1">Top N</label>
+        <select name="top_n"
+                hx-get="/api/fleet-plan"
+                hx-target="#buy-next-results"
+                hx-include="#buy-next-filters"
+                hx-indicator="#buy-next-spinner"
+                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white">
+            {% for n in [5, 10, 15, 25, 50] %}
+            <option value="{{ n }}" {% if n == 15 %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <span id="buy-next-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Loading…</span>
+</form>
+
+<div id="buy-next-results">
+    <p class="text-gray-400">Select a hub to see candidates within budget.</p>
+</div>
+{% endblock %}

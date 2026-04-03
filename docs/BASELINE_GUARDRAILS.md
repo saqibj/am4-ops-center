@@ -18,13 +18,14 @@ FastAPI page routes are defined in `dashboard/routes/pages.py` and mounted at th
 | `/aircraft` | `page_aircraft` | Aircraft |
 | `/route-analyzer` | `page_route_analyzer` | Route Analyzer |
 | `/fleet-planner` | `page_fleet_planner` | Fleet Planner |
+| `/buy-next` | `page_buy_next` | Buy Next |
 | `/my-fleet` | `page_my_fleet` | My Fleet |
 | `/my-routes` | `page_my_routes` | My Routes |
 | `/my-hubs` | `page_my_hubs` | Hub Manager |
 | `/contributions` | `page_contributions` | Contributions |
 | `/heatmap` | `page_heatmap` | Heatmap |
 
-**There is no `/buy-next` dashboard route.** Budget-based aircraft suggestions are available via **`python main.py recommend`** (CLI) and the **Fleet Planner** page (`/fleet-planner`). `README.md` matches the routed UI.
+**Buy Next** (`/buy-next`) uses **`GET /api/fleet-plan`** (same SQL as **`python main.py recommend`** via `commands.fleet_recommend.fleet_recommend_rows`). MVP does not filter by **`my_fleet`** ownership.
 
 ## `my_fleet` / `my_routes` upsert semantics
 

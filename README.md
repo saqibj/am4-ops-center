@@ -16,7 +16,7 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 
 ## 📸 Screenshots
 
-> Screenshots coming soon. The dashboard has **10** pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, My Fleet, My Routes, Hub Manager, Contributions, and Heatmap.
+> Screenshots coming soon. The dashboard has **11** pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, Buy Next, My Fleet, My Routes, Hub Manager, Contributions, and Heatmap.
 
 ---
 
@@ -28,9 +28,9 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 - **3,900+ airports** — complete airport database with runway, market tier, hub costs
 - **SQLite storage** — 3.8M+ route rows queryable offline
 - **FastAPI dashboard** — dark-mode web UI with Tailwind CSS + HTMX (no page reloads)
-- **10 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, My Fleet, My Routes, **Hub Manager** (managed hubs, per-hub / stale refresh), Contributions, Heatmap
+- **11 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, **Buy Next** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Hub Manager** (managed hubs, per-hub / stale refresh), Contributions, Heatmap
 - **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; CSV import defaults to **merge**; **`--replace`** overwrites counts; dashboard forms match the same semantics
-- **CLI `recommend`** — budget-ranked aircraft suggestions from extracted routes (see also **Fleet Planner** in the UI)
+- **CLI `recommend`** / **Buy Next** (`/buy-next`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**)
 - **CSV/Excel export** — dump tables for spreadsheet analysis
 - **Fully offline** — after initial setup, no internet needed
 
@@ -298,6 +298,7 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 | Aircraft | `/aircraft` | Aircraft list and comparison against extracted routes |
 | Route Analyzer | `/route-analyzer` | All aircraft ranked for a specific origin → destination |
 | Fleet Planner | `/fleet-planner` | Budget-based aircraft / route suggestions |
+| Buy Next | `/buy-next` | Same ranking as Fleet Planner / `recommend`; dedicated “next purchase” entry (MVP: no `my_fleet` hide-owned yet) |
 | My Fleet | `/my-fleet` | `my_fleet` table: quantities, assigned vs free, buy/sell, CSV |
 | My Routes | `/my-routes` | `my_routes` assignments, merge on add, duplicate hints |
 | Hub Manager | `/my-hubs` | Managed hubs (`my_hubs`): add IATA, per-hub refresh, **stale** refresh (OK extract older than 7 days), remove |

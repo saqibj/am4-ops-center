@@ -12,6 +12,27 @@ from dashboard.server import templates
 router = APIRouter(tags=["pages"])
 
 
+def _origin_hub_iatas_for_fleet_plan() -> list[str]:
+    """Distinct origin IATA codes present in extracted route_aircraft (valid rows)."""
+    try:
+        conn = get_db()
+        try:
+            hubs = fetch_all(
+                conn,
+                """
+                SELECT DISTINCT a.iata AS iata FROM route_aircraft ra
+                JOIN airports a ON ra.origin_id = a.id
+                WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
+                ORDER BY a.iata
+                """,
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return []
+    return [h["iata"] for h in hubs]
+
+
 def _hubs_with_names() -> list[dict]:
     try:
         conn = get_db()
@@ -148,25 +169,16 @@ def page_route_analyzer(request: Request):
 
 @router.get("/fleet-planner", response_class=HTMLResponse)
 def page_fleet_planner(request: Request):
-    try:
-        conn = get_db()
-        try:
-            hubs = fetch_all(
-                conn,
-                """
-                SELECT DISTINCT a.iata AS iata FROM route_aircraft ra
-                JOIN airports a ON ra.origin_id = a.id
-                WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
-                ORDER BY a.iata
-                """,
-            )
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        hubs = []
     ctx = base_context(request)
-    ctx.update({"hubs": [h["iata"] for h in hubs]})
+    ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
     return templates.TemplateResponse(request, "fleet_planner.html", ctx)
+
+
+@router.get("/buy-next", response_class=HTMLResponse)
+def page_buy_next(request: Request):
+    ctx = base_context(request)
+    ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
+    return templates.TemplateResponse(request, "buy_next.html", ctx)
 
 
 @router.get("/my-fleet", response_class=HTMLResponse)

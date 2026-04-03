@@ -24,6 +24,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `python main.py dashboard` now serves **uvicorn** on **`0.0.0.0:8000`** by default (was Streamlit on port **8501**). New flag **`--host`**.
 - **`v_best_routes`** view is recreated on schema apply and includes **`income_per_ac_day`** (see `database/schema.py`).
 - **README** updated for the new stack, PRD paths, dashboard routes, and `AM4_ROUTEMINE_DB`.
+- **README** (task 10): **10** dashboard pages including **Hub Manager**; removed nonexistent **Buy Next** page; documented **`extract --refresh-hubs`**, **merge vs replace** imports, **`recommend`** CLI, **`--workers`** default **4**, and **`requirements.txt` / `pyproject.toml`** alignment for **`am4`** (`saqibj/am4` **`msvc-fix`**).
+- **`pyproject.toml`**: **`am4`** dependency URL aligned with **`requirements.txt`**.
 
 ### Removed
 

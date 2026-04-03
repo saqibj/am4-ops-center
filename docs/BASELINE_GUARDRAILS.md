@@ -24,7 +24,7 @@ FastAPI page routes are defined in `dashboard/routes/pages.py` and mounted at th
 | `/contributions` | `page_contributions` | Contributions |
 | `/heatmap` | `page_heatmap` | Heatmap |
 
-**There is no `/buy-next` route or handler** in the application. `README.md` still lists Buy Next at `/buy-next`; treat that as documentation ahead of implementation until a page exists.
+**There is no `/buy-next` dashboard route.** Budget-based aircraft suggestions are available via **`python main.py recommend`** (CLI) and the **Fleet Planner** page (`/fleet-planner`). `README.md` matches the routed UI.
 
 ## `my_fleet` / `my_routes` upsert semantics
 

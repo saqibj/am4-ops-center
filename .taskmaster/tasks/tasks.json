@@ -615,7 +615,7 @@
         "title": "Clean up README and dependency consistency",
         "description": "Make docs and packaging reflect the real app and its new behavior.",
         "details": "Update README.md, help text, and dependency references so the documented pages and commands match the real routed UI and CLI. Remove or correct Buy Next references unless implemented. Clarify full rebuild versus hub refresh and merge versus replace semantics for fleet and routes import. Reconcile requirements.txt and pyproject.toml dependency source differences or explicitly document why they differ.",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [
           "5",
@@ -631,49 +631,54 @@
             "title": "Fix dashboard page list and feature claims",
             "description": "Align README with actual routed UI.",
             "details": "Remove false Buy Next page claims unless the page is actually implemented. Add Hub Manager if implemented. Ensure page count and descriptions are accurate.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Cross-check README against pages.py and base.html.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:26:07.912Z"
           },
           {
             "id": 2,
             "title": "Document extraction modes",
             "description": "Clarify full rebuild and hub refresh behavior.",
             "details": "Explain when to use full rebuild versus selected-hub refresh, including command examples.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Follow README examples against the CLI.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:26:07.920Z"
           },
           {
             "id": 3,
             "title": "Document import semantics",
             "description": "Clarify merge versus replace for fleet and route import.",
             "details": "Explain that merge is default and replace is explicit, with CLI examples and expected behavior.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Compare documentation to actual CLI help output.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:26:07.928Z"
           },
           {
             "id": 4,
             "title": "Resolve or explain dependency source mismatch",
             "description": "Make requirements and pyproject consistent enough for users.",
             "details": "Either align the AM4 dependency source across requirements.txt and pyproject.toml or explicitly explain why they differ and which path users should trust.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Review install instructions and package metadata for consistency.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:26:07.939Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-03T01:26:07.939Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-03T01:21:55.352Z",
+      "lastModified": "2026-04-03T01:26:07.939Z",
       "taskCount": 10,
-      "completedCount": 9,
+      "completedCount": 10,
       "tags": [
         "master"
       ]

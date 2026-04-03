@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **`my_hubs`** managed-hubs table, **`idx_my_hubs_airport`**, and **`v_my_hubs`** view; **`v_my_routes`** / **`v_best_routes`** expose **`hub_name`**, **`hub_country`**, **`dest_name`**, **`dest_fullname`** (and **`dest_country`** on `v_my_routes`; `v_best_routes` keeps existing **`dest_country`**).
 - **My Fleet** (`GET /my-fleet`): track fleet slots (hub, aircraft type, quantity, label) in SQLite and optionally assign slots to extracted `route_aircraft` rows; HTMX API under `/api/fleet/*` and JSON at `/api/fleet/json`.
 - Schema tables **`fleet_aircraft`** and **`fleet_route_assignment`** (see `database/schema.py` and `PRD/am4-routemine-FLEET-SPEC.md`).
 - **`CHANGELOG.md`** (this file).

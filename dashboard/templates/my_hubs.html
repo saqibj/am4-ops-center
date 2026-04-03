@@ -41,12 +41,13 @@
           hx-target="#hub-inventory"
           hx-swap="innerHTML"
           hx-indicator="#hub-inv-spinner"
-          hx-confirm="Refresh all hubs that are not in OK status?"
+          hx-confirm="Refresh only hubs whose last OK extract is older than {{ stale_after_days }} days? (Errors and never-extracted hubs use per-row Refresh.)"
           hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' })">
         <button type="submit" class="bg-amber-600/90 hover:bg-amber-500 text-white rounded-md px-4 py-2 text-sm font-medium">
             Refresh stale hubs
         </button>
     </form>
+    <p class="text-gray-500 text-xs w-full sm:w-auto sm:ml-2">Stale = status OK but last extract &gt; {{ stale_after_days }} days ago (UTC).</p>
 </div>
 
 <div id="hub-inventory"

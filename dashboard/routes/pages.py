@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from dashboard.db import base_context, fetch_all, get_db
+from dashboard.hub_freshness import STALE_AFTER_DAYS
 from dashboard.server import templates
 
 router = APIRouter(tags=["pages"])
@@ -208,6 +209,7 @@ def _airports_with_iata() -> list[dict]:
 @router.get("/my-hubs", response_class=HTMLResponse)
 def page_my_hubs(request: Request):
     ctx = base_context(request)
+    ctx["stale_after_days"] = STALE_AFTER_DAYS
     return templates.TemplateResponse(request, "my_hubs.html", ctx)
 
 

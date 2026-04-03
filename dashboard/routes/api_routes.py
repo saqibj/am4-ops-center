@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 
 from config import UserConfig
 from dashboard.db import DB_PATH, fetch_all, fetch_one, get_db
+from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
 from dashboard.server import templates
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -1862,7 +1863,11 @@ def _hub_inventory_response(
     except sqlite3.OperationalError as exc:
         hubs = []
         flash_err = flash_err or f"Database or view missing: {exc}"
-    ctx: dict = {"hubs": hubs}
+    for h in hubs:
+        h["display_status"] = hub_display_status(
+            h.get("last_extract_status"), h.get("last_extracted_at")
+        )
+    ctx: dict = {"hubs": hubs, "stale_after_days": STALE_AFTER_DAYS}
     if flash:
         ctx["flash"] = flash
     if flash_err:
@@ -1881,36 +1886,64 @@ def api_hubs_summary(request: Request):
         conn = get_db()
         try:
             _hubs_ensure_schema(conn)
+            d = STALE_AFTER_DAYS
             row = fetch_one(
                 conn,
-                """
+                f"""
                 SELECT COUNT(*) AS total,
                        SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active,
-                       SUM(CASE WHEN last_extract_status = 'ok' THEN 1 ELSE 0 END) AS status_ok
+                       SUM(CASE
+                         WHEN last_extract_status = 'ok' AND NOT (
+                           last_extracted_at IS NOT NULL
+                           AND TRIM(last_extracted_at) != ''
+                           AND datetime(last_extracted_at) IS NOT NULL
+                           AND datetime(last_extracted_at) < datetime('now', '-{d} days')
+                         ) THEN 1 ELSE 0
+                       END) AS fresh_ok,
+                       SUM(CASE
+                         WHEN last_extract_status = 'ok'
+                          AND last_extracted_at IS NOT NULL
+                          AND TRIM(last_extracted_at) != ''
+                          AND datetime(last_extracted_at) IS NOT NULL
+                          AND datetime(last_extracted_at) < datetime('now', '-{d} days')
+                         THEN 1 ELSE 0
+                       END) AS stale_n,
+                       SUM(CASE
+                         WHEN last_extract_status = 'error' THEN 1
+                         WHEN last_extract_status = 'running' THEN 1
+                         WHEN last_extract_status IS NULL
+                           OR TRIM(COALESCE(last_extract_status, '')) = '' THEN 1
+                         WHEN last_extract_status NOT IN ('ok', 'error', 'running') THEN 1
+                         ELSE 0
+                       END) AS other_n
                 FROM my_hubs
-                """,
-            )
-            bad = fetch_one(
-                conn,
-                """
-                SELECT COUNT(*) AS c FROM my_hubs
-                WHERE last_extract_status IS NULL
-                   OR last_extract_status != 'ok'
                 """,
             )
         finally:
             conn.close()
     except FileNotFoundError:
-        row = {"total": 0, "active": 0, "status_ok": 0}
-        bad = {"c": 0}
+        row = {
+            "total": 0,
+            "active": 0,
+            "fresh_ok": 0,
+            "stale_n": 0,
+            "other_n": 0,
+        }
     except sqlite3.OperationalError:
-        row = {"total": 0, "active": 0, "status_ok": 0}
-        bad = {"c": 0}
+        row = {
+            "total": 0,
+            "active": 0,
+            "fresh_ok": 0,
+            "stale_n": 0,
+            "other_n": 0,
+        }
     stats = {
         "total": int(row["total"] or 0) if row else 0,
         "active": int(row["active"] or 0) if row else 0,
-        "status_ok": int(row["status_ok"] or 0) if row else 0,
-        "status_bad": int(bad["c"] or 0) if bad else 0,
+        "fresh_ok": int(row["fresh_ok"] or 0) if row else 0,
+        "stale_n": int(row["stale_n"] or 0) if row else 0,
+        "other_n": int(row["other_n"] or 0) if row else 0,
+        "stale_after_days": STALE_AFTER_DAYS,
     }
     return templates.TemplateResponse(request, "partials/hub_summary.html", {"stats": stats})
 
@@ -2011,16 +2044,20 @@ def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
 @router.post("/hubs/refresh-stale", response_class=HTMLResponse)
 def api_hubs_refresh_stale(request: Request):
     stale: list[dict] = []
+    d = STALE_AFTER_DAYS
     try:
         conn = get_db()
         try:
             _hubs_ensure_schema(conn)
             stale = fetch_all(
                 conn,
-                """
+                f"""
                 SELECT id, iata FROM v_my_hubs
-                WHERE last_extract_status IS NULL
-                   OR last_extract_status != 'ok'
+                WHERE last_extract_status = 'ok'
+                  AND last_extracted_at IS NOT NULL
+                  AND TRIM(last_extracted_at) != ''
+                  AND datetime(last_extracted_at) IS NOT NULL
+                  AND datetime(last_extracted_at) < datetime('now', '-{d} days')
                 ORDER BY iata COLLATE NOCASE
                 """,
             )
@@ -2032,7 +2069,10 @@ def api_hubs_refresh_stale(request: Request):
         return _hub_inventory_response(request, flash_err=str(exc))
 
     if not stale:
-        return _hub_inventory_response(request, flash="No stale hubs (all OK).")
+        return _hub_inventory_response(
+            request,
+            flash=f"No stale hubs (all OK extracts within {d} days, or use per-hub Refresh for errors).",
+        )
 
     _am4_init()
     from extractors.routes import refresh_single_hub
@@ -2052,7 +2092,7 @@ def api_hubs_refresh_stale(request: Request):
         except Exception as exc:
             errors.append(f"{code}: {str(exc)[:200]}")
 
-    msg = f"Refreshed {ok_n} hub(s)."
+    msg = f"Refreshed {ok_n} stale hub(s) (extract older than {d} days)."
     if errors:
         msg += "\n" + "\n".join(errors)
         return _hub_inventory_response(request, flash_err=msg)

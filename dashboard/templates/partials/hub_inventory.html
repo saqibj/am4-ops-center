@@ -29,12 +29,16 @@
                     <td class="px-4 py-3 font-mono font-medium text-emerald-400">{{ h.iata or '—' }}</td>
                     <td class="px-4 py-3 text-gray-400 max-w-[12rem] truncate" title="{{ h.fullname or h.name or '' }}">{{ h.name or '—' }}</td>
                     <td class="px-4 py-3">
-                        {% if h.last_extract_status == 'ok' %}
+                        {% if h.display_status == 'ok' %}
                         <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/60 text-emerald-300">ok</span>
-                        {% elif h.last_extract_status == 'running' %}
+                        {% elif h.display_status == 'stale' %}
+                        <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-orange-900/50 text-orange-200" title="Last OK extract is older than {{ stale_after_days }} days">stale</span>
+                        {% elif h.display_status == 'running' %}
                         <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-900/60 text-amber-200">running</span>
-                        {% elif h.last_extract_status == 'error' %}
+                        {% elif h.display_status == 'error' %}
                         <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-red-900/60 text-red-300" title="{{ h.last_extract_error or '' }}">error</span>
+                        {% elif h.display_status == 'never' %}
+                        <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-400" title="No completed extract yet">never</span>
                         {% else %}
                         <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-400">—</span>
                         {% endif %}

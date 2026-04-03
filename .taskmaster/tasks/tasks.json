@@ -567,7 +567,7 @@
         "title": "Implement hub freshness and status rules",
         "description": "Add deterministic freshness and status handling for managed hubs.",
         "details": "Support statuses like never, running, ok, error, and stale in the Hub Manager. Compute stale using last_extracted_at with a default threshold of 7 days. Expose status cleanly in the UI and wire refresh-stale behavior to the managed hubs data.",
-        "status": "pending",
+        "status": "done",
         "priority": "medium",
         "dependencies": [
           "5"
@@ -579,32 +579,36 @@
             "title": "Define status transitions",
             "description": "Standardize how hub status changes during refresh lifecycle.",
             "details": "Use never before any successful run, running during refresh, ok on success, error on failure, and stale when timestamp exceeds threshold.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Trace a refresh lifecycle and inspect stored statuses.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:21:55.337Z"
           },
           {
             "id": 2,
             "title": "Implement stale threshold",
             "description": "Mark old hubs stale using last_extracted_at.",
             "details": "Default to 7 days and keep the logic simple and deterministic.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Create test timestamps older and newer than threshold.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:21:55.342Z"
           },
           {
             "id": 3,
             "title": "Wire refresh-stale flow",
             "description": "Make refresh-stale act only on stale managed hubs.",
             "details": "Use Hub Manager API and status logic to select stale hubs and refresh only those.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Trigger refresh-stale and verify only stale hubs are refreshed.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T01:21:55.351Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-03T01:21:55.351Z"
       },
       {
         "id": "10",
@@ -667,9 +671,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-03T01:17:44.285Z",
+      "lastModified": "2026-04-03T01:21:55.352Z",
       "taskCount": 10,
-      "completedCount": 8,
+      "completedCount": 9,
       "tags": [
         "master"
       ]

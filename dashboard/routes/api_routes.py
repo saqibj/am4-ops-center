@@ -718,22 +718,22 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
     payload = json.dumps(markers)
     html = f"""
 <div class="rounded-lg border border-gray-700 overflow-hidden">
-  <div id="routemine-leaflet-map" class="h-[600px] w-full bg-gray-800"></div>
+  <div id="ops-center-leaflet-map" class="h-[600px] w-full bg-gray-800"></div>
 </div>
-<script type="application/json" id="routemine-leaflet-data">{payload}</script>
+<script type="application/json" id="ops-center-leaflet-data">{payload}</script>
 <script>
 (function() {{
-  const el = document.getElementById("routemine-leaflet-map");
-  const raw = document.getElementById("routemine-leaflet-data");
+  const el = document.getElementById("ops-center-leaflet-map");
+  const raw = document.getElementById("ops-center-leaflet-data");
   if (!el || !raw) return;
   const markers = JSON.parse(raw.textContent);
-  if (window.__routemineMap) {{
-    try {{ window.__routemineMap.remove(); }} catch (e) {{}}
-    window.__routemineMap = null;
+  if (window.__opsCenterMap) {{
+    try {{ window.__opsCenterMap.remove(); }} catch (e) {{}}
+    window.__opsCenterMap = null;
   }}
   const center = markers.length ? [markers[0].lat, markers[0].lng] : [20, 0];
   const map = L.map(el).setView(center, markers.length ? 4 : 2);
-  window.__routemineMap = map;
+  window.__opsCenterMap = map;
   L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
     attribution: '&copy; CartoDB',
   }}).addTo(map);

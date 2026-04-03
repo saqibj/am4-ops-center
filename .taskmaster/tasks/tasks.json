@@ -203,7 +203,7 @@
         "title": "Add CLI parity for extract modes and import merge semantics",
         "description": "Expose explicit CLI options for full rebuild versus hub refresh and for merge versus replace import behavior.",
         "details": "Update main.py and command handling so extract supports explicit replace and refresh semantics. Update fleet import and routes import so merge is the default and replace is explicit. Keep existing simple workflows usable where practical and update help text immediately when semantics change.",
-        "status": "pending",
+        "status": "done",
         "priority": "high",
         "dependencies": [
           "3"
@@ -215,32 +215,36 @@
             "title": "Add extract mode flags",
             "description": "Expose full rebuild and hub refresh semantics in CLI.",
             "details": "Support commands equivalent to full replace/rebuild and selected hub refresh/append with explicit user-facing flags.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Run python main.py extract --help and validate examples.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:47:07.514Z"
           },
           {
             "id": 2,
             "title": "Add fleet import merge and replace flags",
             "description": "Make merge the default for fleet imports.",
             "details": "Support --merge and --replace, default to merge, and ensure help text reflects it.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Run python main.py fleet import --help and verify output.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:47:07.524Z"
           },
           {
             "id": 3,
             "title": "Add routes import merge and replace flags",
             "description": "Make merge the default for route imports.",
             "details": "Support --merge and --replace, default to merge, and ensure help text reflects it.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Run python main.py routes import --help and verify output.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:47:07.536Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-03T00:47:07.536Z"
       },
       {
         "id": "5",
@@ -636,9 +640,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-03T00:29:58.359Z",
+      "lastModified": "2026-04-03T00:47:07.537Z",
       "taskCount": 10,
-      "completedCount": 3,
+      "completedCount": 4,
       "tags": [
         "master"
       ]

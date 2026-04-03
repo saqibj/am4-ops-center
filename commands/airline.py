@@ -35,7 +35,7 @@ def _airport_id(conn, iata: str) -> int | None:
     return int(row[0]) if row else None
 
 
-def fleet_import(db_path: str, file_path: str) -> None:
+def fleet_import(db_path: str, file_path: str, *, mode: str = "merge") -> None:
     path = Path(file_path)
     if not path.is_file():
         print(f"Error: file not found: {path}", file=sys.stderr)
@@ -68,17 +68,34 @@ def fleet_import(db_path: str, file_path: str) -> None:
                 errors.append(f"line {lineno}: unknown aircraft shortname {sn!r}")
                 continue
             notes = row.get("notes") or None
-            conn.execute(
-                """
-                INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
-                VALUES (?, ?, ?, datetime('now'))
-                ON CONFLICT(aircraft_id) DO UPDATE SET
-                    quantity = excluded.quantity,
-                    notes = COALESCE(excluded.notes, my_fleet.notes),
-                    updated_at = datetime('now')
-                """,
-                (aid, cnt, notes),
-            )
+            if mode == "replace":
+                conn.execute(
+                    """
+                    INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                    ON CONFLICT(aircraft_id) DO UPDATE SET
+                        quantity = excluded.quantity,
+                        notes = COALESCE(excluded.notes, my_fleet.notes),
+                        updated_at = datetime('now')
+                    """,
+                    (aid, cnt, notes),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                    ON CONFLICT(aircraft_id) DO UPDATE SET
+                        quantity = MIN(999, my_fleet.quantity + excluded.quantity),
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_fleet.notes
+                        END,
+                        updated_at = datetime('now')
+                    """,
+                    (aid, cnt, notes),
+                )
             n_ok += 1
     conn.commit()
     conn.close()
@@ -125,7 +142,7 @@ def fleet_list(db_path: str) -> None:
         print(f"{r[0]}\t{r[1]}\t{r[2]}\t{r[3]}")
 
 
-def routes_import(db_path: str, file_path: str) -> None:
+def routes_import(db_path: str, file_path: str, *, mode: str = "merge") -> None:
     path = Path(file_path)
     if not path.is_file():
         print(f"Error: file not found: {path}", file=sys.stderr)
@@ -168,17 +185,34 @@ def routes_import(db_path: str, file_path: str) -> None:
                 errors.append(f"line {lineno}: unknown aircraft {ac!r}")
                 continue
             notes = row.get("notes") or None
-            conn.execute(
-                """
-                INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
-                VALUES (?, ?, ?, ?, ?, datetime('now'))
-                ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
-                    num_assigned = excluded.num_assigned,
-                    notes = COALESCE(excluded.notes, my_routes.notes),
-                    updated_at = datetime('now')
-                """,
-                (oid, did, aid, n, notes),
-            )
+            if mode == "replace":
+                conn.execute(
+                    """
+                    INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
+                        num_assigned = excluded.num_assigned,
+                        notes = COALESCE(excluded.notes, my_routes.notes),
+                        updated_at = datetime('now')
+                    """,
+                    (oid, did, aid, n, notes),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
+                        num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_routes.notes
+                        END,
+                        updated_at = datetime('now')
+                    """,
+                    (oid, did, aid, n, notes),
+                )
             n_ok += 1
     conn.commit()
     conn.close()

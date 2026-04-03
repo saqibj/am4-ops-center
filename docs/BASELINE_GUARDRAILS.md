@@ -25,14 +25,15 @@ FastAPI page routes are defined in `dashboard/routes/pages.py` and mounted at th
 
 **There is no `/buy-next` route or handler** in the application. `README.md` still lists Buy Next at `/buy-next`; treat that as documentation ahead of implementation until a page exists.
 
-## `my_fleet` / `my_routes` upsert semantics (overwrite, not merge)
+## `my_fleet` / `my_routes` upsert semantics
 
-Duplicate keys **replace** counts; they do **not** increment.
+- **CLI CSV import** (`python main.py fleet|routes import`): default **`--merge`** adds to `quantity` / `num_assigned` on conflict (capped at 999). **`--replace`** overwrites counts from the file (same SQL as below). Implemented in `commands/airline.py`.
+- **Dashboard HTMX** (`dashboard/routes/api_routes.py`): single-row adds still **overwrite** counts on conflict (`excluded.quantity` / `excluded.num_assigned`).
 
-- **CLI CSV import:** `commands/airline.py` — `ON CONFLICT(aircraft_id) DO UPDATE SET quantity = excluded.quantity` and `ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET num_assigned = excluded.num_assigned`.
-- **Dashboard HTMX:** `dashboard/routes/api_routes.py` — same `ON CONFLICT` patterns for fleet and routes add endpoints.
+## Extraction modes (CLI)
 
-Later “merge vs replace” work should treat this baseline as **replace-on-conflict** unless explicitly redesigned.
+- **Default** `extract` (no `--refresh-hubs`): full rebuild via `run_bulk_extraction` (destructive; see below).
+- **`extract --refresh-hubs --hubs A,B`**: hub-scoped refresh only (`refresh_hubs`); incompatible with `--all-hubs`.
 
 ## Full bulk extraction is destructive
 

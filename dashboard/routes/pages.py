@@ -202,6 +202,12 @@ def _airports_with_iata() -> list[dict]:
         return []
 
 
+@router.get("/my-hubs", response_class=HTMLResponse)
+def page_my_hubs(request: Request):
+    ctx = base_context(request)
+    return templates.TemplateResponse(request, "my_hubs.html", ctx)
+
+
 @router.get("/my-routes", response_class=HTMLResponse)
 def page_my_routes(request: Request):
     try:

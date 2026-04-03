@@ -1,0 +1,18 @@
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+        <p class="text-gray-400 text-xs uppercase tracking-wider">Managed hubs</p>
+        <p class="text-2xl font-bold font-mono text-emerald-400 mt-1">{{ stats.total }}</p>
+    </div>
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+        <p class="text-gray-400 text-xs uppercase tracking-wider">Active</p>
+        <p class="text-2xl font-bold font-mono text-gray-100 mt-1">{{ stats.active }}</p>
+    </div>
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+        <p class="text-gray-400 text-xs uppercase tracking-wider">Last extract OK</p>
+        <p class="text-2xl font-bold font-mono text-emerald-300 mt-1">{{ stats.status_ok }}</p>
+    </div>
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+        <p class="text-gray-400 text-xs uppercase tracking-wider">Error / pending</p>
+        <p class="text-2xl font-bold font-mono text-amber-300 mt-1">{{ stats.status_bad }}</p>
+    </div>
+</div>

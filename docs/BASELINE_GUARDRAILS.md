@@ -20,6 +20,7 @@ FastAPI page routes are defined in `dashboard/routes/pages.py` and mounted at th
 | `/fleet-planner` | `page_fleet_planner` | Fleet Planner |
 | `/my-fleet` | `page_my_fleet` | My Fleet |
 | `/my-routes` | `page_my_routes` | My Routes |
+| `/my-hubs` | `page_my_hubs` | Hub Manager |
 | `/contributions` | `page_contributions` | Contributions |
 | `/heatmap` | `page_heatmap` | Heatmap |
 

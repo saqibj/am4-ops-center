@@ -8,6 +8,7 @@ import sqlite3
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
+from config import UserConfig
 from dashboard.db import DB_PATH, fetch_all, fetch_one, get_db
 from dashboard.server import templates
 
@@ -1282,3 +1283,272 @@ def api_routes_json() -> list[dict]:
         }
         for r in rows
     ]
+
+
+# --- Hub Manager (my_hubs) ---
+
+
+def _dashboard_extract_config() -> UserConfig:
+    return UserConfig()
+
+
+def _am4_init() -> None:
+    from am4.utils.db import init
+
+    init()
+
+
+def _hubs_ensure_schema(conn: sqlite3.Connection) -> None:
+    from database.schema import create_schema
+
+    create_schema(conn)
+
+
+def _hub_inventory_rows(conn: sqlite3.Connection) -> list[dict]:
+    return fetch_all(
+        conn,
+        """
+        SELECT h.id, h.airport_id, h.iata, h.icao, h.name, h.fullname, h.country,
+               h.notes, h.is_active, h.last_extracted_at, h.last_extract_status, h.last_extract_error,
+               (SELECT COUNT(*) FROM route_aircraft ra
+                WHERE ra.origin_id = h.airport_id AND ra.is_valid = 1) AS route_count,
+               (SELECT MAX(ra.profit_per_ac_day) FROM route_aircraft ra
+                WHERE ra.origin_id = h.airport_id AND ra.is_valid = 1) AS best_profit_day
+        FROM v_my_hubs h
+        ORDER BY h.iata COLLATE NOCASE
+        """,
+    )
+
+
+def _hub_inventory_response(
+    request: Request,
+    *,
+    flash: str | None = None,
+    flash_err: str | None = None,
+) -> HTMLResponse:
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            hubs = _hub_inventory_rows(conn)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        hubs = []
+        flash_err = flash_err or "Database not found."
+    except sqlite3.OperationalError as exc:
+        hubs = []
+        flash_err = flash_err or f"Database or view missing: {exc}"
+    ctx: dict = {"hubs": hubs}
+    if flash:
+        ctx["flash"] = flash
+    if flash_err:
+        ctx["flash_err"] = flash_err
+    return templates.TemplateResponse(request, "partials/hub_inventory.html", ctx)
+
+
+@router.get("/hubs/inventory", response_class=HTMLResponse)
+def api_hubs_inventory(request: Request):
+    return _hub_inventory_response(request)
+
+
+@router.get("/hubs/summary", response_class=HTMLResponse)
+def api_hubs_summary(request: Request):
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            row = fetch_one(
+                conn,
+                """
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active,
+                       SUM(CASE WHEN last_extract_status = 'ok' THEN 1 ELSE 0 END) AS status_ok
+                FROM my_hubs
+                """,
+            )
+            bad = fetch_one(
+                conn,
+                """
+                SELECT COUNT(*) AS c FROM my_hubs
+                WHERE last_extract_status IS NULL
+                   OR last_extract_status != 'ok'
+                """,
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        row = {"total": 0, "active": 0, "status_ok": 0}
+        bad = {"c": 0}
+    except sqlite3.OperationalError:
+        row = {"total": 0, "active": 0, "status_ok": 0}
+        bad = {"c": 0}
+    stats = {
+        "total": int(row["total"] or 0) if row else 0,
+        "active": int(row["active"] or 0) if row else 0,
+        "status_ok": int(row["status_ok"] or 0) if row else 0,
+        "status_bad": int(bad["c"] or 0) if bad else 0,
+    }
+    return templates.TemplateResponse(request, "partials/hub_summary.html", {"stats": stats})
+
+
+@router.post("/hubs/add", response_class=HTMLResponse)
+def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form("")):
+    parts = [p.strip().upper() for p in (iata_list or "").replace(";", ",").split(",") if p.strip()]
+    if not parts:
+        return _hub_inventory_response(request, flash_err="Enter at least one IATA code.")
+
+    errs: list[str] = []
+    n_ok = 0
+    notes_val = notes.strip() or None
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            cfg = _dashboard_extract_config()
+            _am4_init()
+            from extractors.routes import upsert_airport_from_am4
+
+            for iata in parts:
+                ap_id, err = upsert_airport_from_am4(conn, cfg, iata)
+                if err or ap_id is None:
+                    errs.append(f"{iata}: {err or 'unknown error'}")
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO my_hubs (airport_id, notes, is_active, updated_at)
+                    VALUES (?, ?, 1, datetime('now'))
+                    ON CONFLICT(airport_id) DO UPDATE SET
+                        is_active = 1,
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_hubs.notes
+                        END,
+                        updated_at = datetime('now')
+                    """,
+                    (ap_id, notes_val),
+                )
+                n_ok += 1
+            conn.commit()
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return _hub_inventory_response(request, flash_err="Database not found.")
+    except sqlite3.OperationalError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+
+    if n_ok == 0:
+        return _hub_inventory_response(
+            request,
+            flash_err="\n".join(errs) if errs else "No hubs could be added.",
+        )
+    msg = f"Added or updated {n_ok} hub(s)."
+    if errs:
+        msg += "\n\n" + "\n".join(errs)
+        return _hub_inventory_response(request, flash_err=msg)
+    return _hub_inventory_response(request, flash=msg)
+
+
+@router.post("/hubs/refresh", response_class=HTMLResponse)
+def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
+    iata: str | None = None
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            row = fetch_one(
+                conn,
+                "SELECT iata FROM v_my_hubs WHERE id = ? LIMIT 1",
+                [int(hub_id)],
+            )
+            if not row or not row.get("iata"):
+                return _hub_inventory_response(request, flash_err="Hub not found.")
+            iata = str(row["iata"]).strip()
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return _hub_inventory_response(request, flash_err="Database not found.")
+
+    try:
+        _am4_init()
+        from extractors.routes import refresh_single_hub
+
+        refresh_single_hub(DB_PATH, _dashboard_extract_config(), iata)
+    except RuntimeError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+    except ValueError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+    except Exception as exc:
+        return _hub_inventory_response(request, flash_err=str(exc)[:800])
+
+    return _hub_inventory_response(request, flash=f"Refreshed routes for {iata}.")
+
+
+@router.post("/hubs/refresh-stale", response_class=HTMLResponse)
+def api_hubs_refresh_stale(request: Request):
+    stale: list[dict] = []
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            stale = fetch_all(
+                conn,
+                """
+                SELECT id, iata FROM v_my_hubs
+                WHERE last_extract_status IS NULL
+                   OR last_extract_status != 'ok'
+                ORDER BY iata COLLATE NOCASE
+                """,
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return _hub_inventory_response(request, flash_err="Database not found.")
+    except sqlite3.OperationalError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+
+    if not stale:
+        return _hub_inventory_response(request, flash="No stale hubs (all OK).")
+
+    _am4_init()
+    from extractors.routes import refresh_single_hub
+
+    cfg = _dashboard_extract_config()
+    errors: list[str] = []
+    ok_n = 0
+    for row in stale:
+        code = (row.get("iata") or "").strip()
+        if not code:
+            continue
+        try:
+            refresh_single_hub(DB_PATH, cfg, code)
+            ok_n += 1
+        except (RuntimeError, ValueError) as exc:
+            errors.append(f"{code}: {exc}")
+        except Exception as exc:
+            errors.append(f"{code}: {str(exc)[:200]}")
+
+    msg = f"Refreshed {ok_n} hub(s)."
+    if errors:
+        msg += "\n" + "\n".join(errors)
+        return _hub_inventory_response(request, flash_err=msg)
+    return _hub_inventory_response(request, flash=msg)
+
+
+@router.post("/hubs/delete", response_class=HTMLResponse)
+def api_hubs_delete(request: Request, hub_id: int = Form(...)):
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            conn.execute("DELETE FROM my_hubs WHERE id = ?", (int(hub_id),))
+            conn.commit()
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return _hub_inventory_response(request, flash_err="Database not found.")
+    except sqlite3.OperationalError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+
+    return _hub_inventory_response(request, flash="Removed hub from manager.")

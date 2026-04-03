@@ -251,7 +251,7 @@
         "title": "Build Hub Manager page and APIs",
         "description": "Add a Hub Manager page to the dashboard that lets the user manage hubs and trigger selective extraction refreshes.",
         "details": "Create a new page under My Airline, add templates and partials, and implement HTMX endpoints for hub inventory, summary, add, refresh, delete, and refresh-stale actions. The page should show status badges, timestamps, route count, best profit/day, notes, and actions for each managed hub.",
-        "status": "pending",
+        "status": "done",
         "priority": "high",
         "dependencies": [
           "3",
@@ -264,62 +264,69 @@
             "title": "Add Hub Manager page route and nav link",
             "description": "Create the routed page and make it reachable from the left nav.",
             "details": "Add a page such as /my-hubs and place it under the My Airline section in base.html navigation.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Verify route resolves and nav link appears.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:55:39.692Z"
           },
           {
             "id": 2,
             "title": "Create Hub Manager templates",
             "description": "Add page and partial templates.",
             "details": "Create dashboard/templates/my_hubs.html, dashboard/templates/partials/hub_inventory.html, and dashboard/templates/partials/hub_summary.html with HTMX-friendly sections.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Load page and verify partials render.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:55:39.699Z"
           },
           {
             "id": 3,
             "title": "Add Hub Manager API endpoints",
             "description": "Implement inventory, summary, add, refresh, delete, and refresh-stale APIs.",
             "details": "Add GET /api/hubs/inventory, GET /api/hubs/summary, POST /api/hubs/add, POST /api/hubs/refresh, POST /api/hubs/delete, and POST /api/hubs/refresh-stale.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Call each endpoint manually or via the page.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:55:39.714Z"
           },
           {
             "id": 4,
             "title": "Support one and many hub add flows",
             "description": "Allow one-hub and comma-separated multi-hub add in the GUI.",
             "details": "The add form should accept a single IATA or a comma-separated list and create my_hubs rows accordingly with validation feedback.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Add single valid, single invalid, and multiple hubs.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:55:39.728Z"
           },
           {
             "id": 5,
             "title": "Add per-row and bulk refresh actions",
             "description": "Support row refresh and stale refresh from the GUI.",
             "details": "Include actions to refresh one hub, refresh selected hubs if practical, and refresh stale hubs only.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Use the page controls and verify status updates.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:55:39.737Z"
           },
           {
             "id": 6,
             "title": "Add safe delete behavior",
             "description": "Allow removing a managed hub, with optional extracted-data cleanup.",
             "details": "Deleting a managed hub should not affect unrelated hubs. If extracted data removal is implemented, it should only remove selected origin hub data.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Delete a managed hub and verify other hubs are untouched.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:55:39.745Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-03T00:55:39.745Z"
       },
       {
         "id": "6",
@@ -640,9 +647,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-03T00:47:07.537Z",
+      "lastModified": "2026-04-03T00:55:39.746Z",
       "taskCount": 10,
-      "completedCount": 4,
+      "completedCount": 5,
       "tags": [
         "master"
       ]

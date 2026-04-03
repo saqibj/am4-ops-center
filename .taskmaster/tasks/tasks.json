@@ -1,574 +1,635 @@
-:contentReference[oaicite:0]{index=0} ```json { "tasks": [ { "id": 1, "title": "Baseline audit and safety setup", "description": "Verify the current repo state before making changes and establish non-destructive implementation guard rails.", "details": "Inspect the current routed pages, confirm there is no actual /buy-next page, confirm overwrite behavior in my_fleet and my_routes, and confirm full-refresh extractor behavior. Create a working branch and document guard rails for all later work.", "status": "pending", "priority": "high", "dependencies": [], "testStrategy": "Run python main.py --help and python main.py dashboard --help. Confirm current dashboard routes load and note missing /buy-next route.", "subtasks": [ { "id": 1, "title": "Confirm current routed pages and nav entries", "description": "Inspect pages.py and base.html to confirm real UI routes and left-nav items.", "details": "Document the current pages: /, /hub-explorer, /aircraft, /route-analyzer, /fleet-planner, /my-fleet, /my-routes, /contributions, /heatmap. Confirm left nav matches those routes.", "status": "pending", "dependencies": [], "testStrategy": "Open each route in the running dashboard." }, { "id": 2, "title": "Confirm missing Buy Next page", "description": "Verify README mismatch against real routed UI.", "details": "Confirm there is no actual /buy-next page or route implementation despite README mention.", "status": "pending", "dependencies": [], "testStrategy": "Search routed pages and nav for buy-next references." }, { "id": 3, "title": "Confirm overwrite behavior in fleet and routes", "description": "Inspect current conflict handling for my_fleet and my_routes.", "details": "Verify that commands/airline.py and dashboard/routes/api_routes.py currently overwrite quantity and num_assigned on conflict instead of incrementing.", "status": "pending", "dependencies": [], "testStrategy": "Read ON CONFLICT clauses and, if possible, reproduce with duplicate add/import." }, { "id": 4, "title": "Confirm extractor full-refresh behavior", "description": "Inspect route extraction orchestration.", "details": "Verify extractors/routes.py currently creates schema, clears route tables, replaces master tables, and recomputes everything.", "status": "pending", "dependencies": [], "testStrategy": "Read run_bulk_extraction flow and confirm destructive steps." } ] }, { "id": 2, "title": "Add managed hubs schema and richer airport route views", "description": "Extend the database schema to support managed hubs and richer airport metadata in existing route views.", "details": "Update database/schema.py to add my_hubs, an index on airport_id, a v_my_hubs view, and richer airport fields in v_my_routes and v_best_routes. Preserve all existing columns currently consumed by templates and APIs.", "status": "pending", "priority": "high", "dependencies": [1], "testStrategy": "Start dashboard after schema changes and verify all existing pages still load without SQL or template errors.", "subtasks": [ { "id": 1, "title": "Add my_hubs table", "description": "Create a managed hubs table with extraction state.", "details": "Add columns: id, airport_id unique, notes, is_active, created_at, updated_at, last_extracted_at, last_extract_status, last_extract_error. Add foreign key to airports(id).", "status": "pending", "dependencies": [], "testStrategy": "Initialize schema and inspect table creation." }, { "id": 2, "title": "Add idx_my_hubs_airport", "description": "Add supporting index for managed hubs lookup.", "details": "Create an index on my_hubs(airport_id) to keep lookup and join performance predictable.", "status": "pending", "dependencies": [], "testStrategy": "Inspect sqlite schema or sqlite_master." }, { "id": 3, "title": "Create v_my_hubs view", "description": "Create a dashboard-ready managed hubs view.", "details": "Join my_hubs to airports and expose id, airport_id, iata, icao, name, fullname, country, continent, market, hub_cost, notes, is_active, last_extracted_at, last_extract_status, last_extract_error.", "status": "pending", "dependencies": [], "testStrategy": "Query view manually and verify columns exist." }, { "id": 4, "title": "Upgrade v_my_routes with richer airport fields", "description": "Add airport display metadata to the current my_routes view.", "details": "Add hub_name, hub_country, dest_name, dest_fullname, dest_country without removing existing hub, destination, aircraft, and other current columns.", "status": "pending", "dependencies": [], "testStrategy": "Query v_my_routes and verify both old and new columns are present." }, { "id": 5, "title": "Upgrade v_best_routes with richer airport fields", "description": "Add airport display metadata to the best-routes view.", "details": "Add hub_name, hub_country, dest_name, dest_fullname, dest_country while preserving current fields used by existing pages.", "status": "pending", "dependencies": [], "testStrategy": "Query v_best_routes and verify both old and new columns are present." } ] }, { "id": 3, "title": "Refactor extraction to support hub-only refresh", "description": "Preserve full rebuild extraction while adding a hub-scoped refresh mode that only updates selected origin hubs.", "details": "Modify extractors/routes.py to keep current full rebuild mode available explicitly, but add refresh_single_hub and refresh_hubs style flows. Hub refresh must not clear all route data or replace master tables. It should ensure the selected airport exists locally, delete only selected hub route_aircraft and route_demands rows, recompute only those hubs, and update my_hubs extraction status.", "status": "pending", "priority": "high", "dependencies": [2], "testStrategy": "Run full rebuild path and single-hub refresh path against a test DB. Verify that refreshing one hub changes only that hub's extracted rows.", "subtasks": [ { "id": 1, "title": "Preserve full rebuild path", "description": "Keep the current full extraction behavior available for explicit replace mode.", "details": "Retain the current orchestration that recreates the full extracted dataset when the user explicitly requests a full rebuild.", "status": "pending", "dependencies": [], "testStrategy": "Run a full extract and verify the DB is rebuilt as before." }, { "id": 2, "title": "Add single-hub refresh function", "description": "Implement refresh logic for one hub.", "details": "Add a function that validates one hub, ensures airport master data exists, deletes only that origin hub's route rows and demand rows, recomputes routes for the hub, reinserts them, and updates hub status fields.", "status": "pending", "dependencies": [], "testStrategy": "Refresh one known hub and compare counts before and after." }, { "id": 3, "title": "Add multi-hub refresh function", "description": "Implement refresh logic for a list of hubs.", "details": "Add a wrapper flow for refreshing multiple hubs in one command or GUI action using the same selective deletion and recompute semantics.", "status": "pending", "dependencies": [], "testStrategy": "Refresh two hubs and verify unaffected hubs remain unchanged." }, { "id": 4, "title": "Handle missing airport or master-data prerequisites", "description": "Add safe fallback and clear errors.", "details": "If airport is missing locally, fetch and upsert it. If aircraft master data is missing, fail clearly with guidance to run a full extract once.", "status": "pending", "dependencies": [], "testStrategy": "Exercise edge-case paths with incomplete DB." }, { "id": 5, "title": "Persist managed hub extraction status", "description": "Update my_hubs state during refresh operations.", "details": "Set statuses like running, ok, or error and persist last_extracted_at and last_extract_error where appropriate.", "status": "pending", "dependencies": [], "testStrategy": "Check my_hubs rows before and after refresh." } ] }, { "id": 4, "title": "Add CLI parity for extract modes and import merge semantics", "description": "Expose explicit CLI options for full rebuild versus hub refresh and for merge versus replace import behavior.", "details": "Update main.py and command handling so extract supports explicit replace and refresh semantics. Update fleet import and routes import so merge is the default and replace is explicit. Keep existing simple workflows usable where practical and update help text immediately when semantics change.", "status": "pending", "priority": "high", "dependencies": [3], "testStrategy": "Run help commands and representative CLI examples. Confirm help text matches real behavior.", "subtasks": [ { "id": 1, "title": "Add extract mode flags", "description": "Expose full rebuild and hub refresh semantics in CLI.", "details": "Support commands equivalent to full replace/rebuild and selected hub refresh/append with explicit user-facing flags.", "status": "pending", "dependencies": [], "testStrategy": "Run python main.py extract --help and validate examples." }, { "id": 2, "title": "Add fleet import merge and replace flags", "description": "Make merge the default for fleet imports.", "details": "Support --merge and --replace, default to merge, and ensure help text reflects it.", "status": "pending", "dependencies": [], "testStrategy": "Run python main.py fleet import --help and verify output." }, { "id": 3, "title": "Add routes import merge and replace flags", "description": "Make merge the default for route imports.", "details": "Support --merge and --replace, default to merge, and ensure help text reflects it.", "status": "pending", "dependencies": [], "testStrategy": "Run python main.py routes import --help and verify output." } ] }, { "id": 5, "title": "Build Hub Manager page and APIs", "description": "Add a Hub Manager page to the dashboard that lets the user manage hubs and trigger selective extraction refreshes.", "details": "Create a new page under My Airline, add templates and partials, and implement HTMX endpoints for hub inventory, summary, add, refresh, delete, and refresh-stale actions. The page should show status badges, timestamps, route count, best profit/day, notes, and actions for each managed hub.", "status": "pending", "priority": "high", "dependencies": [3, 4], "testStrategy": "Open the new page in the dashboard and test add valid hub, add invalid hub, refresh hub, delete hub, and refresh-stale actions.", "subtasks": [ { "id": 1, "title": "Add Hub Manager page route and nav link", "description": "Create the routed page and make it reachable from the left nav.", "details": "Add a page such as /my-hubs and place it under the My Airline section in base.html navigation.", "status": "pending", "dependencies": [], "testStrategy": "Verify route resolves and nav link appears." }, { "id": 2, "title": "Create Hub Manager templates", "description": "Add page and partial templates.", "details": "Create dashboard/templates/my_hubs.html, dashboard/templates/partials/hub_inventory.html, and dashboard/templates/partials/hub_summary.html with HTMX-friendly sections.", "status": "pending", "dependencies": [], "testStrategy": "Load page and verify partials render." }, { "id": 3, "title": "Add Hub Manager API endpoints", "description": "Implement inventory, summary, add, refresh, delete, and refresh-stale APIs.", "details": "Add GET /api/hubs/inventory, GET /api/hubs/summary, POST /api/hubs/add, POST /api/hubs/refresh, POST /api/hubs/delete, and POST /api/hubs/refresh-stale.", "status": "pending", "dependencies": [], "testStrategy": "Call each endpoint manually or via the page." }, { "id": 4, "title": "Support one and many hub add flows", "description": "Allow one-hub and comma-separated multi-hub add in the GUI.", "details": "The add form should accept a single IATA or a comma-separated list and create my_hubs rows accordingly with validation feedback.", "status": "pending", "dependencies": [], "testStrategy": "Add single valid, single invalid, and multiple hubs." }, { "id": 5, "title": "Add per-row and bulk refresh actions", "description": "Support row refresh and stale refresh from the GUI.", "details": "Include actions to refresh one hub, refresh selected hubs if practical, and refresh stale hubs only.", "status": "pending", "dependencies": [], "testStrategy": "Use the page controls and verify status updates." }, { "id": 6, "title": "Add safe delete behavior", "description": "Allow removing a managed hub, with optional extracted-data cleanup.", "details": "Deleting a managed hub should not affect unrelated hubs. If extracted data removal is implemented, it should only remove selected origin hub data.", "status": "pending", "dependencies": [], "testStrategy": "Delete a managed hub and verify other hubs are untouched." } ] }, { "id": 6, "title": "Implement fleet merge-by-default and buy-sell UX", "description": "Make my_fleet additive by default in both CLI and GUI and add row-level buy/sell actions with assigned/free counts.", "details": "Update commands/airline.py and dashboard/routes/api_routes.py so duplicate aircraft types increment quantity by default instead of replacing it. Add buy and sell endpoints, and upgrade the fleet table to show owned, assigned, free, type, cost each, total value, and actions.", "status": "pending", "priority": "high", "dependencies": [4], "testStrategy": "Add new aircraft, add duplicate aircraft, buy more, sell some, sell all, and verify summary cards update correctly.", "subtasks": [ { "id": 1, "title": "Switch fleet import default to merge", "description": "Change CLI import behavior from overwrite to additive by default.", "details": "Existing quantity should increment by imported count in merge mode, with explicit replace mode still supported.", "status": "pending", "dependencies": [], "testStrategy": "Import duplicate fleet rows into a test DB and verify quantities add." }, { "id": 2, "title": "Switch GUI fleet add default to additive", "description": "Change /api/fleet/add behavior.", "details": "If the aircraft already exists in my_fleet, increment quantity instead of overwriting it. Return clear flash messaging.", "status": "pending", "dependencies": [], "testStrategy": "Use My Fleet page to add the same aircraft twice." }, { "id": 3, "title": "Add row-level buy endpoint", "description": "Implement /api/fleet/{id}/buy.", "details": "Support an add_count input and increment quantity safely.", "status": "pending", "dependencies": [], "testStrategy": "Trigger endpoint from UI and verify quantity increases." }, { "id": 4, "title": "Add row-level sell endpoint", "description": "Implement /api/fleet/{id}/sell.", "details": "Support sell_count input, decrement safely, and remove row if quantity becomes zero after confirmation.", "status": "pending", "dependencies": [], "testStrategy": "Trigger endpoint from UI and verify quantity decreases or row is removed." }, { "id": 5, "title": "Add assigned and free counts to fleet inventory", "description": "Compute assignment-aware inventory metrics.", "details": "Compute assigned aircraft counts from my_routes and show free = owned - assigned in the fleet table and summary where appropriate.", "status": "pending", "dependencies": [], "testStrategy": "Compare My Fleet counts against My Routes assignments." }, { "id": 6, "title": "Upgrade fleet inventory columns", "description": "Add richer operational columns to the UI.", "details": "Show shortname, name, type, owned, assigned, free, cost each, total value, notes, and actions. Preserve current basic behavior where practical.", "status": "pending", "dependencies": [], "testStrategy": "Verify the table renders all requested columns." } ] }, { "id": 7, "title": "Implement route duplicate detection and merge-by-default", "description": "Make my_routes additive by default in both CLI and GUI and add duplicate detection UX.", "details": "Update route import and route add flows to increment num_assigned on duplicates by default rather than overwriting. Add a route-exists endpoint and inline warning/coverage hints on the My Routes page.", "status": "pending", "priority": "high", "dependencies": [4], "testStrategy": "Add a new route, add the same route again, and import duplicates through CLI. Verify counts increment and warnings appear.", "subtasks": [ { "id": 1, "title": "Switch routes import default to merge", "description": "Change CLI route import behavior from overwrite to additive by default.", "details": "Existing num_assigned should increment by imported count in merge mode, with explicit replace mode still supported.", "status": "pending", "dependencies": [], "testStrategy": "Import duplicate route rows into a test DB and verify counts add." }, { "id": 2, "title": "Switch GUI route add default to additive", "description": "Change /api/routes/add behavior.", "details": "If the route already exists by origin_id, dest_id, and aircraft_id, increment num_assigned instead of overwriting it. Return clear flash messaging.", "status": "pending", "dependencies": [], "testStrategy": "Use My Routes page to add the same route twice." }, { "id": 3, "title": "Add route-exists endpoint", "description": "Implement duplicate-check API for routes.", "details": "Add GET /api/route-exists?origin=&dest=&aircraft= to return existing route match data for the current form selection.", "status": "pending", "dependencies": [], "testStrategy": "Call endpoint with existing and non-existing route combinations." }, { "id": 4, "title": "Add duplicate warning UI", "description": "Show inline warning before merge.", "details": "Display route details and current assigned count, e.g. 'This route already exists (KHI → LHR with A340-200, 2 assigned). Add more aircraft to it?'", "status": "pending", "dependencies": [], "testStrategy": "Pick an existing route combination in the form and verify the warning appears." }, { "id": 5, "title": "Show pair coverage hint", "description": "Surface current route coverage for selected hub-destination pair.", "details": "When hub and destination are selected, show which aircraft already serve that pair. Optionally show profitable alternatives if easy to implement safely.", "status": "pending", "dependencies": [], "testStrategy": "Select a hub and destination known to have existing routes." } ] }, { "id": 8, "title": "Add airport badge component and search UX", "description": "Upgrade the dashboard from code-first airport handling to human-readable airport search and display.", "details": "Create a reusable airport badge partial, add airport and aircraft search endpoints, and upgrade major pages and partials to show airport names, fullname, and country while keeping IATA visible. Prefer HTMX autocomplete over plain datalist-only UX where practical.", "status": "pending", "priority": "medium", "dependencies": [2, 5, 7], "testStrategy": "Search airports by code and name, verify richer display in Hub Explorer, My Routes, and Route Analyzer.", "subtasks": [ { "id": 1, "title": "Create airport badge partial", "description": "Add a reusable Jinja macro/component for airport display.", "details": "Create dashboard/templates/partials/airport_badge.html for compact and expanded airport rendering with IATA plus airport name/country details.", "status": "pending", "dependencies": [], "testStrategy": "Render the partial in at least one updated template." }, { "id": 2, "title": "Add airport search endpoint", "description": "Implement /api/search/airports?q=.", "details": "Match IATA, ICAO, name, fullname, and country. Return useful display text for autocomplete results.", "status": "pending", "dependencies": [], "testStrategy": "Query with code and free-text fragments." }, { "id": 3, "title": "Add aircraft search endpoint", "description": "Implement /api/search/aircraft?q=.", "details": "Match shortname, name, and type. Return display-friendly result rows for autocomplete.", "status": "pending", "dependencies": [], "testStrategy": "Query with code and aircraft-name fragments." }, { "id": 4, "title": "Upgrade Hub Explorer display", "description": "Show richer destination context in the hub routes table and selectors.", "details": "Use richer airport fields from v_best_routes and, where appropriate, use the airport badge partial.", "status": "pending", "dependencies": [], "testStrategy": "Open Hub Explorer and confirm destination columns are more informative." }, { "id": 5, "title": "Upgrade My Routes form and inventory", "description": "Use richer airport search and display in My Routes.", "details": "Improve hub and destination entry/search and update inventory display to show names/country, not codes only.", "status": "pending", "dependencies": [], "testStrategy": "Open My Routes and add a route using the improved UX." }, { "id": 6, "title": "Upgrade Route Analyzer selectors and tables", "description": "Improve route-analyzer airport selection and display.", "details": "Replace or enhance code-only origin/destination selection using richer airport info where practical while preserving performance and HTMX simplicity.", "status": "pending", "dependencies": [], "testStrategy": "Use Route Analyzer to pick a route and verify the workflow still works." } ] }, { "id": 9, "title": "Implement hub freshness and status rules", "description": "Add deterministic freshness and status handling for managed hubs.", "details": "Support statuses like never, running, ok, error, and stale in the Hub Manager. Compute stale using last_extracted_at with a default threshold of 7 days. Expose status cleanly in the UI and wire refresh-stale behavior to the managed hubs data.", "status": "pending", "priority": "medium", "dependencies": [5], "testStrategy": "Set up hubs with different timestamps and error states and verify status badges and refresh-stale behavior.", "subtasks": [ { "id": 1, "title": "Define status transitions", "description": "Standardize how hub status changes during refresh lifecycle.", "details": "Use never before any successful run, running during refresh, ok on success, error on failure, and stale when timestamp exceeds threshold.", "status": "pending", "dependencies": [], "testStrategy": "Trace a refresh lifecycle and inspect stored statuses." }, { "id": 2, "title": "Implement stale threshold", "description": "Mark old hubs stale using last_extracted_at.", "details": "Default to 7 days and keep the logic simple and deterministic.", "status": "pending", "dependencies": [], "testStrategy": "Create test timestamps older and newer than threshold." }, { "id": 3, "title": "Wire refresh-stale flow", "description": "Make refresh-stale act only on stale managed hubs.", "details": "Use Hub Manager API and status logic to select stale hubs and refresh only those.", "status": "pending", "dependencies": [], "testStrategy": "Trigger refresh-stale and verify only stale hubs are refreshed." } ] }, { "id": 10, "title": "Clean up README and dependency consistency", "description": "Make docs and packaging reflect the real app and its new behavior.", "details": "Update README.md, help text, and dependency references so the documented pages and commands match the real routed UI and CLI. Remove or correct Buy Next references unless implemented. Clarify full rebuild versus hub refresh and merge versus replace semantics for fleet and routes import. Reconcile requirements.txt and pyproject.toml dependency source differences or explicitly document why they differ.", "status": "pending", "priority": "medium", "dependencies": [5, 6, 7, 8, 9], "testStrategy": "Read README end-to-end and run documented commands to confirm they match real behavior.", "subtasks": [ { "id": 1, "title": "Fix dashboard page list and feature claims", "description": "Align README with actual routed UI.", "details": "Remove false Buy Next page claims unless the page is actually implemented. Add Hub Manager if implemented. Ensure page count and descriptions are accurate.", "status": "pending", "dependencies": [], "testStrategy": "Cross-check README against pages.py and base.html." }, { "id": 2, "title": "Document extraction modes", "description": "Clarify full rebuild and hub refresh behavior.", "details": "Explain when to use full rebuild versus selected-hub refresh, including command examples.", "status": "pending", "dependencies": [], "testStrategy": "Follow README examples against the CLI." }, { "id": 3, "title": "Document import semantics", "description": "Clarify merge versus replace for fleet and route import.", "details": "Explain that merge is default and replace is explicit, with CLI examples and expected behavior.", "status": "pending", "dependencies": [], "testStrategy": "Compare documentation to actual CLI help output." }, { "id": 4, "title": "Resolve or explain dependency source mismatch", "description": "Make requirements and pyproject consistent enough for users.", "details": "Either align the AM4 dependency source across requirements.txt and pyproject.toml or explicitly explain why they differ and which path users should trust.", "status": "pending", "dependencies": [], "testStrategy": "Review install instructions and package metadata for consistency." } ] } ] } ``` ::contentReference[oaicite:1]{index=1}```json
 {
-  "tasks": [
-    {
-      "id": 1,
-      "title": "Baseline audit and safety setup",
-      "description": "Verify the current repo state before making changes and establish non-destructive implementation guard rails.",
-      "details": "Inspect the current routed pages, confirm there is no actual /buy-next page, confirm overwrite behavior in my_fleet and my_routes, and confirm full-refresh extractor behavior. Create a working branch and document guard rails for all later work.",
-      "status": "pending",
-      "priority": "high",
-      "dependencies": [],
-      "testStrategy": "Run python main.py --help and python main.py dashboard --help. Confirm current dashboard routes load and note missing /buy-next route.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Confirm current routed pages and nav entries",
-          "description": "Inspect pages.py and base.html to confirm real UI routes and left-nav items.",
-          "details": "Document the current pages: /, /hub-explorer, /aircraft, /route-analyzer, /fleet-planner, /my-fleet, /my-routes, /contributions, /heatmap. Confirm left nav matches those routes.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Open each route in the running dashboard."
-        },
-        {
-          "id": 2,
-          "title": "Confirm missing Buy Next page",
-          "description": "Verify README mismatch against real routed UI.",
-          "details": "Confirm there is no actual /buy-next page or route implementation despite README mention.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Search routed pages and nav for buy-next references."
-        },
-        {
-          "id": 3,
-          "title": "Confirm overwrite behavior in fleet and routes",
-          "description": "Inspect current conflict handling for my_fleet and my_routes.",
-          "details": "Verify that commands/airline.py and dashboard/routes/api_routes.py currently overwrite quantity and num_assigned on conflict instead of incrementing.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Read ON CONFLICT clauses and, if possible, reproduce with duplicate add/import."
-        },
-        {
-          "id": 4,
-          "title": "Confirm extractor full-refresh behavior",
-          "description": "Inspect route extraction orchestration.",
-          "details": "Verify extractors/routes.py currently creates schema, clears route tables, replaces master tables, and recomputes everything.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Read run_bulk_extraction flow and confirm destructive steps."
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "title": "Add managed hubs schema and richer airport route views",
-      "description": "Extend the database schema to support managed hubs and richer airport metadata in existing route views.",
-      "details": "Update database/schema.py to add my_hubs, an index on airport_id, a v_my_hubs view, and richer airport fields in v_my_routes and v_best_routes. Preserve all existing columns currently consumed by templates and APIs.",
-      "status": "pending",
-      "priority": "high",
-      "dependencies": [
-        1
-      ],
-      "testStrategy": "Start dashboard after schema changes and verify all existing pages still load without SQL or template errors.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Add my_hubs table",
-          "description": "Create a managed hubs table with extraction state.",
-          "details": "Add columns: id, airport_id unique, notes, is_active, created_at, updated_at, last_extracted_at, last_extract_status, last_extract_error. Add foreign key to airports(id).",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Initialize schema and inspect table creation."
-        },
-        {
-          "id": 2,
-          "title": "Add idx_my_hubs_airport",
-          "description": "Add supporting index for managed hubs lookup.",
-          "details": "Create an index on my_hubs(airport_id) to keep lookup and join performance predictable.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Inspect sqlite schema or sqlite_master."
-        },
-        {
-          "id": 3,
-          "title": "Create v_my_hubs view",
-          "description": "Create a dashboard-ready managed hubs view.",
-          "details": "Join my_hubs to airports and expose id, airport_id, iata, icao, name, fullname, country, continent, market, hub_cost, notes, is_active, last_extracted_at, last_extract_status, last_extract_error.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Query view manually and verify columns exist."
-        },
-        {
-          "id": 4,
-          "title": "Upgrade v_my_routes with richer airport fields",
-          "description": "Add airport display metadata to the current my_routes view.",
-          "details": "Add hub_name, hub_country, dest_name, dest_fullname, dest_country without removing existing hub, destination, aircraft, and other current columns.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Query v_my_routes and verify both old and new columns are present."
-        },
-        {
-          "id": 5,
-          "title": "Upgrade v_best_routes with richer airport fields",
-          "description": "Add airport display metadata to the best-routes view.",
-          "details": "Add hub_name, hub_country, dest_name, dest_fullname, dest_country while preserving current fields used by existing pages.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Query v_best_routes and verify both old and new columns are present."
-        }
-      ]
-    },
-    {
-      "id": 3,
-      "title": "Refactor extraction to support hub-only refresh",
-      "description": "Preserve full rebuild extraction while adding a hub-scoped refresh mode that only updates selected origin hubs.",
-      "details": "Modify extractors/routes.py to keep current full rebuild mode available explicitly, but add refresh_single_hub and refresh_hubs style flows. Hub refresh must not clear all route data or replace master tables. It should ensure the selected airport exists locally, delete only selected hub route_aircraft and route_demands rows, recompute only those hubs, and update my_hubs extraction status.",
-      "status": "pending",
-      "priority": "high",
-      "dependencies": [
-        2
-      ],
-      "testStrategy": "Run full rebuild path and single-hub refresh path against a test DB. Verify that refreshing one hub changes only that hub's extracted rows.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Preserve full rebuild path",
-          "description": "Keep the current full extraction behavior available for explicit replace mode.",
-          "details": "Retain the current orchestration that recreates the full extracted dataset when the user explicitly requests a full rebuild.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Run a full extract and verify the DB is rebuilt as before."
-        },
-        {
-          "id": 2,
-          "title": "Add single-hub refresh function",
-          "description": "Implement refresh logic for one hub.",
-          "details": "Add a function that validates one hub, ensures airport master data exists, deletes only that origin hub's route rows and demand rows, recomputes routes for the hub, reinserts them, and updates hub status fields.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Refresh one known hub and compare counts before and after."
-        },
-        {
-          "id": 3,
-          "title": "Add multi-hub refresh function",
-          "description": "Implement refresh logic for a list of hubs.",
-          "details": "Add a wrapper flow for refreshing multiple hubs in one command or GUI action using the same selective deletion and recompute semantics.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Refresh two hubs and verify unaffected hubs remain unchanged."
-        },
-        {
-          "id": 4,
-          "title": "Handle missing airport or master-data prerequisites",
-          "description": "Add safe fallback and clear errors.",
-          "details": "If airport is missing locally, fetch and upsert it. If aircraft master data is missing, fail clearly with guidance to run a full extract once.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Exercise edge-case paths with incomplete DB."
-        },
-        {
-          "id": 5,
-          "title": "Persist managed hub extraction status",
-          "description": "Update my_hubs state during refresh operations.",
-          "details": "Set statuses like running, ok, or error and persist last_extracted_at and last_extract_error where appropriate.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Check my_hubs rows before and after refresh."
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "title": "Add CLI parity for extract modes and import merge semantics",
-      "description": "Expose explicit CLI options for full rebuild versus hub refresh and for merge versus replace import behavior.",
-      "details": "Update main.py and command handling so extract supports explicit replace and refresh semantics. Update fleet import and routes import so merge is the default and replace is explicit. Keep existing simple workflows usable where practical and update help text immediately when semantics change.",
-      "status": "pending",
-      "priority": "high",
-      "dependencies": [
-        3
-      ],
-      "testStrategy": "Run help commands and representative CLI examples. Confirm help text matches real behavior.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Add extract mode flags",
-          "description": "Expose full rebuild and hub refresh semantics in CLI.",
-          "details": "Support commands equivalent to full replace/rebuild and selected hub refresh/append with explicit user-facing flags.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Run python main.py extract --help and validate examples."
-        },
-        {
-          "id": 2,
-          "title": "Add fleet import merge and replace flags",
-          "description": "Make merge the default for fleet imports.",
-          "details": "Support --merge and --replace, default to merge, and ensure help text reflects it.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Run python main.py fleet import --help and verify output."
-        },
-        {
-          "id": 3,
-          "title": "Add routes import merge and replace flags",
-          "description": "Make merge the default for route imports.",
-          "details": "Support --merge and --replace, default to merge, and ensure help text reflects it.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Run python main.py routes import --help and verify output."
-        }
-      ]
-    },
-    {
-      "id": 5,
-      "title": "Build Hub Manager page and APIs",
-      "description": "Add a Hub Manager page to the dashboard that lets the user manage hubs and trigger selective extraction refreshes.",
-      "details": "Create a new page under My Airline, add templates and partials, and implement HTMX endpoints for hub inventory, summary, add, refresh, delete, and refresh-stale actions. The page should show status badges, timestamps, route count, best profit/day, notes, and actions for each managed hub.",
-      "status": "pending",
-      "priority": "high",
-      "dependencies": [
-        3,
-        4
-      ],
-      "testStrategy": "Open the new page in the dashboard and test add valid hub, add invalid hub, refresh hub, delete hub, and refresh-stale actions.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Add Hub Manager page route and nav link",
-          "description": "Create the routed page and make it reachable from the left nav.",
-          "details": "Add a page such as /my-hubs and place it under the My Airline section in base.html navigation.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Verify route resolves and nav link appears."
-        },
-        {
-          "id": 2,
-          "title": "Create Hub Manager templates",
-          "description": "Add page and partial templates.",
-          "details": "Create dashboard/templates/my_hubs.html, dashboard/templates/partials/hub_inventory.html, and dashboard/templates/partials/hub_summary.html with HTMX-friendly sections.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Load page and verify partials render."
-        },
-        {
-          "id": 3,
-          "title": "Add Hub Manager API endpoints",
-          "description": "Implement inventory, summary, add, refresh, delete, and refresh-stale APIs.",
-          "details": "Add GET /api/hubs/inventory, GET /api/hubs/summary, POST /api/hubs/add, POST /api/hubs/refresh, POST /api/hubs/delete, and POST /api/hubs/refresh-stale.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Call each endpoint manually or via the page."
-        },
-        {
-          "id": 4,
-          "title": "Support one and many hub add flows",
-          "description": "Allow one-hub and comma-separated multi-hub add in the GUI.",
-          "details": "The add form should accept a single IATA or a comma-separated list and create my_hubs rows accordingly with validation feedback.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Add single valid, single invalid, and multiple hubs."
-        },
-        {
-          "id": 5,
-          "title": "Add per-row and bulk refresh actions",
-          "description": "Support row refresh and stale refresh from the GUI.",
-          "details": "Include actions to refresh one hub, refresh selected hubs if practical, and refresh stale hubs only.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Use the page controls and verify status updates."
-        },
-        {
-          "id": 6,
-          "title": "Add safe delete behavior",
-          "description": "Allow removing a managed hub, with optional extracted-data cleanup.",
-          "details": "Deleting a managed hub should not affect unrelated hubs. If extracted data removal is implemented, it should only remove selected origin hub data.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Delete a managed hub and verify other hubs are untouched."
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "title": "Implement fleet merge-by-default and buy-sell UX",
-      "description": "Make my_fleet additive by default in both CLI and GUI and add row-level buy/sell actions with assigned/free counts.",
-      "details": "Update commands/airline.py and dashboard/routes/api_routes.py so duplicate aircraft types increment quantity by default instead of replacing it. Add buy and sell endpoints, and upgrade the fleet table to show owned, assigned, free, type, cost each, total value, and actions.",
-      "status": "pending",
-      "priority": "high",
-      "dependencies": [
-        4
-      ],
-      "testStrategy": "Add new aircraft, add duplicate aircraft, buy more, sell some, sell all, and verify summary cards update correctly.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Switch fleet import default to merge",
-          "description": "Change CLI import behavior from overwrite to additive by default.",
-          "details": "Existing quantity should increment by imported count in merge mode, with explicit replace mode still supported.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Import duplicate fleet rows into a test DB and verify quantities add."
-        },
-        {
-          "id": 2,
-          "title": "Switch GUI fleet add default to additive",
-          "description": "Change /api/fleet/add behavior.",
-          "details": "If the aircraft already exists in my_fleet, increment quantity instead of overwriting it. Return clear flash messaging.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Use My Fleet page to add the same aircraft twice."
-        },
-        {
-          "id": 3,
-          "title": "Add row-level buy endpoint",
-          "description": "Implement /api/fleet/{id}/buy.",
-          "details": "Support an add_count input and increment quantity safely.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Trigger endpoint from UI and verify quantity increases."
-        },
-        {
-          "id": 4,
-          "title": "Add row-level sell endpoint",
-          "description": "Implement /api/fleet/{id}/sell.",
-          "details": "Support sell_count input, decrement safely, and remove row if quantity becomes zero after confirmation.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Trigger endpoint from UI and verify quantity decreases or row is removed."
-        },
-        {
-          "id": 5,
-          "title": "Add assigned and free counts to fleet inventory",
-          "description": "Compute assignment-aware inventory metrics.",
-          "details": "Compute assigned aircraft counts from my_routes and show free = owned - assigned in the fleet table and summary where appropriate.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Compare My Fleet counts against My Routes assignments."
-        },
-        {
-          "id": 6,
-          "title": "Upgrade fleet inventory columns",
-          "description": "Add richer operational columns to the UI.",
-          "details": "Show shortname, name, type, owned, assigned, free, cost each, total value, notes, and actions. Preserve current basic behavior where practical.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Verify the table renders all requested columns."
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "title": "Implement route duplicate detection and merge-by-default",
-      "description": "Make my_routes additive by default in both CLI and GUI and add duplicate detection UX.",
-      "details": "Update route import and route add flows to increment num_assigned on duplicates by default rather than overwriting. Add a route-exists endpoint and inline warning/coverage hints on the My Routes page.",
-      "status": "pending",
-      "priority": "high",
-      "dependencies": [
-        4
-      ],
-      "testStrategy": "Add a new route, add the same route again, and import duplicates through CLI. Verify counts increment and warnings appear.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Switch routes import default to merge",
-          "description": "Change CLI route import behavior from overwrite to additive by default.",
-          "details": "Existing num_assigned should increment by imported count in merge mode, with explicit replace mode still supported.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Import duplicate route rows into a test DB and verify counts add."
-        },
-        {
-          "id": 2,
-          "title": "Switch GUI route add default to additive",
-          "description": "Change /api/routes/add behavior.",
-          "details": "If the route already exists by origin_id, dest_id, and aircraft_id, increment num_assigned instead of overwriting it. Return clear flash messaging.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Use My Routes page to add the same route twice."
-        },
-        {
-          "id": 3,
-          "title": "Add route-exists endpoint",
-          "description": "Implement duplicate-check API for routes.",
-          "details": "Add GET /api/route-exists?origin=&dest=&aircraft= to return existing route match data for the current form selection.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Call endpoint with existing and non-existing route combinations."
-        },
-        {
-          "id": 4,
-          "title": "Add duplicate warning UI",
-          "description": "Show inline warning before merge.",
-          "details": "Display route details and current assigned count, e.g. 'This route already exists (KHI → LHR with A340-200, 2 assigned). Add more aircraft to it?'",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Pick an existing route combination in the form and verify the warning appears."
-        },
-        {
-          "id": 5,
-          "title": "Show pair coverage hint",
-          "description": "Surface current route coverage for selected hub-destination pair.",
-          "details": "When hub and destination are selected, show which aircraft already serve that pair. Optionally show profitable alternatives if easy to implement safely.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Select a hub and destination known to have existing routes."
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "title": "Add airport badge component and search UX",
-      "description": "Upgrade the dashboard from code-first airport handling to human-readable airport search and display.",
-      "details": "Create a reusable airport badge partial, add airport and aircraft search endpoints, and upgrade major pages and partials to show airport names, fullname, and country while keeping IATA visible. Prefer HTMX autocomplete over plain datalist-only UX where practical.",
-      "status": "pending",
-      "priority": "medium",
-      "dependencies": [
-        2,
-        5,
-        7
-      ],
-      "testStrategy": "Search airports by code and name, verify richer display in Hub Explorer, My Routes, and Route Analyzer.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Create airport badge partial",
-          "description": "Add a reusable Jinja macro/component for airport display.",
-          "details": "Create dashboard/templates/partials/airport_badge.html for compact and expanded airport rendering with IATA plus airport name/country details.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Render the partial in at least one updated template."
-        },
-        {
-          "id": 2,
-          "title": "Add airport search endpoint",
-          "description": "Implement /api/search/airports?q=.",
-          "details": "Match IATA, ICAO, name, fullname, and country. Return useful display text for autocomplete results.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Query with code and free-text fragments."
-        },
-        {
-          "id": 3,
-          "title": "Add aircraft search endpoint",
-          "description": "Implement /api/search/aircraft?q=.",
-          "details": "Match shortname, name, and type. Return display-friendly result rows for autocomplete.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Query with code and aircraft-name fragments."
-        },
-        {
-          "id": 4,
-          "title": "Upgrade Hub Explorer display",
-          "description": "Show richer destination context in the hub routes table and selectors.",
-          "details": "Use richer airport fields from v_best_routes and, where appropriate, use the airport badge partial.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Open Hub Explorer and confirm destination columns are more informative."
-        },
-        {
-          "id": 5,
-          "title": "Upgrade My Routes form and inventory",
-          "description": "Use richer airport search and display in My Routes.",
-          "details": "Improve hub and destination entry/search and update inventory display to show names/country, not codes only.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Open My Routes and add a route using the improved UX."
-        },
-        {
-          "id": 6,
-          "title": "Upgrade Route Analyzer selectors and tables",
-          "description": "Improve route-analyzer airport selection and display.",
-          "details": "Replace or enhance code-only origin/destination selection using richer airport info where practical while preserving performance and HTMX simplicity.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Use Route Analyzer to pick a route and verify the workflow still works."
-        }
-      ]
-    },
-    {
-      "id": 9,
-      "title": "Implement hub freshness and status rules",
-      "description": "Add deterministic freshness and status handling for managed hubs.",
-      "details": "Support statuses like never, running, ok, error, and stale in the Hub Manager. Compute stale using last_extracted_at with a default threshold of 7 days. Expose status cleanly in the UI and wire refresh-stale behavior to the managed hubs data.",
-      "status": "pending",
-      "priority": "medium",
-      "dependencies": [
-        5
-      ],
-      "testStrategy": "Set up hubs with different timestamps and error states and verify status badges and refresh-stale behavior.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Define status transitions",
-          "description": "Standardize how hub status changes during refresh lifecycle.",
-          "details": "Use never before any successful run, running during refresh, ok on success, error on failure, and stale when timestamp exceeds threshold.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Trace a refresh lifecycle and inspect stored statuses."
-        },
-        {
-          "id": 2,
-          "title": "Implement stale threshold",
-          "description": "Mark old hubs stale using last_extracted_at.",
-          "details": "Default to 7 days and keep the logic simple and deterministic.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Create test timestamps older and newer than threshold."
-        },
-        {
-          "id": 3,
-          "title": "Wire refresh-stale flow",
-          "description": "Make refresh-stale act only on stale managed hubs.",
-          "details": "Use Hub Manager API and status logic to select stale hubs and refresh only those.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Trigger refresh-stale and verify only stale hubs are refreshed."
-        }
-      ]
-    },
-    {
-      "id": 10,
-      "title": "Clean up README and dependency consistency",
-      "description": "Make docs and packaging reflect the real app and its new behavior.",
-      "details": "Update README.md, help text, and dependency references so the documented pages and commands match the real routed UI and CLI. Remove or correct Buy Next references unless implemented. Clarify full rebuild versus hub refresh and merge versus replace semantics for fleet and routes import. Reconcile requirements.txt and pyproject.toml dependency source differences or explicitly document why they differ.",
-      "status": "pending",
-      "priority": "medium",
-      "dependencies": [
-        5,
-        6,
-        7,
-        8,
-        9
-      ],
-      "testStrategy": "Read README end-to-end and run documented commands to confirm they match real behavior.",
-      "subtasks": [
-        {
-          "id": 1,
-          "title": "Fix dashboard page list and feature claims",
-          "description": "Align README with actual routed UI.",
-          "details": "Remove false Buy Next page claims unless the page is actually implemented. Add Hub Manager if implemented. Ensure page count and descriptions are accurate.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Cross-check README against pages.py and base.html."
-        },
-        {
-          "id": 2,
-          "title": "Document extraction modes",
-          "description": "Clarify full rebuild and hub refresh behavior.",
-          "details": "Explain when to use full rebuild versus selected-hub refresh, including command examples.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Follow README examples against the CLI."
-        },
-        {
-          "id": 3,
-          "title": "Document import semantics",
-          "description": "Clarify merge versus replace for fleet and route import.",
-          "details": "Explain that merge is default and replace is explicit, with CLI examples and expected behavior.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Compare documentation to actual CLI help output."
-        },
-        {
-          "id": 4,
-          "title": "Resolve or explain dependency source mismatch",
-          "description": "Make requirements and pyproject consistent enough for users.",
-          "details": "Either align the AM4 dependency source across requirements.txt and pyproject.toml or explicitly explain why they differ and which path users should trust.",
-          "status": "pending",
-          "dependencies": [],
-          "testStrategy": "Review install instructions and package metadata for consistency."
-        }
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Baseline audit and safety setup",
+        "description": "Verify the current repo state before making changes and establish non-destructive implementation guard rails.",
+        "details": "Inspect the current routed pages, confirm there is no actual /buy-next page, confirm overwrite behavior in my_fleet and my_routes, and confirm full-refresh extractor behavior. Create a working branch and document guard rails for all later work.",
+        "status": "done",
+        "priority": "high",
+        "dependencies": [],
+        "testStrategy": "Run python main.py --help and python main.py dashboard --help. Confirm current dashboard routes load and note missing /buy-next route.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Confirm current routed pages and nav entries",
+            "description": "Inspect pages.py and base.html to confirm real UI routes and left-nav items.",
+            "details": "Document the current pages: /, /hub-explorer, /aircraft, /route-analyzer, /fleet-planner, /my-fleet, /my-routes, /contributions, /heatmap. Confirm left nav matches those routes.",
+            "status": "done",
+            "dependencies": [],
+            "testStrategy": "Open each route in the running dashboard.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:22:49.865Z"
+          },
+          {
+            "id": 2,
+            "title": "Confirm missing Buy Next page",
+            "description": "Verify README mismatch against real routed UI.",
+            "details": "Confirm there is no actual /buy-next page or route implementation despite README mention.",
+            "status": "done",
+            "dependencies": [],
+            "testStrategy": "Search routed pages and nav for buy-next references.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:22:49.881Z"
+          },
+          {
+            "id": 3,
+            "title": "Confirm overwrite behavior in fleet and routes",
+            "description": "Inspect current conflict handling for my_fleet and my_routes.",
+            "details": "Verify that commands/airline.py and dashboard/routes/api_routes.py currently overwrite quantity and num_assigned on conflict instead of incrementing.",
+            "status": "done",
+            "dependencies": [],
+            "testStrategy": "Read ON CONFLICT clauses and, if possible, reproduce with duplicate add/import.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:22:49.894Z"
+          },
+          {
+            "id": 4,
+            "title": "Confirm extractor full-refresh behavior",
+            "description": "Inspect route extraction orchestration.",
+            "details": "Verify extractors/routes.py currently creates schema, clears route tables, replaces master tables, and recomputes everything.",
+            "status": "done",
+            "dependencies": [],
+            "testStrategy": "Read run_bulk_extraction flow and confirm destructive steps.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:22:49.902Z"
+          }
+        ],
+        "updatedAt": "2026-04-03T00:22:49.902Z"
+      },
+      {
+        "id": "2",
+        "title": "Add managed hubs schema and richer airport route views",
+        "description": "Extend the database schema to support managed hubs and richer airport metadata in existing route views.",
+        "details": "Update database/schema.py to add my_hubs, an index on airport_id, a v_my_hubs view, and richer airport fields in v_my_routes and v_best_routes. Preserve all existing columns currently consumed by templates and APIs.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "testStrategy": "Start dashboard after schema changes and verify all existing pages still load without SQL or template errors.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add my_hubs table",
+            "description": "Create a managed hubs table with extraction state.",
+            "details": "Add columns: id, airport_id unique, notes, is_active, created_at, updated_at, last_extracted_at, last_extract_status, last_extract_error. Add foreign key to airports(id).",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Initialize schema and inspect table creation.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Add idx_my_hubs_airport",
+            "description": "Add supporting index for managed hubs lookup.",
+            "details": "Create an index on my_hubs(airport_id) to keep lookup and join performance predictable.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Inspect sqlite schema or sqlite_master.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Create v_my_hubs view",
+            "description": "Create a dashboard-ready managed hubs view.",
+            "details": "Join my_hubs to airports and expose id, airport_id, iata, icao, name, fullname, country, continent, market, hub_cost, notes, is_active, last_extracted_at, last_extract_status, last_extract_error.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Query view manually and verify columns exist.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Upgrade v_my_routes with richer airport fields",
+            "description": "Add airport display metadata to the current my_routes view.",
+            "details": "Add hub_name, hub_country, dest_name, dest_fullname, dest_country without removing existing hub, destination, aircraft, and other current columns.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Query v_my_routes and verify both old and new columns are present.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Upgrade v_best_routes with richer airport fields",
+            "description": "Add airport display metadata to the best-routes view.",
+            "details": "Add hub_name, hub_country, dest_name, dest_fullname, dest_country while preserving current fields used by existing pages.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Query v_best_routes and verify both old and new columns are present.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "title": "Refactor extraction to support hub-only refresh",
+        "description": "Preserve full rebuild extraction while adding a hub-scoped refresh mode that only updates selected origin hubs.",
+        "details": "Modify extractors/routes.py to keep current full rebuild mode available explicitly, but add refresh_single_hub and refresh_hubs style flows. Hub refresh must not clear all route data or replace master tables. It should ensure the selected airport exists locally, delete only selected hub route_aircraft and route_demands rows, recompute only those hubs, and update my_hubs extraction status.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "testStrategy": "Run full rebuild path and single-hub refresh path against a test DB. Verify that refreshing one hub changes only that hub's extracted rows.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Preserve full rebuild path",
+            "description": "Keep the current full extraction behavior available for explicit replace mode.",
+            "details": "Retain the current orchestration that recreates the full extracted dataset when the user explicitly requests a full rebuild.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Run a full extract and verify the DB is rebuilt as before.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Add single-hub refresh function",
+            "description": "Implement refresh logic for one hub.",
+            "details": "Add a function that validates one hub, ensures airport master data exists, deletes only that origin hub's route rows and demand rows, recomputes routes for the hub, reinserts them, and updates hub status fields.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Refresh one known hub and compare counts before and after.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add multi-hub refresh function",
+            "description": "Implement refresh logic for a list of hubs.",
+            "details": "Add a wrapper flow for refreshing multiple hubs in one command or GUI action using the same selective deletion and recompute semantics.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Refresh two hubs and verify unaffected hubs remain unchanged.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Handle missing airport or master-data prerequisites",
+            "description": "Add safe fallback and clear errors.",
+            "details": "If airport is missing locally, fetch and upsert it. If aircraft master data is missing, fail clearly with guidance to run a full extract once.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Exercise edge-case paths with incomplete DB.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Persist managed hub extraction status",
+            "description": "Update my_hubs state during refresh operations.",
+            "details": "Set statuses like running, ok, or error and persist last_extracted_at and last_extract_error where appropriate.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Check my_hubs rows before and after refresh.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": "4",
+        "title": "Add CLI parity for extract modes and import merge semantics",
+        "description": "Expose explicit CLI options for full rebuild versus hub refresh and for merge versus replace import behavior.",
+        "details": "Update main.py and command handling so extract supports explicit replace and refresh semantics. Update fleet import and routes import so merge is the default and replace is explicit. Keep existing simple workflows usable where practical and update help text immediately when semantics change.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          "3"
+        ],
+        "testStrategy": "Run help commands and representative CLI examples. Confirm help text matches real behavior.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add extract mode flags",
+            "description": "Expose full rebuild and hub refresh semantics in CLI.",
+            "details": "Support commands equivalent to full replace/rebuild and selected hub refresh/append with explicit user-facing flags.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Run python main.py extract --help and validate examples.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Add fleet import merge and replace flags",
+            "description": "Make merge the default for fleet imports.",
+            "details": "Support --merge and --replace, default to merge, and ensure help text reflects it.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Run python main.py fleet import --help and verify output.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add routes import merge and replace flags",
+            "description": "Make merge the default for route imports.",
+            "details": "Support --merge and --replace, default to merge, and ensure help text reflects it.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Run python main.py routes import --help and verify output.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": "5",
+        "title": "Build Hub Manager page and APIs",
+        "description": "Add a Hub Manager page to the dashboard that lets the user manage hubs and trigger selective extraction refreshes.",
+        "details": "Create a new page under My Airline, add templates and partials, and implement HTMX endpoints for hub inventory, summary, add, refresh, delete, and refresh-stale actions. The page should show status badges, timestamps, route count, best profit/day, notes, and actions for each managed hub.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          "3",
+          "4"
+        ],
+        "testStrategy": "Open the new page in the dashboard and test add valid hub, add invalid hub, refresh hub, delete hub, and refresh-stale actions.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add Hub Manager page route and nav link",
+            "description": "Create the routed page and make it reachable from the left nav.",
+            "details": "Add a page such as /my-hubs and place it under the My Airline section in base.html navigation.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Verify route resolves and nav link appears.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Create Hub Manager templates",
+            "description": "Add page and partial templates.",
+            "details": "Create dashboard/templates/my_hubs.html, dashboard/templates/partials/hub_inventory.html, and dashboard/templates/partials/hub_summary.html with HTMX-friendly sections.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Load page and verify partials render.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add Hub Manager API endpoints",
+            "description": "Implement inventory, summary, add, refresh, delete, and refresh-stale APIs.",
+            "details": "Add GET /api/hubs/inventory, GET /api/hubs/summary, POST /api/hubs/add, POST /api/hubs/refresh, POST /api/hubs/delete, and POST /api/hubs/refresh-stale.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Call each endpoint manually or via the page.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Support one and many hub add flows",
+            "description": "Allow one-hub and comma-separated multi-hub add in the GUI.",
+            "details": "The add form should accept a single IATA or a comma-separated list and create my_hubs rows accordingly with validation feedback.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Add single valid, single invalid, and multiple hubs.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Add per-row and bulk refresh actions",
+            "description": "Support row refresh and stale refresh from the GUI.",
+            "details": "Include actions to refresh one hub, refresh selected hubs if practical, and refresh stale hubs only.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Use the page controls and verify status updates.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Add safe delete behavior",
+            "description": "Allow removing a managed hub, with optional extracted-data cleanup.",
+            "details": "Deleting a managed hub should not affect unrelated hubs. If extracted data removal is implemented, it should only remove selected origin hub data.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Delete a managed hub and verify other hubs are untouched.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": "6",
+        "title": "Implement fleet merge-by-default and buy-sell UX",
+        "description": "Make my_fleet additive by default in both CLI and GUI and add row-level buy/sell actions with assigned/free counts.",
+        "details": "Update commands/airline.py and dashboard/routes/api_routes.py so duplicate aircraft types increment quantity by default instead of replacing it. Add buy and sell endpoints, and upgrade the fleet table to show owned, assigned, free, type, cost each, total value, and actions.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          "4"
+        ],
+        "testStrategy": "Add new aircraft, add duplicate aircraft, buy more, sell some, sell all, and verify summary cards update correctly.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Switch fleet import default to merge",
+            "description": "Change CLI import behavior from overwrite to additive by default.",
+            "details": "Existing quantity should increment by imported count in merge mode, with explicit replace mode still supported.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Import duplicate fleet rows into a test DB and verify quantities add.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Switch GUI fleet add default to additive",
+            "description": "Change /api/fleet/add behavior.",
+            "details": "If the aircraft already exists in my_fleet, increment quantity instead of overwriting it. Return clear flash messaging.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Use My Fleet page to add the same aircraft twice.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add row-level buy endpoint",
+            "description": "Implement /api/fleet/{id}/buy.",
+            "details": "Support an add_count input and increment quantity safely.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Trigger endpoint from UI and verify quantity increases.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Add row-level sell endpoint",
+            "description": "Implement /api/fleet/{id}/sell.",
+            "details": "Support sell_count input, decrement safely, and remove row if quantity becomes zero after confirmation.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Trigger endpoint from UI and verify quantity decreases or row is removed.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Add assigned and free counts to fleet inventory",
+            "description": "Compute assignment-aware inventory metrics.",
+            "details": "Compute assigned aircraft counts from my_routes and show free = owned - assigned in the fleet table and summary where appropriate.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Compare My Fleet counts against My Routes assignments.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Upgrade fleet inventory columns",
+            "description": "Add richer operational columns to the UI.",
+            "details": "Show shortname, name, type, owned, assigned, free, cost each, total value, notes, and actions. Preserve current basic behavior where practical.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Verify the table renders all requested columns.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": "7",
+        "title": "Implement route duplicate detection and merge-by-default",
+        "description": "Make my_routes additive by default in both CLI and GUI and add duplicate detection UX.",
+        "details": "Update route import and route add flows to increment num_assigned on duplicates by default rather than overwriting. Add a route-exists endpoint and inline warning/coverage hints on the My Routes page.",
+        "status": "pending",
+        "priority": "high",
+        "dependencies": [
+          "4"
+        ],
+        "testStrategy": "Add a new route, add the same route again, and import duplicates through CLI. Verify counts increment and warnings appear.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Switch routes import default to merge",
+            "description": "Change CLI route import behavior from overwrite to additive by default.",
+            "details": "Existing num_assigned should increment by imported count in merge mode, with explicit replace mode still supported.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Import duplicate route rows into a test DB and verify counts add.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Switch GUI route add default to additive",
+            "description": "Change /api/routes/add behavior.",
+            "details": "If the route already exists by origin_id, dest_id, and aircraft_id, increment num_assigned instead of overwriting it. Return clear flash messaging.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Use My Routes page to add the same route twice.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add route-exists endpoint",
+            "description": "Implement duplicate-check API for routes.",
+            "details": "Add GET /api/route-exists?origin=&dest=&aircraft= to return existing route match data for the current form selection.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Call endpoint with existing and non-existing route combinations.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Add duplicate warning UI",
+            "description": "Show inline warning before merge.",
+            "details": "Display route details and current assigned count, e.g. 'This route already exists (KHI → LHR with A340-200, 2 assigned). Add more aircraft to it?'",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Pick an existing route combination in the form and verify the warning appears.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Show pair coverage hint",
+            "description": "Surface current route coverage for selected hub-destination pair.",
+            "details": "When hub and destination are selected, show which aircraft already serve that pair. Optionally show profitable alternatives if easy to implement safely.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Select a hub and destination known to have existing routes.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": "8",
+        "title": "Add airport badge component and search UX",
+        "description": "Upgrade the dashboard from code-first airport handling to human-readable airport search and display.",
+        "details": "Create a reusable airport badge partial, add airport and aircraft search endpoints, and upgrade major pages and partials to show airport names, fullname, and country while keeping IATA visible. Prefer HTMX autocomplete over plain datalist-only UX where practical.",
+        "status": "pending",
+        "priority": "medium",
+        "dependencies": [
+          "2",
+          "5",
+          "7"
+        ],
+        "testStrategy": "Search airports by code and name, verify richer display in Hub Explorer, My Routes, and Route Analyzer.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create airport badge partial",
+            "description": "Add a reusable Jinja macro/component for airport display.",
+            "details": "Create dashboard/templates/partials/airport_badge.html for compact and expanded airport rendering with IATA plus airport name/country details.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Render the partial in at least one updated template.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Add airport search endpoint",
+            "description": "Implement /api/search/airports?q=.",
+            "details": "Match IATA, ICAO, name, fullname, and country. Return useful display text for autocomplete results.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Query with code and free-text fragments.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add aircraft search endpoint",
+            "description": "Implement /api/search/aircraft?q=.",
+            "details": "Match shortname, name, and type. Return display-friendly result rows for autocomplete.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Query with code and aircraft-name fragments.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Upgrade Hub Explorer display",
+            "description": "Show richer destination context in the hub routes table and selectors.",
+            "details": "Use richer airport fields from v_best_routes and, where appropriate, use the airport badge partial.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Open Hub Explorer and confirm destination columns are more informative.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Upgrade My Routes form and inventory",
+            "description": "Use richer airport search and display in My Routes.",
+            "details": "Improve hub and destination entry/search and update inventory display to show names/country, not codes only.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Open My Routes and add a route using the improved UX.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Upgrade Route Analyzer selectors and tables",
+            "description": "Improve route-analyzer airport selection and display.",
+            "details": "Replace or enhance code-only origin/destination selection using richer airport info where practical while preserving performance and HTMX simplicity.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Use Route Analyzer to pick a route and verify the workflow still works.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": "9",
+        "title": "Implement hub freshness and status rules",
+        "description": "Add deterministic freshness and status handling for managed hubs.",
+        "details": "Support statuses like never, running, ok, error, and stale in the Hub Manager. Compute stale using last_extracted_at with a default threshold of 7 days. Expose status cleanly in the UI and wire refresh-stale behavior to the managed hubs data.",
+        "status": "pending",
+        "priority": "medium",
+        "dependencies": [
+          "5"
+        ],
+        "testStrategy": "Set up hubs with different timestamps and error states and verify status badges and refresh-stale behavior.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define status transitions",
+            "description": "Standardize how hub status changes during refresh lifecycle.",
+            "details": "Use never before any successful run, running during refresh, ok on success, error on failure, and stale when timestamp exceeds threshold.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Trace a refresh lifecycle and inspect stored statuses.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement stale threshold",
+            "description": "Mark old hubs stale using last_extracted_at.",
+            "details": "Default to 7 days and keep the logic simple and deterministic.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Create test timestamps older and newer than threshold.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Wire refresh-stale flow",
+            "description": "Make refresh-stale act only on stale managed hubs.",
+            "details": "Use Hub Manager API and status logic to select stale hubs and refresh only those.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Trigger refresh-stale and verify only stale hubs are refreshed.",
+            "parentId": "undefined"
+          }
+        ]
+      },
+      {
+        "id": "10",
+        "title": "Clean up README and dependency consistency",
+        "description": "Make docs and packaging reflect the real app and its new behavior.",
+        "details": "Update README.md, help text, and dependency references so the documented pages and commands match the real routed UI and CLI. Remove or correct Buy Next references unless implemented. Clarify full rebuild versus hub refresh and merge versus replace semantics for fleet and routes import. Reconcile requirements.txt and pyproject.toml dependency source differences or explicitly document why they differ.",
+        "status": "pending",
+        "priority": "medium",
+        "dependencies": [
+          "5",
+          "6",
+          "7",
+          "8",
+          "9"
+        ],
+        "testStrategy": "Read README end-to-end and run documented commands to confirm they match real behavior.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Fix dashboard page list and feature claims",
+            "description": "Align README with actual routed UI.",
+            "details": "Remove false Buy Next page claims unless the page is actually implemented. Add Hub Manager if implemented. Ensure page count and descriptions are accurate.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Cross-check README against pages.py and base.html.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Document extraction modes",
+            "description": "Clarify full rebuild and hub refresh behavior.",
+            "details": "Explain when to use full rebuild versus selected-hub refresh, including command examples.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Follow README examples against the CLI.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Document import semantics",
+            "description": "Clarify merge versus replace for fleet and route import.",
+            "details": "Explain that merge is default and replace is explicit, with CLI examples and expected behavior.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Compare documentation to actual CLI help output.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Resolve or explain dependency source mismatch",
+            "description": "Make requirements and pyproject consistent enough for users.",
+            "details": "Either align the AM4 dependency source across requirements.txt and pyproject.toml or explicitly explain why they differ and which path users should trust.",
+            "status": "pending",
+            "dependencies": [],
+            "testStrategy": "Review install instructions and package metadata for consistency.",
+            "parentId": "undefined"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-04-03T00:22:49.902Z",
+      "taskCount": 10,
+      "completedCount": 1,
+      "tags": [
+        "master"
       ]
     }
-  ]
+  }
 }
-```

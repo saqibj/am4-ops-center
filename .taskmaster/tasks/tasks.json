@@ -133,7 +133,7 @@
         "title": "Refactor extraction to support hub-only refresh",
         "description": "Preserve full rebuild extraction while adding a hub-scoped refresh mode that only updates selected origin hubs.",
         "details": "Modify extractors/routes.py to keep current full rebuild mode available explicitly, but add refresh_single_hub and refresh_hubs style flows. Hub refresh must not clear all route data or replace master tables. It should ensure the selected airport exists locally, delete only selected hub route_aircraft and route_demands rows, recompute only those hubs, and update my_hubs extraction status.",
-        "status": "pending",
+        "status": "done",
         "priority": "high",
         "dependencies": [
           "2"
@@ -145,52 +145,58 @@
             "title": "Preserve full rebuild path",
             "description": "Keep the current full extraction behavior available for explicit replace mode.",
             "details": "Retain the current orchestration that recreates the full extracted dataset when the user explicitly requests a full rebuild.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Run a full extract and verify the DB is rebuilt as before.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:29:58.306Z"
           },
           {
             "id": 2,
             "title": "Add single-hub refresh function",
             "description": "Implement refresh logic for one hub.",
             "details": "Add a function that validates one hub, ensures airport master data exists, deletes only that origin hub's route rows and demand rows, recomputes routes for the hub, reinserts them, and updates hub status fields.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Refresh one known hub and compare counts before and after.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:29:58.318Z"
           },
           {
             "id": 3,
             "title": "Add multi-hub refresh function",
             "description": "Implement refresh logic for a list of hubs.",
             "details": "Add a wrapper flow for refreshing multiple hubs in one command or GUI action using the same selective deletion and recompute semantics.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Refresh two hubs and verify unaffected hubs remain unchanged.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:29:58.326Z"
           },
           {
             "id": 4,
             "title": "Handle missing airport or master-data prerequisites",
             "description": "Add safe fallback and clear errors.",
             "details": "If airport is missing locally, fetch and upsert it. If aircraft master data is missing, fail clearly with guidance to run a full extract once.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Exercise edge-case paths with incomplete DB.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:29:58.346Z"
           },
           {
             "id": 5,
             "title": "Persist managed hub extraction status",
             "description": "Update my_hubs state during refresh operations.",
             "details": "Set statuses like running, ok, or error and persist last_extracted_at and last_extract_error where appropriate.",
-            "status": "pending",
+            "status": "done",
             "dependencies": [],
             "testStrategy": "Check my_hubs rows before and after refresh.",
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-03T00:29:58.359Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-03T00:29:58.359Z"
       },
       {
         "id": "4",
@@ -630,9 +636,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-03T00:26:25.635Z",
+      "lastModified": "2026-04-03T00:29:58.359Z",
       "taskCount": 10,
-      "completedCount": 2,
+      "completedCount": 3,
       "tags": [
         "master"
       ]

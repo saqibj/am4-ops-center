@@ -1806,6 +1806,13 @@ def _dashboard_extract_config() -> UserConfig:
     return UserConfig()
 
 
+_HUBS_AM4_UNAVAILABLE_MSG = (
+    "The am4 package is not available in this Python environment. "
+    "Hub add and refresh need am4 (see README): use Python 3.10–3.12, then "
+    "pip install -r requirements.txt. On Windows without a working C++ build, use WSL."
+)
+
+
 def _am4_init() -> None:
     from am4.utils.db import init
 
@@ -1979,6 +1986,8 @@ def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form(
             conn.commit()
         finally:
             conn.close()
+    except ImportError:
+        return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
     except FileNotFoundError:
         return _hub_inventory_response(request, flash_err="Database not found.")
     except sqlite3.OperationalError as exc:
@@ -2021,6 +2030,8 @@ def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
         from extractors.routes import refresh_single_hub
 
         refresh_single_hub(DB_PATH, _dashboard_extract_config(), iata)
+    except ImportError:
+        return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
     except RuntimeError as exc:
         return _hub_inventory_response(request, flash_err=str(exc))
     except ValueError as exc:
@@ -2064,8 +2075,11 @@ def api_hubs_refresh_stale(request: Request):
             flash=f"No stale hubs (all OK extracts within {d} days, or use per-hub Refresh for errors).",
         )
 
-    _am4_init()
-    from extractors.routes import refresh_single_hub
+    try:
+        _am4_init()
+        from extractors.routes import refresh_single_hub
+    except ImportError:
+        return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
 
     cfg = _dashboard_extract_config()
     errors: list[str] = []

@@ -19,6 +19,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Fleet recommendations:** **`my_fleet`** join for **Owned** in the table; **`hide_owned`** on **`/api/fleet-plan`**, Fleet Planner / Buy Next checkbox, and **`python main.py recommend --hide-owned`**.
 - **`CHANGELOG.md`** (this file).
 
+### Fixed
+
+- **Hub Manager:** `POST /api/hubs/add`, `POST /api/hubs/refresh`, and `POST /api/hubs/refresh-stale` return an HTML flash error when the **`am4`** package is unavailable (`ImportError` / `ModuleNotFoundError`) instead of HTTP 500.
+
 ### Changed
 
 - **Dashboard** replaced **Streamlit** with **FastAPI**, **Jinja2**, **HTMX**, and **Tailwind** (CDN). Entry module: `dashboard.server:app`; dependencies in `pyproject.toml` / `requirements.txt` (`fastapi`, `uvicorn`, `jinja2`, `python-multipart`, etc.).

@@ -1,0 +1,139 @@
+# Product Requirements: Buy Next UI (/buy-next)
+
+## Document status
+- Phase: Next (post Taskmaster 1–10)
+- Audience: Implementers + Taskmaster `parse-prd`
+- Repo: am4-ops-center (AM4 RouteMine dashboard + CLI)
+
+---
+
+## 1. Purpose
+
+Deliver a first-class **Buy Next** dashboard experience at **`/buy-next`** that answers: “Given my cash budget at a hub, which aircraft should I consider buying next?” — aligned with README’s historical promise and user mental model (“ROI-ranked purchase recommendations”).
+
+Today, the **same ranking logic** already exists in two places:
+- **CLI:** `python main.py recommend --hub IATA --budget N --top M` (`commands/airline.py` → `recommend()`)
+- **Dashboard:** **Fleet Planner** (`/fleet-planner`) → `GET /api/fleet-plan` → `partials/fleet_plan_table.html`
+
+Both use equivalent SQL: for a hub `origin_id`, filter `aircraft.cost <= budget`, aggregate `route_aircraft` by aircraft with `AVG(profit_per_ac_day)` and `MAX(profit_per_ac_day)`, order by **avg daily profit** descending, compute **days to break-even** as `cost / avg_daily_profit` when applicable.
+
+**Gap:** There is no **`/buy-next`** route; users must discover Fleet Planner or the CLI. The Buy Next page should be **purpose-built copy and IA** (and small feature deltas), not a silent duplicate forever.
+
+---
+
+## 2. Goals
+
+1. Add **`/buy-next`** to the app (FastAPI `pages.py`, template, nav in `base.html`).
+2. **MVP:** Ship quickly with **low risk** — reuse proven Fleet Planner behavior and HTMX patterns.
+3. **DRY:** Prefer **one shared implementation** for the SQL + row shaping (CLI + `/api/fleet-plan` + `/buy-next`) to prevent drift (see §6).
+4. **Clarify product language:** “Buy Next” = budget-constrained, hub-scoped **next aircraft** suggestions from **extracted** `route_aircraft` data — not AM4 live market prices, not alliance meta-game.
+
+---
+
+## 3. Non-goals (explicit)
+
+- Replacing AM4 in-game purchase flow or validating real-time availability.
+- Multi-hub portfolio optimization across the whole airline in v1.
+- Automatic writes to `my_fleet` without explicit user confirmation (any “Add to fleet” is **post-MVP** or guarded).
+
+---
+
+## 4. User stories
+
+1. As a player, I open **Buy Next** from the nav and pick **hub** + **budget** so I see aircraft ranked by **average daily profit** at that hub, within budget.
+2. As a player, I see **days to break-even** (cost ÷ avg daily profit) consistent with Fleet Planner / CLI.
+3. As a player, I understand this uses **saved extraction data** (`route_aircraft`), so I should refresh hubs / extract if numbers feel stale.
+
+---
+
+## 5. MVP (recommended first ship)
+
+**Objective:** A dedicated **Buy Next** page that matches Fleet Planner **behavior** with minimal new code.
+
+### 5.1 Scope
+
+- **Route:** `GET /buy-next` → `page_buy_next` in `dashboard/routes/pages.py` (same hub list sourcing as Fleet Planner: distinct origins from `route_aircraft` where valid).
+- **UI:** New template `buy_next.html`:
+  - Title + short explainer (budget, extracted routes, break-even definition).
+  - **Reuse** the same form controls as `fleet_planner.html` (hub, budget, top N) **or** include a shared partial for the filter form to avoid duplication.
+  - **Reuse** `GET /api/fleet-plan` for HTMX (`hx-get`, `hx-target`, `hx-include`) — **no new API** in MVP unless needed for clarity.
+- **Navigation:** Add **Buy Next** link in `base.html` (suggest: under **My Airline** after **My Routes** or adjacent to **Fleet Planner** — pick one and stay consistent).
+- **Overview / index:** Add a quick link card to `/buy-next` if other pages do the same for Fleet Planner.
+
+### 5.2 Acceptance criteria (MVP)
+
+- [ ] `/buy-next` loads without DB errors when `route_aircraft` has data.
+- [ ] Changing hub/budget/top N updates the table identically to Fleet Planner for the same inputs (same SQL source of truth after refactor in §6.1).
+- [ ] Nav shows **Buy Next**; active styling matches other items (if applicable).
+- [ ] README or dashboard copy does not claim features beyond MVP (no fake “Add to cart” unless implemented).
+
+### 5.3 MVP limitations (document on page)
+
+- Does not subtract **already owned** aircraft unless **Stretch A** (below) is implemented.
+- Rank key = **average** `profit_per_ac_day` across extracted routes for that hub + type (same as today).
+
+---
+
+## 6. Engineering notes
+
+### 6.1 Consolidate duplicate logic (should-do with MVP or immediately after)
+
+- Extract a single function, e.g. `fleet_recommend_rows(conn, hub_iata, budget, top_n) -> list[dict]` in `commands/airline.py` (or `dashboard/fleet_recommend.py` imported by both), returning rows with keys used by `fleet_plan_table.html` plus precomputed `days_to_breakeven`.
+- **`recommend()`** CLI prints TSV from that function.
+- **`api_fleet_plan`** and any **`api_buy_next`** call the same function.
+- Ensures CLI and dashboard never diverge.
+
+### 6.2 Optional API name
+
+- For clearer semantics, **`GET /api/buy-next`** can be a thin alias to the same handler as `/api/fleet-plan` (or redirect) — only if we want analytics separation; **not required for MVP**.
+
+---
+
+## 7. Stretch goals (post-MVP, ordered)
+
+### Stretch A — “Already own” context (high value, still practical)
+
+- Join **`my_fleet`** to show **quantity owned** per aircraft shortname (0 if none).
+- Optional toggle: **Hide aircraft I already own** (filter `my_fleet.quantity IS NULL OR = 0` — clarify UX for partial ownership).
+
+### Stretch B — Hub search / airport badge
+
+- Reuse **`/api/search/airports`** for hub entry if hub list is huge (consistent with Task 8 patterns).
+
+### Stretch C — Action row
+
+- **“Add 1 to My Fleet”** POST to existing `/api/fleet/add` with aircraft shortname — requires CSRF-safe patterns already used elsewhere; confirm merge semantics and flash messaging.
+
+### Stretch D — Ranking alternatives
+
+- Toggle sort: **avg profit/d** (default) vs **best profit/d** vs **days to break-even** (ascending).
+- Document that “ROI” in marketing terms maps to these metrics, not a separate formula.
+
+---
+
+## 8. Taskmaster usage
+
+- Tag suggestion: `feature-buy-next` or fold into `master` after `parse-prd`.
+- Suggested task breakdown (for `parse-prd` or manual tasks):
+  1. Shared `fleet_recommend_rows` + wire CLI + `api_fleet_plan`.
+  2. Page route + `buy_next.html` + nav + optional index link.
+  3. README: document `/buy-next` vs `/fleet-planner` (complement: Buy Next = dedicated entry; Fleet Planner = existing name — or deprecate duplicate naming in README once Buy Next ships).
+  4. Stretch A/B/C as separate tasks with dependencies.
+
+---
+
+## 9. Success metrics
+
+- Users can complete hub + budget + review table **without** using CLI.
+- No regression in Fleet Planner behavior after refactor.
+- Single SQL path for recommendations (maintainability).
+
+---
+
+## 10. References (code)
+
+- `commands/airline.py` — `recommend()`
+- `dashboard/routes/api_routes.py` — `api_fleet_plan`, `GET /fleet-plan`
+- `dashboard/templates/fleet_planner.html`, `partials/fleet_plan_table.html`
+- `dashboard/routes/pages.py` — `page_fleet_planner`
+- `docs/BASELINE_GUARDRAILS.md` — notes on `/buy-next` absence prior to this work

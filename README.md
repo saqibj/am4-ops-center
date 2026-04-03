@@ -377,7 +377,7 @@ am4-routemine/
 |-------|-----|
 | `am4` build fails on Windows/MSVC | Use WSL Ubuntu — GCC compiles it cleanly |
 | `am4` build fails on Python 3.13+ | Use Python 3.10–3.12 |
-| `ModuleNotFoundError: am4` | Activate venv: `source .venv/bin/activate` |
+| `ModuleNotFoundError: am4` or Hub Manager flash **“The am4 package is not available…”** | Use **Python 3.10–3.12**, create/activate a venv (`python3 -m venv .venv` then `source .venv/bin/activate`, or on Windows `py -3.12 -m venv .venv` then `.\.venv\Scripts\Activate.ps1`), run `pip install -r requirements.txt`, and start the dashboard with **that** interpreter (`python main.py dashboard …`). The UI loads without `am4`, but **add hub** and **refresh** need it. |
 | Segfault on import | Must call `init()` before any am4 module usage |
 | `init()` downloads data files | Normal on first run — needs internet connection once |
 | Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |

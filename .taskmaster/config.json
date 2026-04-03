@@ -34,7 +34,8 @@
     "responseLanguage": "English",
     "enableCodebaseAnalysis": true,
     "enableProxy": false,
-    "anonymousTelemetry": true
+    "anonymousTelemetry": true,
+    "defaultTag": "master"
   },
   "claudeCode": {},
   "codexCli": {},

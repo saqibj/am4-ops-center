@@ -25,7 +25,7 @@ FastAPI page routes are defined in `dashboard/routes/pages.py` and mounted at th
 | `/contributions` | `page_contributions` | Contributions |
 | `/heatmap` | `page_heatmap` | Heatmap |
 
-**Buy Next** (`/buy-next`) uses **`GET /api/fleet-plan`** (same SQL as **`python main.py recommend`** via `commands.fleet_recommend.fleet_recommend_rows`). MVP does not filter by **`my_fleet`** ownership.
+**Buy Next** / **Fleet Planner** use **`GET /api/fleet-plan`** (same SQL as **`python main.py recommend`** via `commands.fleet_recommend.fleet_recommend_rows`). Rows include **`owned_qty`** from **`my_fleet`**. Query param **`hide_owned=1`** (checkbox on those pages) excludes aircraft with **`my_fleet.quantity > 0`** before the top-N limit; CLI: **`recommend --hide-owned`**.
 
 ## `my_fleet` / `my_routes` upsert semantics
 

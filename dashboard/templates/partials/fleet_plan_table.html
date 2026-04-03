@@ -6,6 +6,7 @@
                 <th class="px-4 py-3 text-left">Name</th>
                 <th class="px-4 py-3 text-left">Type</th>
                 <th class="px-4 py-3 text-right">Cost</th>
+                <th class="px-4 py-3 text-right">Owned</th>
                 <th class="px-4 py-3 text-right">Routes</th>
                 <th class="px-4 py-3 text-right">Avg profit/d</th>
                 <th class="px-4 py-3 text-right">Best profit/d</th>
@@ -19,6 +20,7 @@
                 <td class="px-4 py-3 text-gray-400">{{ r.name }}</td>
                 <td class="px-4 py-3 text-gray-500">{{ r.type }}</td>
                 <td class="px-4 py-3 text-right font-mono">${{ "{:,.0f}".format(r.cost or 0) }}</td>
+                <td class="px-4 py-3 text-right font-mono {% if (r.owned_qty or 0) > 0 %}text-amber-400{% else %}text-gray-500{% endif %}">{{ r.owned_qty or 0 }}</td>
                 <td class="px-4 py-3 text-right font-mono">{{ r.routes }}</td>
                 <td class="px-4 py-3 text-right font-mono text-emerald-400">${{ "{:,.0f}".format(r.avg_daily_profit or 0) }}</td>
                 <td class="px-4 py-3 text-right font-mono text-emerald-300">${{ "{:,.0f}".format(r.best_daily_profit or 0) }}</td>

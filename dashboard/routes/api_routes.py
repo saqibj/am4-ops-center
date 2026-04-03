@@ -537,19 +537,30 @@ def api_route_chart(request: Request, origin: str = Query(""), dest: str = Query
     )
 
 
+def _query_flag_on(v: str) -> bool:
+    return v.strip().lower() in ("1", "true", "on", "yes")
+
+
 @router.get("/fleet-plan", response_class=HTMLResponse)
 def api_fleet_plan(
     request: Request,
     hub: str = Query(""),
     budget: int = Query(200_000_000, ge=0),
     top_n: int = Query(15, ge=1, le=100),
+    hide_owned: str = Query(""),
 ):
     if not hub.strip():
         return HTMLResponse("<p class='text-gray-400'>Select a hub.</p>")
 
     conn = get_db()
     try:
-        rows, err = fleet_recommend_rows(conn, hub.strip(), int(budget), int(top_n))
+        rows, err = fleet_recommend_rows(
+            conn,
+            hub.strip(),
+            int(budget),
+            int(top_n),
+            hide_owned=_query_flag_on(hide_owned),
+        )
     finally:
         conn.close()
 

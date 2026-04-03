@@ -49,7 +49,7 @@
           "id": 5,
           "title": "Add already-owned aircraft context",
           "description": "Show owned quantity and optionally hide aircraft already owned.",
-          "status": "pending",
+          "status": "done",
           "dependencies": [1, 2],
           "priority": "low",
           "details": "Join my_fleet by aircraft shortname, show quantity owned, and add a hide-owned toggle.",

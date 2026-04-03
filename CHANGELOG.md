@@ -15,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **My Fleet:** GUI add **merges** quantities; **`POST /api/fleet/{id}/buy`** and **`POST /api/fleet/{id}/sell`** (sell only up to **free** = owned − assigned on routes); table shows type, owned, assigned, free, unit/total value; summary adds assigned, free, fleet value.
 - **My Routes:** GUI add **merges** `num_assigned`; **`GET /api/route-exists`** duplicate hint and **`GET /api/routes/pair-coverage`** (saved rows + top extracted profit) on the form via HTMX.
 - **Airport search UX:** **`GET /api/search/airports`** and **`GET /api/search/aircraft`** (HTMX autocomplete); **`partials/airport_badge.html`**; richer destination labels in Hub Explorer, My Routes, Route Analyzer.
-- **Buy Next** (`/buy-next`): budget-ranked aircraft at a hub via **`GET /api/fleet-plan`** (shared **`fleet_recommend_rows`** with CLI **`recommend`** and **Fleet Planner**). Nav + overview link; MVP copy notes no **`my_fleet`** hide-owned yet.
+- **Buy Next** (`/buy-next`): budget-ranked aircraft at a hub via **`GET /api/fleet-plan`** (shared **`fleet_recommend_rows`** with CLI **`recommend`** and **Fleet Planner**). Nav + overview link.
+- **Fleet recommendations:** **`my_fleet`** join for **Owned** in the table; **`hide_owned`** on **`/api/fleet-plan`**, Fleet Planner / Buy Next checkbox, and **`python main.py recommend --hide-owned`**.
 - **`CHANGELOG.md`** (this file).
 
 ### Changed

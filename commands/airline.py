@@ -245,10 +245,19 @@ def routes_export(db_path: str, output_path: str) -> None:
     print(f"Wrote {len(rows)} row(s) to {out}")
 
 
-def recommend(db_path: str, hub: str, budget: int, top_n: int) -> None:
+def recommend(
+    db_path: str,
+    hub: str,
+    budget: int,
+    top_n: int,
+    *,
+    hide_owned: bool = False,
+) -> None:
     conn = get_connection(db_path)
     try:
-        rows, err = fleet_recommend_rows(conn, hub, int(budget), int(top_n))
+        rows, err = fleet_recommend_rows(
+            conn, hub, int(budget), int(top_n), hide_owned=hide_owned
+        )
     finally:
         conn.close()
     if err == "unknown_hub":
@@ -258,14 +267,16 @@ def recommend(db_path: str, hub: str, budget: int, top_n: int) -> None:
         print("No aircraft match this hub and budget (or no extraction data).")
         return
     print(
-        "shortname\tname\ttype\tcost\troutes\tavg_profit_day\tbest_profit_day\tdays_breakeven"
+        "shortname\tname\ttype\tcost\towned\troutes\tavg_profit_day\tbest_profit_day\t"
+        "days_breakeven"
     )
     for r in rows:
         avg = float(r.get("avg_daily_profit") or 0)
         cost = int(r.get("cost") or 0)
         be = r.get("days_to_breakeven")
         be_out = "" if be is None else be
+        owned = int(r.get("owned_qty") or 0)
         print(
-            f"{r['shortname']}\t{r['name']}\t{r['type']}\t{cost}\t{r['routes']}\t"
+            f"{r['shortname']}\t{r['name']}\t{r['type']}\t{cost}\t{owned}\t{r['routes']}\t"
             f"{round(avg, 2)}\t{round(float(r.get('best_daily_profit') or 0), 2)}\t{be_out}"
         )

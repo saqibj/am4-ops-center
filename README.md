@@ -298,7 +298,7 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 | Aircraft | `/aircraft` | Aircraft list and comparison against extracted routes |
 | Route Analyzer | `/route-analyzer` | All aircraft ranked for a specific origin → destination |
 | Fleet Planner | `/fleet-planner` | Budget-based aircraft / route suggestions |
-| Buy Next | `/buy-next` | Same ranking as Fleet Planner / `recommend`; dedicated “next purchase” entry (MVP: no `my_fleet` hide-owned yet) |
+| Buy Next | `/buy-next` | Same ranking as Fleet Planner / `recommend`; **Owned** from `my_fleet` and optional **hide types I already own** (also `recommend --hide-owned`) |
 | My Fleet | `/my-fleet` | `my_fleet` table: quantities, assigned vs free, buy/sell, CSV |
 | My Routes | `/my-routes` | `my_routes` assignments, merge on add, duplicate hints |
 | Hub Manager | `/my-hubs` | Managed hubs (`my_hubs`): add IATA, per-hub refresh, **stale** refresh (OK extract older than 7 days), remove |

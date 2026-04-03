@@ -162,7 +162,13 @@ def cmd_routes(args: argparse.Namespace) -> None:
 def cmd_recommend(args: argparse.Namespace) -> None:
     from commands.airline import recommend
 
-    recommend(args.db, args.hub, args.budget, args.top)
+    recommend(
+        args.db,
+        args.hub,
+        args.budget,
+        args.top,
+        hide_owned=bool(getattr(args, "hide_owned", False)),
+    )
 
 
 def main() -> None:
@@ -267,6 +273,11 @@ def main() -> None:
     rec.add_argument("--hub", type=str, required=True, help="Origin hub IATA")
     rec.add_argument("--budget", type=int, required=True, help="Max aircraft cost ($)")
     rec.add_argument("--top", type=int, default=25, help="Max rows to print")
+    rec.add_argument(
+        "--hide-owned",
+        action="store_true",
+        help="Exclude aircraft types already in my_fleet (quantity > 0)",
+    )
     rec.set_defaults(func=cmd_recommend)
 
     args = parser.parse_args()

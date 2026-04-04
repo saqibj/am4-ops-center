@@ -8,8 +8,18 @@ from fastapi.responses import HTMLResponse
 from dashboard.db import base_context, fetch_all, get_db
 from dashboard.hub_freshness import STALE_AFTER_DAYS
 from dashboard.server import templates
+from dashboard.ui_settings import ALLOWED_LANDING_PATHS
 
 router = APIRouter(tags=["pages"])
+
+
+def _package_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("am4-routemine")
+    except Exception:
+        return "0.1.1"
 
 
 def _origin_hub_iatas_for_fleet_plan() -> list[str]:
@@ -265,3 +275,11 @@ def page_heatmap(request: Request):
     ctx = base_context(request)
     ctx.update({"hubs": hl, "default_hub": default_hub})
     return templates.TemplateResponse(request, "heatmap.html", ctx)
+
+
+@router.get("/settings", response_class=HTMLResponse)
+def page_settings(request: Request):
+    ctx = base_context(request)
+    ctx["landing_paths"] = sorted(ALLOWED_LANDING_PATHS)
+    ctx["app_version"] = _package_version()
+    return templates.TemplateResponse(request, "settings.html", ctx)

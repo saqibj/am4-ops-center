@@ -2,14 +2,14 @@
 {% block title %}My Fleet{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">My Fleet</h2>
-<p class="text-gray-400 mb-6">Aircraft you own by type (<code class="text-gray-500">my_fleet</code>). Adding the same type <strong class="text-gray-300">merges</strong> quantities. CSV import defaults to merge; use <code class="text-gray-500">--replace</code> to overwrite. Pair with <a href="/my-routes" class="text-emerald-400 hover:underline">My Routes</a> for assignments (assigned vs free).</p>
+<p class="am4-text-secondary mb-6">Aircraft you own by type (<code class="am4-text-muted">my_fleet</code>). Adding the same type <strong class="am4-text-secondary">merges</strong> quantities. CSV import defaults to merge; use <code class="am4-text-muted">--replace</code> to overwrite. Pair with <a href="/my-routes" class="am4-accent hover:underline">My Routes</a> for assignments (assigned vs free).</p>
 
 <div id="fleet-summary" class="mb-8"
      hx-get="/api/fleet/summary"
      hx-trigger="load">
 </div>
 
-<div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-8">
+<div class="am4-card rounded-lg shadow-lg p-6 mb-8">
     <h3 class="text-lg font-semibold mb-4">Add to fleet (merges if type exists)</h3>
     <form id="fleet-add-form"
           class="flex flex-wrap gap-4 items-end"
@@ -19,9 +19,9 @@
           hx-indicator="#fleet-inv-spinner"
           hx-on::after-request="if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-fleet-error') === -1) { document.getElementById('fleet-add-form').reset(); htmx.ajax('GET', '/api/fleet/summary', { target: '#fleet-summary', swap: 'innerHTML' }); }">
         <div>
-            <label class="block text-xs text-gray-400 mb-1">Aircraft (shortname)</label>
+            <label class="block text-xs am4-text-secondary mb-1">Aircraft (shortname)</label>
             <input type="text" name="aircraft" list="fleet-ac-list" required placeholder="e.g. b738"
-                   class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 min-w-[10rem] font-mono lowercase">
+                   class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono lowercase">
             <datalist id="fleet-ac-list">
                 {% for ac in aircraft %}
                 <option value="{{ ac.shortname }}">{{ ac.shortname }} — {{ ac.name }}</option>
@@ -29,19 +29,19 @@
             </datalist>
         </div>
         <div>
-            <label class="block text-xs text-gray-400 mb-1">Count</label>
+            <label class="block text-xs am4-text-secondary mb-1">Count</label>
             <input type="number" name="quantity" value="1" min="1" max="999" step="1"
-                   class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-24 font-mono">
+                   class="am4-input rounded-md px-3 py-2 w-24 font-mono">
         </div>
         <div>
-            <label class="block text-xs text-gray-400 mb-1">Notes (optional)</label>
+            <label class="block text-xs am4-text-secondary mb-1">Notes (optional)</label>
             <input type="text" name="notes" placeholder="Optional"
-                   class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 min-w-[12rem]">
+                   class="am4-input rounded-md px-3 py-2 min-w-[12rem]">
         </div>
-        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-md px-4 py-2 text-sm font-medium">
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 rounded-md px-4 py-2 text-sm font-medium">
             Save
         </button>
-        <span id="fleet-inv-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Saving…</span>
+        <span id="fleet-inv-spinner" class="htmx-indicator am4-accent text-sm pb-2">Saving…</span>
     </form>
 </div>
 
@@ -49,6 +49,6 @@
      hx-get="/api/fleet/inventory"
      hx-trigger="load"
      hx-indicator="#fleet-inv-spinner">
-    <p class="text-gray-400">Loading inventory…</p>
+    <p class="am4-text-secondary">Loading inventory…</p>
 </div>
 {% endblock %}

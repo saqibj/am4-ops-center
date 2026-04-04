@@ -2,14 +2,14 @@
 {% block title %}My Routes{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">My Routes</h2>
-<p class="text-gray-400 mb-6">Hub–destination–aircraft assignments (<code class="text-gray-500">my_routes</code>). The same triple <strong class="text-gray-300">merges</strong> (adds <code class="text-gray-500">num_assigned</code>). CSV import defaults to merge; use <code class="text-gray-500">--replace</code> to overwrite. Profit uses matching <code class="text-gray-500">route_aircraft</code> when available.</p>
+<p class="am4-text-secondary mb-6">Hub–destination–aircraft assignments (<code class="am4-text-muted">my_routes</code>). The same triple <strong class="am4-text-secondary">merges</strong> (adds <code class="am4-text-muted">num_assigned</code>). CSV import defaults to merge; use <code class="am4-text-muted">--replace</code> to overwrite. Profit uses matching <code class="am4-text-muted">route_aircraft</code> when available.</p>
 
 <div id="routes-summary" class="mb-8"
      hx-get="/api/routes/summary"
      hx-trigger="load">
 </div>
 
-<div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-8">
+<div class="am4-card rounded-lg shadow-lg p-6 mb-8">
     <h3 class="text-lg font-semibold mb-4">Add route (merges if same hub–dest–aircraft)</h3>
     <form id="routes-add-form"
           class="flex flex-wrap gap-4 items-end"
@@ -19,10 +19,10 @@
           hx-indicator="#routes-inv-spinner"
           hx-on::after-request="if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-routes-error') === -1) { document.getElementById('routes-add-form').reset(); htmx.ajax('GET', '/api/routes/summary', { target: '#routes-summary', swap: 'innerHTML' }); }">
         <div class="relative min-w-[11rem]">
-            <label class="block text-xs text-gray-400 mb-1">Hub (IATA)</label>
+            <label class="block text-xs am4-text-secondary mb-1">Hub (IATA)</label>
             <input type="text" id="hub_iata" name="hub_iata" list="routes-airport-list" required placeholder="KHI"
                    autocomplete="off"
-                   class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 min-w-[8rem] font-mono uppercase w-full"
+                   class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono uppercase w-full"
                    hx-get="/api/search/airports"
                    hx-trigger="keyup changed delay:400ms from:#hub_iata, focus from:#hub_iata"
                    hx-target="#hub-air-search-panel"
@@ -31,10 +31,10 @@
             <div id="hub-air-search-panel" class="search-ac-panel absolute z-30 left-0 right-0 top-full mt-1"></div>
         </div>
         <div class="relative min-w-[11rem]">
-            <label class="block text-xs text-gray-400 mb-1">Destination (IATA)</label>
+            <label class="block text-xs am4-text-secondary mb-1">Destination (IATA)</label>
             <input type="text" id="destination_iata" name="destination_iata" list="routes-airport-list" required placeholder="DXB"
                    autocomplete="off"
-                   class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 min-w-[8rem] font-mono uppercase w-full"
+                   class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono uppercase w-full"
                    hx-get="/api/search/airports"
                    hx-trigger="keyup changed delay:400ms from:#destination_iata, focus from:#destination_iata"
                    hx-target="#dest-air-search-panel"
@@ -43,10 +43,10 @@
             <div id="dest-air-search-panel" class="search-ac-panel absolute z-30 left-0 right-0 top-full mt-1"></div>
         </div>
         <div class="relative min-w-[11rem]">
-            <label class="block text-xs text-gray-400 mb-1">Aircraft</label>
+            <label class="block text-xs am4-text-secondary mb-1">Aircraft</label>
             <input type="text" id="aircraft_route" name="aircraft" list="routes-ac-list" required placeholder="b738"
                    autocomplete="off"
-                   class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 min-w-[8rem] font-mono lowercase w-full"
+                   class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono lowercase w-full"
                    hx-get="/api/search/aircraft"
                    hx-trigger="keyup changed delay:400ms from:#aircraft_route, focus from:#aircraft_route"
                    hx-target="#ac-route-search-panel"
@@ -60,19 +60,19 @@
             </datalist>
         </div>
         <div>
-            <label class="block text-xs text-gray-400 mb-1">Num assigned</label>
+            <label class="block text-xs am4-text-secondary mb-1">Num assigned</label>
             <input type="number" name="num_assigned" value="1" min="1" max="999" step="1"
-                   class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-24 font-mono">
+                   class="am4-input rounded-md px-3 py-2 w-24 font-mono">
         </div>
         <div>
-            <label class="block text-xs text-gray-400 mb-1">Notes</label>
+            <label class="block text-xs am4-text-secondary mb-1">Notes</label>
             <input type="text" name="notes" placeholder="Optional"
-                   class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 min-w-[10rem]">
+                   class="am4-input rounded-md px-3 py-2 min-w-[10rem]">
         </div>
-        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-md px-4 py-2 text-sm font-medium">
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 rounded-md px-4 py-2 text-sm font-medium">
             Save
         </button>
-        <span id="routes-inv-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Saving…</span>
+        <span id="routes-inv-spinner" class="htmx-indicator am4-accent text-sm pb-2">Saving…</span>
     </form>
     <div id="route-dup-hint"
          class="mt-4 min-h-[0.5rem]"
@@ -99,6 +99,6 @@
      hx-get="/api/routes/inventory"
      hx-trigger="load"
      hx-indicator="#routes-inv-spinner">
-    <p class="text-gray-400">Loading…</p>
+    <p class="am4-text-secondary">Loading…</p>
 </div>
 {% endblock %}

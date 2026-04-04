@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="/static/css/settings.css">
+{% endblock %}
+{% block content %}
+<div class="settings-layout pb-24">
+    <h2 class="text-2xl font-bold mb-2">Settings</h2>
+    <p class="am4-text-secondary text-sm mb-6">Changes apply when you save. Use Cancel to discard edits.</p>
+
+    <label for="settings-section-jump" class="lg:hidden block text-xs am4-text-secondary mb-1">Section</label>
+    <select id="settings-section-jump" class="lg:hidden am4-input rounded-md px-3 py-2 w-full mb-6 text-sm" aria-label="Jump to section">
+        <option value="#appearance">Appearance</option>
+        <option value="#branding">Branding</option>
+        <option value="#preferences">Preferences</option>
+        <option value="#notifications">Notifications</option>
+        <option value="#data-reset">Data &amp; reset</option>
+        <option value="#about">About</option>
+    </select>
+
+    <div class="lg:grid lg:grid-cols-[11rem_1fr] lg:gap-10">
+        <nav class="settings-rail hidden lg:block" aria-label="Settings sections">
+            <a href="#appearance">Appearance</a>
+            <a href="#branding">Branding</a>
+            <a href="#preferences">Preferences</a>
+            <a href="#notifications">Notifications</a>
+            <a href="#data-reset">Data &amp; reset</a>
+            <a href="#about">About</a>
+        </nav>
+
+        <div class="min-w-0">
+            <section id="appearance" class="settings-card scroll-mt-20">
+                <h3 class="settings-section-title">Appearance</h3>
+                <p class="text-sm am4-text-secondary mb-4">Theme and display density.</p>
+
+                <div class="mb-4">
+                    <p class="text-xs am4-text-muted uppercase tracking-wider mb-2">Live preview</p>
+                    <div id="settings-preview" data-preview-theme="dark" class="rounded-lg overflow-hidden" role="region" aria-label="Appearance preview">
+                        <div class="pv-shell">
+                            <div class="pv-nav">
+                                <div class="pv-accent font-bold truncate" style="font-size:0.55rem;">AM4</div>
+                                <img id="settings-preview-airline-logo" class="hidden mt-0.5 h-4 w-auto max-w-full object-contain" alt="" />
+                                <p id="settings-preview-airline-name" class="pv-muted truncate mt-0.5" style="font-size:0.5rem;"></p>
+                            </div>
+                            <div class="pv-main">
+                                <div class="font-semibold pv-accent" style="font-size:0.65rem;">Overview</div>
+                                <table class="pv-table">
+                                    <thead><tr><th scope="col">Col A</th><th scope="col">Col B</th></tr></thead>
+                                    <tbody>
+                                        <tr><td>α</td><td>100</td></tr>
+                                        <tr><td>β</td><td>200</td></tr>
+                                        <tr><td>γ</td><td>300</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <fieldset class="mb-4">
+                    <legend class="text-sm font-medium mb-2">Theme</legend>
+                    <div class="flex flex-wrap gap-3">
+                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="theme_mode" value="light" class="accent-[var(--accent)]"> Light</label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="theme_mode" value="dark" class="accent-[var(--accent)]"> Dark</label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="theme_mode" value="system" class="accent-[var(--accent)]"> System</label>
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend class="text-sm font-medium mb-2">UI density</legend>
+                    <div class="flex flex-wrap gap-3">
+                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="ui_density" value="comfortable" class="accent-[var(--accent)]"> Comfortable</label>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" name="ui_density" value="compact" class="accent-[var(--accent)]"> Compact</label>
+                    </div>
+                </fieldset>
+            </section>
+
+            <section id="branding" class="settings-card scroll-mt-20">
+                <h3 class="settings-section-title">Branding</h3>
+                <p class="text-sm am4-text-secondary mb-4">Airline name and logo (shown in the shell when saved). If both are empty, only the product title appears in the sidebar.</p>
+                <div class="space-y-3 max-w-md">
+                    <div>
+                        <div class="flex justify-between items-baseline gap-2 mb-1">
+                            <label for="airline-name" class="text-xs am4-text-secondary">Airline name</label>
+                            <span id="airline-name-count" class="text-xs am4-text-muted tabular-nums" aria-live="polite">0/60</span>
+                        </div>
+                        <input type="text" id="airline-name" maxlength="60" autocomplete="organization"
+                            class="am4-input rounded-md px-3 py-2 w-full text-sm" placeholder="e.g. SkyJet Airways">
+                    </div>
+                    <div>
+                        <label for="airline-logo" class="block text-xs am4-text-secondary mb-1">Airline logo</label>
+                        <input type="file" id="airline-logo" accept="image/png,image/jpeg,image/webp,image/gif"
+                            class="text-sm am4-text-secondary max-w-full">
+                        <p class="text-xs am4-text-muted mt-1">PNG, JPEG, WebP, or GIF. Max ~350 KB per file. Choose a file to replace the current logo; use Remove, then Save, to clear it.</p>
+                        <p id="airline-logo-err" class="am4-text-negative text-xs mt-1 hidden" role="alert"></p>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <button type="button" id="airline-logo-remove" class="text-sm am4-accent underline-offset-2 hover:underline">Remove logo</button>
+                        </div>
+                        <div class="mt-2 am4-bordered rounded-md p-2 am4-sunken inline-block max-w-xs">
+                            <img id="airline-logo-preview" src="" alt="Logo preview" class="max-h-16 w-auto object-contain hidden">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="preferences" class="settings-card scroll-mt-20">
+                <h3 class="settings-section-title">Preferences</h3>
+                <div class="max-w-md">
+                    <label for="default-landing" class="block text-xs am4-text-secondary mb-1">Default landing page</label>
+                    <select id="default-landing" class="am4-input rounded-md px-3 py-2 w-full text-sm">
+                        {% for path in landing_paths %}
+                        <option value="{{ path }}">{{ path }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </section>
+
+            <section id="notifications" class="settings-card scroll-mt-20">
+                <h3 class="settings-section-title">Notifications</h3>
+                <p class="text-sm am4-text-secondary mb-3">Preferences for future in-app alerts.</p>
+                <div class="space-y-2 text-sm">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="notif-route" class="accent-[var(--accent)]"> Route change alerts</label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="notif-maint" class="accent-[var(--accent)]"> Maintenance reminders</label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="notif-mkt" class="accent-[var(--accent)]"> Product updates</label>
+                </div>
+            </section>
+
+            <section id="data-reset" class="settings-card scroll-mt-20">
+                <h3 class="settings-section-title">Data &amp; reset</h3>
+                <p class="text-sm am4-text-secondary mb-4">Reset stored settings by section. This applies immediately to storage (not part of Save/Cancel draft).</p>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" id="reset-appearance" class="am4-quick-link rounded-md px-3 py-2 text-sm">Reset appearance</button>
+                    <button type="button" id="reset-branding" class="am4-quick-link rounded-md px-3 py-2 text-sm">Reset branding</button>
+                    <button type="button" id="reset-prefs" class="am4-quick-link rounded-md px-3 py-2 text-sm">Reset preferences</button>
+                    <button type="button" id="reset-notifs" class="am4-quick-link rounded-md px-3 py-2 text-sm">Reset notifications</button>
+                    <button type="button" id="reset-all" class="am4-quick-link rounded-md px-3 py-2 text-sm border am4-border-negative am4-text-negative">Reset all settings</button>
+                </div>
+            </section>
+
+            <section id="about" class="settings-card scroll-mt-20">
+                <h3 class="settings-section-title">About</h3>
+                <p class="text-sm am4-text-secondary">AM4 Ops Center — dashboard version {{ app_version }}.</p>
+            </section>
+        </div>
+    </div>
+</div>
+
+<div id="settings-toast" class="settings-toast settings-toast--hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<div class="settings-actions" role="toolbar" aria-label="Save settings">
+    <span id="settings-dirty-hint" class="text-sm am4-text-muted mr-auto hidden">You have unsaved changes.</span>
+    <button type="button" id="settings-cancel" class="am4-quick-link rounded-md px-4 py-2 text-sm">Cancel</button>
+    <button type="button" id="settings-save" class="rounded-md px-4 py-2 text-sm font-medium text-white bg-[var(--accent)] hover:opacity-90">Save changes</button>
+</div>
+
+<script src="/static/js/settings-page.js" defer></script>
+{% endblock %}

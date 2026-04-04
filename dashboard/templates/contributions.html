@@ -2,17 +2,17 @@
 {% block title %}Contributions{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Contribution optimizer</h2>
-<p class="text-gray-400 mb-6">Routes by alliance contribution; C/P ratio = contribution ÷ profit per day.</p>
+<p class="am4-text-secondary mb-6">Routes by alliance contribution; C/P ratio = contribution ÷ profit per day.</p>
 
 <form id="contrib-filters" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Hub</label>
+        <label class="block text-xs am4-text-secondary mb-1">Hub</label>
         <select name="hub"
                 hx-get="/api/contributions"
                 hx-target="#contrib-results"
                 hx-include="#contrib-filters"
                 hx-indicator="#contrib-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white min-w-[8rem] font-mono">
+                class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono">
             <option value="">All hubs</option>
             {% for h in hubs %}
             <option value="{{ h }}">{{ h }}</option>
@@ -20,13 +20,13 @@
         </select>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Aircraft type</label>
+        <label class="block text-xs am4-text-secondary mb-1">Aircraft type</label>
         <select name="ac_type"
                 hx-get="/api/contributions"
                 hx-target="#contrib-results"
                 hx-include="#contrib-filters"
                 hx-indicator="#contrib-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white">
+                class="am4-input rounded-md px-3 py-2">
             <option value="">All</option>
             <option value="PAX">PAX</option>
             <option value="CARGO">CARGO</option>
@@ -34,23 +34,23 @@
         </select>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Min contribution</label>
+        <label class="block text-xs am4-text-secondary mb-1">Min contribution</label>
         <input type="number" name="min_contribution" value="0" step="1000"
                hx-get="/api/contributions"
                hx-target="#contrib-results"
                hx-trigger="change delay:400ms"
                hx-include="#contrib-filters"
                hx-indicator="#contrib-spinner"
-               class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white w-40 font-mono">
+               class="am4-input rounded-md px-3 py-2 w-40 font-mono">
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Rows</label>
+        <label class="block text-xs am4-text-secondary mb-1">Rows</label>
         <select name="limit"
                 hx-get="/api/contributions"
                 hx-target="#contrib-results"
                 hx-include="#contrib-filters"
                 hx-indicator="#contrib-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white">
+                class="am4-input rounded-md px-3 py-2">
             <option value="100">100</option>
             <option value="250">250</option>
             <option value="500" selected>500</option>
@@ -59,13 +59,13 @@
         </select>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Sort</label>
+        <label class="block text-xs am4-text-secondary mb-1">Sort</label>
         <select name="sort"
                 hx-get="/api/contributions"
                 hx-target="#contrib-results"
                 hx-include="#contrib-filters"
                 hx-indicator="#contrib-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white">
+                class="am4-input rounded-md px-3 py-2">
             <option value="contribution">Contribution</option>
             <option value="contrib_ratio">C/P ratio</option>
             <option value="profit_per_ac_day">Profit/Day</option>
@@ -74,7 +74,7 @@
             <option value="aircraft">Aircraft</option>
         </select>
     </div>
-    <span id="contrib-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Loading…</span>
+    <span id="contrib-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
 </form>
 
 <div id="contrib-results"
@@ -82,6 +82,6 @@
      hx-trigger="load"
      hx-include="#contrib-filters"
      hx-indicator="#contrib-spinner">
-    <p class="text-gray-400">Loading…</p>
+    <p class="am4-text-secondary">Loading…</p>
 </div>
 {% endblock %}

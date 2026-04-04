@@ -1,20 +1,20 @@
 {% if routes %}
-<form class="flex flex-wrap gap-3 items-end bg-gray-900/60 p-3 rounded-md border border-gray-600"
+<form class="flex flex-wrap gap-3 items-end am4-sunken p-3 rounded-md am4-bordered"
       hx-post="/api/fleet/assign"
       hx-target="#fleet-inventory"
       hx-swap="innerHTML"
       hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/fleet/summary', { target: '#fleet-summary', swap: 'innerHTML' })">
     <input type="hidden" name="fleet_id" value="{{ fleet_id }}">
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Route</label>
+        <label class="block text-xs am4-text-secondary mb-1">Route</label>
         <select name="route_aircraft_id"
-                class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 text-sm font-mono min-w-[16rem] max-w-[28rem]">
+                class="am4-input rounded-md px-3 py-2 text-sm font-mono min-w-[16rem] max-w-[28rem]">
             {% for r in routes %}
             <option value="{{ r.route_aircraft_id }}">{{ r.destination }} — ${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}/d · {{ "{:,.0f}".format(r.distance_km or 0) }} km</option>
             {% endfor %}
         </select>
     </div>
-    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-md px-4 py-2 text-sm font-medium">
+    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 rounded-md px-4 py-2 text-sm font-medium">
         Assign
     </button>
 </form>

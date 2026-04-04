@@ -1,41 +1,41 @@
 <div {% if flash_err %}data-fleet-error="1"{% endif %}>
     {% if flash %}
-    <p class="text-emerald-400 text-sm mb-4">{{ flash }}</p>
+    <p class="am4-accent text-sm mb-4">{{ flash }}</p>
     {% endif %}
     {% if flash_err %}
-    <p class="text-red-400 text-sm mb-4">{{ flash_err }}</p>
+    <p class="am4-text-negative text-sm mb-4">{{ flash_err }}</p>
     {% endif %}
 
     {% if not fleets %}
-    <p class="text-gray-400">No fleet rows yet. Add aircraft types above or run <code class="text-gray-500">python main.py fleet import --file fleet.csv</code> (default: merge counts).</p>
+    <p class="am4-text-secondary">No fleet rows yet. Add aircraft types above or run <code class="am4-text-muted">python main.py fleet import --file fleet.csv</code> (default: merge counts).</p>
     {% else %}
-    <div class="overflow-x-auto rounded-lg border border-gray-700">
-        <table class="w-full text-sm">
-            <thead class="bg-gray-700 text-gray-300 text-xs uppercase tracking-wider">
+    <div class="overflow-x-auto rounded-lg am4-bordered">
+        <table class="am4-table w-full text-sm">
+            <thead class="am4-table-head text-xs uppercase tracking-wider">
                 <tr>
-                    <th class="text-left px-3 py-3">Type</th>
-                    <th class="text-left px-3 py-3">Name</th>
-                    <th class="text-right px-3 py-3">Owned</th>
-                    <th class="text-right px-3 py-3">Asgn</th>
-                    <th class="text-right px-3 py-3">Free</th>
-                    <th class="text-right px-3 py-3">Each</th>
-                    <th class="text-right px-3 py-3">Total</th>
-                    <th class="text-left px-3 py-3">Notes</th>
-                    <th class="text-right px-3 py-3">Buy / Sell</th>
-                    <th class="text-right px-3 py-3"></th>
+                    <th scope="col" class="text-left px-3 py-3">Type</th>
+                    <th scope="col" class="text-left px-3 py-3">Name</th>
+                    <th scope="col" class="text-right px-3 py-3">Owned</th>
+                    <th scope="col" class="text-right px-3 py-3">Asgn</th>
+                    <th scope="col" class="text-right px-3 py-3">Free</th>
+                    <th scope="col" class="text-right px-3 py-3">Each</th>
+                    <th scope="col" class="text-right px-3 py-3">Total</th>
+                    <th scope="col" class="text-left px-3 py-3">Notes</th>
+                    <th scope="col" class="text-right px-3 py-3">Buy / Sell</th>
+                    <th scope="col" class="text-right px-3 py-3"></th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-gray-700">
+            <tbody>
                 {% for f in fleets %}
-                <tr class="hover:bg-gray-800/80 transition-colors">
-                    <td class="px-3 py-3 font-mono font-medium text-emerald-400 whitespace-nowrap">{{ f.shortname }}<span class="text-gray-500 text-xs ml-1">{{ f.ac_type or '' }}</span></td>
-                    <td class="px-3 py-3 text-gray-400 max-w-[10rem] truncate" title="{{ f.ac_name or '' }}">{{ f.ac_name }}</td>
+                <tr class="transition-colors">
+                    <td class="px-3 py-3 font-mono font-medium am4-accent whitespace-nowrap">{{ f.shortname }}<span class="am4-text-muted text-xs ml-1">{{ f.ac_type or '' }}</span></td>
+                    <td class="px-3 py-3 am4-text-secondary max-w-[10rem] truncate" title="{{ f.ac_name or '' }}">{{ f.ac_name }}</td>
                     <td class="px-3 py-3 text-right font-mono">{{ f.quantity }}</td>
                     <td class="px-3 py-3 text-right font-mono text-amber-200/80">{{ f.assigned }}</td>
                     <td class="px-3 py-3 text-right font-mono text-sky-300/80">{{ f.free }}</td>
-                    <td class="px-3 py-3 text-right font-mono text-gray-400">${{ "{:,.0f}".format(f.unit_cost | float) }}</td>
-                    <td class="px-3 py-3 text-right font-mono text-gray-200">${{ "{:,.0f}".format(f.total_value | float) }}</td>
-                    <td class="px-3 py-3 text-gray-500 max-w-[8rem] truncate">{{ f.notes or '—' }}</td>
+                    <td class="px-3 py-3 text-right font-mono am4-text-secondary">${{ "{:,.0f}".format(f.unit_cost | float) }}</td>
+                    <td class="px-3 py-3 text-right font-mono am4-text-secondary">${{ "{:,.0f}".format(f.total_value | float) }}</td>
+                    <td class="px-3 py-3 am4-text-muted max-w-[8rem] truncate">{{ f.notes or '—' }}</td>
                     <td class="px-3 py-3 text-right">
                         <div class="flex flex-col sm:flex-row gap-1 justify-end items-end sm:items-center">
                             <form class="flex items-center gap-1"
@@ -45,8 +45,8 @@
                                   hx-indicator="#fleet-inv-spinner"
                                   hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/fleet/summary', { target: '#fleet-summary', swap: 'innerHTML' })">
                                 <input type="number" name="add_count" value="1" min="1" max="999" step="1"
-                                       class="bg-gray-700 border border-gray-600 text-white rounded px-1 py-1 w-12 font-mono text-xs">
-                                <button type="submit" class="text-emerald-400 hover:text-emerald-300 text-xs whitespace-nowrap">Buy</button>
+                                       class="am4-input rounded px-1 py-1 w-12 font-mono text-xs">
+                                <button type="submit" class="am4-accent hover:text-emerald-300 text-xs whitespace-nowrap">Buy</button>
                             </form>
                             {% if f.free > 0 %}
                             <form class="flex items-center gap-1"
@@ -57,11 +57,11 @@
                                   hx-confirm="Sell from unassigned pool only?"
                                   hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/fleet/summary', { target: '#fleet-summary', swap: 'innerHTML' })">
                                 <input type="number" name="sell_count" value="1" min="1" max="{{ f.free }}" step="1"
-                                       class="bg-gray-700 border border-gray-600 text-white rounded px-1 py-1 w-12 font-mono text-xs">
+                                       class="am4-input rounded px-1 py-1 w-12 font-mono text-xs">
                                 <button type="submit" class="text-amber-400 hover:text-amber-300 text-xs whitespace-nowrap">Sell</button>
                             </form>
                             {% else %}
-                            <span class="text-gray-600 text-xs">—</span>
+                            <span class="am4-text-muted text-xs">—</span>
                             {% endif %}
                         </div>
                     </td>
@@ -73,7 +73,7 @@
                               hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/fleet/summary', { target: '#fleet-summary', swap: 'innerHTML' })"
                               class="inline">
                             <input type="hidden" name="fleet_id" value="{{ f.id }}">
-                            <button type="submit" class="text-red-400 hover:text-red-300 text-xs underline-offset-2 hover:underline">Remove</button>
+                            <button type="submit" class="am4-link-danger text-xs underline hover:underline">Remove</button>
                         </form>
                     </td>
                 </tr>

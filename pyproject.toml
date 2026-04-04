@@ -1,6 +1,6 @@
 [project]
 name = "am4-routemine"
-version = "0.1.0"
+version = "0.1.1"
 description = "Bulk AM4 route extraction into SQLite, CSV/Excel, and FastAPI dashboard."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
@@ -15,3 +15,6 @@ dependencies = [
   "tqdm>=4.65.0",
   "rich>=13.0.0",
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]

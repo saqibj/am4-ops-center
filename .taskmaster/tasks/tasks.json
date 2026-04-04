@@ -1,61 +1,807 @@
 {
-    "master": {
-      "tasks": [
-        {
-        "id": 1,
-        "title": "Extract shared fleet recommendation logic",
-        "description": "Create a single shared implementation for aircraft recommendation rows used by CLI and dashboard APIs.",
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Create and verify the ui-update working branch",
+        "description": "Create or switch to a dedicated Git branch named ui-update and verify that all implementation work happens on that branch before any file changes are made.",
         "status": "done",
-          "dependencies": [],
-          "priority": "high",
-          "details": "Add fleet_recommend_rows(conn, hub_iata, budget, top_n) in a shared location. Return rows with aircraft, avg_daily_profit, max_daily_profit, cost, and days_to_breakeven. Wire existing CLI recommend() and api_fleet_plan to use it.",
-          "testStrategy": "Confirm CLI recommend output and /api/fleet-plan output match for the same hub, budget, and top_n.",
-          "subtasks": []
+        "dependencies": [],
+        "priority": "high",
+        "details": "Before touching any source files, check the repository state with `git status`. If there are uncommitted changes that should not move to the new branch, either commit or stash them first. Create the branch with `git switch -c ui-update` if it does not exist yet, or switch with `git switch ui-update` if it already exists. Immediately verify the active branch using both `git branch --show-current` and `git status`. Do not start any UI, settings, or asset work until both commands confirm the current branch is `ui-update`.",
+        "testStrategy": "Run `git branch --show-current` and confirm the output is exactly `ui-update`. Run `git status` and confirm it reports `On branch ui-update` before making any code changes.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Inspect working tree state",
+            "description": "Check whether the repository is clean and decide whether to stash or commit any unrelated pending changes.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Run `git status` first and resolve any unrelated local changes before branch creation.",
+            "updatedAt": "2026-04-04T05:19:03.364Z",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Create or switch to ui-update",
+            "description": "Move into the dedicated feature branch for this work.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Use `git switch -c ui-update` if the branch does not exist. Use `git switch ui-update` if it already exists.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:19:03.373Z"
+          },
+          {
+            "id": 3,
+            "title": "Verify active branch name",
+            "description": "Double-check that the repository is now on the intended feature branch.",
+            "status": "done",
+            "dependencies": [
+              2
+            ],
+            "details": "Run `git branch --show-current` and `git status`; both must show `ui-update`.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:19:03.379Z"
+          },
+          {
+            "id": 4,
+            "title": "Block implementation until branch is verified",
+            "description": "Treat branch verification as a hard prerequisite for all implementation tasks.",
+            "status": "done",
+            "dependencies": [
+              3
+            ],
+            "details": "No source files, assets, or configuration files should be modified until branch verification succeeds.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:19:03.383Z"
+          }
+        ],
+        "metadata": {
+          "area": "git-workflow",
+          "mustCompleteBeforeCodeChanges": true
         },
-        {
-          "id": 2,
-          "title": "Add Buy Next page route and template",
-          "description": "Create /buy-next page and template using Fleet Planner behavior.",
-          "status": "done",
-          "dependencies": [1],
-          "priority": "high",
-          "details": "Add page_buy_next in dashboard/routes/pages.py and create buy_next.html. Reuse Fleet Planner filters and HTMX behavior. Use the same valid origin hub sourcing from route_aircraft.",
-          "testStrategy": "Load /buy-next and verify the table updates correctly when hub, budget, or top N changes.",
-          "subtasks": []
+        "updatedAt": "2026-04-04T05:19:03.383Z"
+      },
+      {
+        "id": "2",
+        "title": "Audit the current UI architecture and prepare a UIPRO design brief",
+        "description": "Review the existing app shell, routing, state management, asset handling, and layout components, then produce a clear implementation impact list and UIPRO-ready UI design brief before implementation.",
+        "status": "done",
+        "dependencies": [
+          "1"
+        ],
+        "priority": "high",
+        "details": "Identify the components or files responsible for the app shell, header, sidebar, top-level providers, route setup, global styles, design tokens, image/logo rendering, and any existing persistence layer. Determine where the settings route should live, where theme resolution should be initialized, where airline branding should appear, and which pages or components will require theme-safe styling updates. Use this audit to prepare a concise UIPRO design brief covering the app shell, settings page, theme behavior, branding placements, table treatment, and responsive states before any major UI implementation begins.",
+        "testStrategy": "Create a written impact list and UIPRO design brief covering app shell, theme entry point, settings route, persistence layer, logo assets, personalization display targets, and table styling expectations. Confirm there are no blind spots before implementation starts.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Locate app shell and layout entry points",
+            "description": "Find the main layout files and top-level providers.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Identify root layout, app shell, navigation, header, sidebar, and dashboard entry files.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:23:15.299Z"
+          },
+          {
+            "id": 2,
+            "title": "Inspect current styling system",
+            "description": "Understand whether the UI uses CSS variables, Tailwind, CSS modules, or another theming approach.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "List the global style files, token definitions, and any existing dark mode support.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:23:15.304Z"
+          },
+          {
+            "id": 3,
+            "title": "Identify persistence hooks",
+            "description": "Find existing local storage, IndexedDB, API, or state persistence utilities.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Determine how settings should be loaded before initial render and where resets should be handled.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:23:15.309Z"
+          },
+          {
+            "id": 4,
+            "title": "Map branding injection points",
+            "description": "Decide where Airline Name and Airline Logo should appear in the live UI.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "At minimum, map the settings preview, header or sidebar, and a dashboard welcome area.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:23:15.314Z"
+          },
+          {
+            "id": 5,
+            "title": "Prepare a UIPRO design brief",
+            "description": "Convert the architecture findings into a clear UI design brief for UIPRO.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Document required screens, shell behavior, settings sections, theme-aware assets, airline branding usage, responsive expectations, and the need for banded tables across all data tables.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:23:15.320Z"
+          },
+          {
+            "id": 6,
+            "title": "Get UIPRO to design the updated interface",
+            "description": "Have UIPRO produce the UI direction for the shell, settings, branding, and table patterns before build work advances.",
+            "status": "done",
+            "dependencies": [
+              5
+            ],
+            "details": "UIPRO should define the visual treatment for light/dark/system themes, the settings layout, header/sidebar branding placements, file upload and preview states, and banded table styling for readability.\n<info added on 2026-04-04T05:24:17.289Z>\nHave UIPRO produce mocks or a structured visual spec for the shell (light/dark/system), settings layout, branding placements, and banded tables + density based on §3–§4 of UIPRO_DESIGN_BRIEF.md. Confirm there are no separate design files in-repo yet.\n</info added on 2026-04-04T05:24:17.289Z>",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:36:02.939Z"
+          }
+        ],
+        "metadata": {
+          "area": "architecture",
+          "deliverable": "implementation-impact-list-and-uipro-design-brief"
         },
-        {
-          "id": 3,
-          "title": "Add Buy Next to navigation",
-          "description": "Expose Buy Next in the dashboard navigation and any overview card area.",
-          "status": "done",
-          "dependencies": [2],
-          "priority": "medium",
-          "details": "Update base.html to add Buy Next in a consistent location near Fleet Planner or My Routes. Add active styling if used elsewhere.",
-          "testStrategy": "Verify nav link appears and active state is correct on /buy-next.",
-          "subtasks": []
+        "updatedAt": "2026-04-04T05:36:02.939Z"
+      },
+      {
+        "id": "3",
+        "title": "Define the settings data model, defaults, and persistence layer",
+        "description": "Create a single source of truth for appearance, branding, preferences, and notification settings, with safe defaults and persistence.",
+        "status": "done",
+        "dependencies": [
+          "2"
+        ],
+        "priority": "high",
+        "details": "Implement a typed settings model that covers appearance, branding, preferences, and notifications. Include at minimum `themeMode` with `light`, `dark`, and `system`; a resolved theme value if useful; UI density; Airline Name; Airline Logo reference; default landing page; and notification toggles. Add helper functions to load, save, merge with defaults, reset sections, and recover gracefully from missing or malformed stored data. Sanitize text inputs and plan for future extension without breaking stored settings.",
+        "testStrategy": "Add tests or manual checks that verify default settings load correctly, malformed stored settings fall back safely, and a save-load round trip preserves values without data loss.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create the settings schema",
+            "description": "Define the full shape of the settings object and its defaults.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Include appearance, branding, preferences, and notifications sections with explicit defaults.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:43:46.413Z"
+          },
+          {
+            "id": 2,
+            "title": "Build persistence utilities",
+            "description": "Add reusable helpers to load, save, merge, and reset settings.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Support safe parsing and fallback behavior if storage is empty or corrupted.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:43:46.424Z"
+          },
+          {
+            "id": 3,
+            "title": "Add input sanitization and validation",
+            "description": "Protect the settings system from bad text or unsupported values.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Trim Airline Name input, constrain enum values, and reject invalid settings payloads.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:43:46.432Z"
+          },
+          {
+            "id": 4,
+            "title": "Expose settings through app state",
+            "description": "Provide settings to the rest of the UI through a central store or provider.",
+            "status": "done",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Make both read and update paths available to components without duplicating state.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T05:43:46.441Z"
+          }
+        ],
+        "metadata": {
+          "area": "settings-foundation"
         },
-        {
-          "id": 4,
-          "title": "Document Buy Next behavior and MVP limits",
-          "description": "Update README and page copy so behavior matches the shipped feature.",
-          "status": "done",
-          "dependencies": [2, 3],
-          "priority": "medium",
-          "details": "Document that Buy Next is hub-scoped, budget-constrained, based on extracted route_aircraft data, and uses average daily profit ranking. Mention that already-owned aircraft filtering is not in MVP unless Stretch A is added.",
-          "testStrategy": "Review README and UI copy to confirm there are no claims beyond MVP.",
-          "subtasks": []
+        "updatedAt": "2026-04-04T05:43:46.441Z"
+      },
+      {
+        "id": "4",
+        "title": "Implement the global theme system with light, dark, and system modes",
+        "description": "Add a complete theme layer that applies across the whole app and supports system preference detection.",
+        "status": "done",
+        "dependencies": [
+          "3"
+        ],
+        "priority": "high",
+        "details": "Create a theme provider or equivalent mechanism that resolves the active theme from saved settings and `prefers-color-scheme` when `system` is selected. Apply the resolved theme at the app root before the main UI paints to avoid a theme flash. Refactor shared colors and surface styles toward semantic tokens or CSS variables so the theme affects the full interface, including layout surfaces, tables, forms, dialogs, toasts, empty states, badges, and charts if present. Ensure table styling includes a readable banded-row treatment that works in both light and dark themes without reducing contrast.",
+        "testStrategy": "Verify that selecting Light, Dark, and System changes the full UI consistently, that System follows the OS/browser theme, and that the chosen theme persists after reload without a visible flash of the wrong theme.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create theme tokens or CSS variables",
+            "description": "Introduce semantic surface, border, text, and accent tokens for both themes.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Replace hard-coded colors in shared UI primitives wherever practical.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:08:20.354Z"
+          },
+          {
+            "id": 2,
+            "title": "Build theme resolution logic",
+            "description": "Resolve the active theme from settings and system preferences.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Support `light`, `dark`, and `system`, and react to system theme changes while the app is open.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:08:20.364Z"
+          },
+          {
+            "id": 3,
+            "title": "Apply theme at boot",
+            "description": "Ensure the root element receives the resolved theme before app content fully renders.",
+            "status": "done",
+            "dependencies": [
+              2
+            ],
+            "details": "Avoid a flash of the wrong theme on startup.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:08:20.372Z"
+          },
+          {
+            "id": 4,
+            "title": "Patch theme coverage gaps",
+            "description": "Audit visible components and update surfaces that still look wrong in either theme.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Cover tables, dialogs, menus, tooltips, form controls, hover states, and disabled states. Include banded row styling and hover/selection behavior for all data tables.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:08:20.382Z"
+          }
+        ],
+        "metadata": {
+          "area": "appearance"
         },
-        {
-          "id": 5,
-          "title": "Add already-owned aircraft context",
-          "description": "Show owned quantity and optionally hide aircraft already owned.",
-          "status": "done",
-          "dependencies": [1, 2],
-          "priority": "low",
-          "details": "Join my_fleet by aircraft shortname, show quantity owned, and add a hide-owned toggle.",
-          "testStrategy": "Verify owned counts display correctly and toggle filters as expected.",
-          "subtasks": []
-        }
+        "updatedAt": "2026-04-04T06:08:20.382Z"
+      },
+      {
+        "id": "5",
+        "title": "Add theme-aware app logos and default branding assets",
+        "description": "Support a default light-mode app logo and a default dark-mode app logo, with safe fallbacks throughout the shell.",
+        "status": "done",
+        "dependencies": [
+          "4"
+        ],
+        "priority": "medium",
+        "details": "Add two application-level logo assets, one designed for light mode and one for dark mode. Wire logo selection to the resolved theme so the correct default app logo appears anywhere the product identity is shown. Use fallback rules so missing theme-specific assets degrade gracefully to a single default logo instead of breaking the UI.",
+        "testStrategy": "Switch between Light, Dark, and System themes and verify the expected app logo appears in all intended placements. Remove or simulate a missing asset and confirm fallback behavior still renders a valid logo.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add light and dark logo assets",
+            "description": "Place both app logo variants into the asset pipeline.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Use appropriately optimized formats and consistent naming.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:35:51.509Z"
+          },
+          {
+            "id": 2,
+            "title": "Create logo resolution helper",
+            "description": "Centralize the logic that returns the correct app logo for the active theme.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Return a valid fallback if a theme-specific asset is unavailable.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:35:51.516Z"
+          },
+          {
+            "id": 3,
+            "title": "Replace hard-coded logo references",
+            "description": "Update app shell components to use the theme-aware resolver.",
+            "status": "done",
+            "dependencies": [
+              2
+            ],
+            "details": "Cover navigation chrome, settings preview, and any splash or landing header if present.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:35:51.522Z"
+          }
+        ],
+        "metadata": {
+          "area": "branding-assets"
+        },
+        "updatedAt": "2026-04-04T06:35:51.522Z"
+      },
+      {
+        "id": "6",
+        "title": "Build the Settings page shell and interaction model",
+        "description": "Create a dedicated Settings page with structured sections, save and cancel flow, reset actions, and live previews.",
+        "status": "done",
+        "dependencies": [
+          "2",
+          "3",
+          "4"
+        ],
+        "priority": "high",
+        "details": "Add a Settings route and build a page that groups configuration into clear sections such as Appearance, Branding, Preferences, Notifications, Data/Reset, and About. Use the approved UIPRO design direction as the visual basis for the page, while preserving the requested save model with unsaved-change detection, Save and Cancel actions, section-level or full reset actions, and immediate visual preview where appropriate. The layout should work on desktop and smaller screens, and it should be easy to extend later.",
+        "testStrategy": "Confirm the Settings page is reachable from navigation, loads current values, shows unsaved changes correctly, allows save and cancel, and exposes reset actions without causing stale or conflicting UI state.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create the Settings route and page scaffold",
+            "description": "Add the page entry point and hook it into the app navigation.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Route it cleanly and make it discoverable from the app shell.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:41:50.671Z"
+          },
+          {
+            "id": 2,
+            "title": "Add sectioned layout",
+            "description": "Implement tabs, cards, or sidebar navigation for settings categories.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Use a layout that scales for desktop and mobile widths. Align spacing, hierarchy, and section treatment with the UIPRO design.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:41:50.680Z"
+          },
+          {
+            "id": 3,
+            "title": "Implement save, cancel, and reset flow",
+            "description": "Build the page interaction model rather than auto-saving every field change.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Track dirty state, allow cancel, and provide section-level or global reset.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:41:50.688Z"
+          },
+          {
+            "id": 4,
+            "title": "Add live preview areas",
+            "description": "Show how theme and branding changes will look before or while saving.",
+            "status": "done",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Include at minimum a shell preview for theme and branding.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T06:41:50.696Z"
+          }
+        ],
+        "metadata": {
+          "area": "settings-ui"
+        },
+        "updatedAt": "2026-04-04T06:41:50.696Z"
+      },
+      {
+        "id": "7",
+        "title": "Implement airline personalization controls for name and logo",
+        "description": "Allow the user to personalize the app by setting an Airline Name and uploading an Airline Logo from the Settings page.",
+        "status": "done",
+        "dependencies": [
+          "6"
+        ],
+        "priority": "high",
+        "details": "Create branding controls in Settings for Airline Name and Airline Logo. Airline Name should support trimming, length limits, and safe display. Airline Logo should support upload, preview, replace, remove, and reset to default behavior. Validate file type and size, and protect against malformed uploads. Use a predictable storage strategy so the final UI can render the logo reliably after refresh or restart.",
+        "testStrategy": "Verify that a valid logo file can be uploaded, previewed, saved, replaced, and removed; invalid files are rejected with a clear message; and Airline Name persists and renders safely after reload.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add Airline Name input with validation",
+            "description": "Create the user-facing text control for airline naming.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Trim whitespace, apply a sensible max length, and reject unsafe input.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:11:14.043Z"
+          },
+          {
+            "id": 2,
+            "title": "Add Airline Logo upload control",
+            "description": "Build the upload UI and file handling for the custom airline logo.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Support preview, replace, remove, and file validation.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:11:14.053Z"
+          },
+          {
+            "id": 3,
+            "title": "Persist custom branding",
+            "description": "Save Airline Name and Airline Logo references into the settings store.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Ensure branding survives reload and falls back cleanly if the asset reference breaks.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:11:14.064Z"
+          },
+          {
+            "id": 4,
+            "title": "Add branding reset actions",
+            "description": "Allow the user to clear custom branding and return to default app branding.",
+            "status": "done",
+            "dependencies": [
+              3
+            ],
+            "details": "Reset both the stored values and the live UI preview.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:11:14.072Z"
+          }
+        ],
+        "metadata": {
+          "area": "airline-branding"
+        },
+        "updatedAt": "2026-04-04T08:11:14.072Z"
+      },
+      {
+        "id": "8",
+        "title": "Apply personalized branding throughout the app shell",
+        "description": "Display the saved Airline Name and Airline Logo in appropriate UI locations without breaking the default product identity.",
+        "status": "done",
+        "dependencies": [
+          "5",
+          "7"
+        ],
+        "priority": "medium",
+        "details": "Wire Airline Name and Airline Logo into the live interface in a restrained way. Recommended placements include a dashboard welcome header, a profile or brand block, and optionally the primary header or sidebar if the design supports it. Ensure there is a clear fallback path to the default app branding if the user has not configured custom branding or if the uploaded asset is missing.",
+        "testStrategy": "Verify that the live UI shows custom airline branding where intended, gracefully falls back to default branding when custom values are absent, and does not overflow or break layouts with long names or transparent logos.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Choose final branding placements",
+            "description": "Finalize where custom airline identity should appear in the live product.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Keep the usage consistent and avoid repeating the logo in every component.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:11:14.081Z"
+          },
+          {
+            "id": 2,
+            "title": "Integrate Airline Name in the shell",
+            "description": "Show the user-defined airline name in agreed live UI placements.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Use truncation or responsive wrapping where necessary.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:11:14.089Z"
+          },
+          {
+            "id": 3,
+            "title": "Integrate Airline Logo in the shell",
+            "description": "Show the user-defined airline logo in agreed live UI placements.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Handle transparent and oversized images gracefully.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:11:14.095Z"
+          },
+          {
+            "id": 4,
+            "title": "Implement default-branding fallback rules",
+            "description": "Ensure default app assets remain visible when user branding is unavailable.",
+            "status": "done",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Fallback should be automatic and require no user intervention.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:11:14.102Z"
+          }
+        ],
+        "metadata": {
+          "area": "live-branding"
+        },
+        "updatedAt": "2026-04-04T08:11:14.102Z"
+      },
+      {
+        "id": "9",
+        "title": "Add user-experience enhancements to the settings system",
+        "description": "Implement the highest-value usability improvements beyond theme and branding, including UI density, default landing page, and notification preferences.",
+        "status": "done",
+        "dependencies": [
+          "6"
+        ],
+        "priority": "medium",
+        "details": "Add the strongest immediate UX improvements that make the app feel more complete: a UI density setting with at least Comfortable and Compact modes, a default landing page selector so users can open where they work most, and notification toggles for useful app alerts. If the current app already has a hub concept, add a default hub selector only if it can be applied cleanly without creating fragile assumptions.",
+        "testStrategy": "Verify that UI density visibly changes layout spacing, the default landing page opens correctly after reload, and notification toggles persist and reflect their saved state.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement UI density setting",
+            "description": "Add Comfortable and Compact display modes.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Apply density differences to tables, cards, forms, and navigation spacing.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:32:53.684Z"
+          },
+          {
+            "id": 2,
+            "title": "Add default landing page preference",
+            "description": "Let the user choose which page opens first.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Support only routes that are stable and meaningful as a start page.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:32:53.693Z"
+          },
+          {
+            "id": 3,
+            "title": "Add notification toggles",
+            "description": "Create a preferences block for app-level alerts.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Persist toggles even if only in-app notifications exist today.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:32:53.702Z"
+          },
+          {
+            "id": 4,
+            "title": "Conditionally add default hub preference",
+            "description": "Only add a default hub selector if the app currently supports a real hub model and pre-filtering flow.",
+            "status": "cancelled",
+            "dependencies": [],
+            "details": "Skip this if the app does not yet have stable hub-aware routing or filtering.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:32:57.148Z"
+          }
+        ],
+        "metadata": {
+          "area": "ux-enhancements"
+        },
+        "updatedAt": "2026-04-04T08:41:35.714Z"
+      },
+      {
+        "id": "10",
+        "title": "Polish the experience with accessibility, feedback, and edge-case handling",
+        "description": "Make the Settings experience robust by improving accessibility, unsaved-change protection, empty states, and feedback messaging.",
+        "status": "done",
+        "dependencies": [
+          "6",
+          "7",
+          "8",
+          "9",
+          "12"
+        ],
+        "priority": "medium",
+        "details": "Harden the UX with keyboard-accessible controls, visible focus states, solid color contrast in both themes, clear error messaging, save success toasts, and an unsaved-changes warning when leaving the Settings page. Add friendly empty states for unconfigured branding and safe handling for missing images, long airline names, invalid uploads, and unavailable storage. Include readable table banding and keyboard focus behavior within dense table views.",
+        "testStrategy": "Perform a manual accessibility and edge-case pass that checks keyboard navigation, focus visibility, contrast, invalid upload messaging, unsaved-change prompts, and empty-state behavior in both light and dark themes.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add keyboard and focus accessibility improvements",
+            "description": "Ensure the page can be used without a mouse and focus is always visible.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Review form controls, tabs, upload interactions, and dialogs.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:36:18.403Z"
+          },
+          {
+            "id": 2,
+            "title": "Add save and error feedback",
+            "description": "Show the user clear feedback after saves, resets, and failures.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Use toasts or inline messaging for success and failure states.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:36:18.409Z"
+          },
+          {
+            "id": 3,
+            "title": "Add unsaved-changes protection",
+            "description": "Warn users before they navigate away with pending changes.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Cover route changes, tab closes if practical, and explicit cancel behavior.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:36:18.415Z"
+          },
+          {
+            "id": 4,
+            "title": "Handle empty states and bad data cleanly",
+            "description": "Improve resilience when branding is missing or settings data is malformed.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Show helpful prompts instead of blank or broken UI.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:36:18.420Z"
+          }
+        ],
+        "metadata": {
+          "area": "ux-polish"
+        },
+        "updatedAt": "2026-04-04T08:36:18.420Z"
+      },
+      {
+        "id": "11",
+        "title": "Run full validation, regression testing, and branch-safe completion checks",
+        "description": "Verify the feature set end-to-end, confirm the app still works correctly, validate the new banded-table styling, and make sure the work remains on ui-update before handing it off for review.",
+        "status": "done",
+        "dependencies": [
+          "8",
+          "9",
+          "10",
+          "12"
+        ],
+        "priority": "high",
+        "details": "Run the project's existing lint, typecheck, unit, component, and end-to-end tests where available. Add or update tests that cover settings persistence, theme switching, branding fallback, and upload validation. Perform a manual regression pass across the app in Light, Dark, and System modes. Before finalizing the work, re-run `git branch --show-current` and `git status` to confirm the branch is still `ui-update` and the diff is limited to the intended UI/settings changes. Explicitly validate that all major tables use banded rows consistently and remain readable in light, dark, and system modes.",
+        "testStrategy": "All automated checks should pass, the manual light/dark/system regression should be clean, and final branch verification must confirm the current branch is still `ui-update`.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Run automated quality checks",
+            "description": "Execute linting, type checks, and the relevant test suites.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Use the project's standard validation commands and fix regressions before sign-off.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:39:02.464Z"
+          },
+          {
+            "id": 2,
+            "title": "Perform manual theme and branding regression pass",
+            "description": "Review the live UI in Light, Dark, and System modes with and without custom airline branding.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Include tables, forms, dialogs, header/sidebar, and the Settings page. Confirm banded rows are present and readable across every major table.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:39:02.468Z"
+          },
+          {
+            "id": 3,
+            "title": "Verify persistence and reset behaviors",
+            "description": "Confirm settings survive reload and reset paths behave as expected.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Test save, reload, remove branding, reset section, and reset all.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:39:02.474Z"
+          },
+          {
+            "id": 4,
+            "title": "Reconfirm branch before handoff",
+            "description": "Double-check that implementation work stayed on ui-update.",
+            "status": "done",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Run `git branch --show-current` and `git status` one last time before creating a PR or merge request.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:39:02.479Z"
+          }
+        ],
+        "metadata": {
+          "area": "qa-and-handoff",
+          "branchMustStillBe": "ui-update"
+        },
+        "updatedAt": "2026-04-04T08:39:02.479Z"
+      },
+      {
+        "id": "12",
+        "title": "Add banded styling to all tables for better readability",
+        "description": "Implement consistent banded-row styling across all major data tables so dense information is easier to scan.",
+        "status": "done",
+        "dependencies": [
+          "4"
+        ],
+        "priority": "medium",
+        "details": "Audit every major data table in the app and apply a shared banded-row treatment for readability. The pattern should work in both light and dark themes, preserve contrast, respect hover, selected, and disabled states, and avoid fighting with existing status colors or row highlights. Prefer a reusable table style or component-level variant rather than one-off CSS overrides.",
+        "testStrategy": "Review every major table in light, dark, and system modes and confirm alternating row bands are visible, readable, and do not conflict with hover, selection, sorting, or status indicators.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Inventory all major tables",
+            "description": "Identify the shared table components and any custom one-off tables that need the banded treatment.",
+            "status": "done",
+            "dependencies": [],
+            "details": "Cover dashboard tables, fleet lists, route tables, finance tables, settings-related tables, and any modal tables.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:36:18.376Z"
+          },
+          {
+            "id": 2,
+            "title": "Define a reusable banded-row pattern",
+            "description": "Create a shared visual pattern for alternating row backgrounds that works across themes.",
+            "status": "done",
+            "dependencies": [
+              1
+            ],
+            "details": "Use semantic tokens so the band intensity and contrast stay appropriate in light and dark modes.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:36:18.383Z"
+          },
+          {
+            "id": 3,
+            "title": "Apply banded styling to all table implementations",
+            "description": "Roll the shared pattern out to every relevant table and remove inconsistent local styling.",
+            "status": "done",
+            "dependencies": [
+              2
+            ],
+            "details": "Do not break sticky headers, sorting indicators, selected rows, or compact-density variants.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:36:18.389Z"
+          },
+          {
+            "id": 4,
+            "title": "Verify readability with density and theme variants",
+            "description": "Check the final table treatment under different theme and density combinations.",
+            "status": "done",
+            "dependencies": [
+              3
+            ],
+            "details": "Confirm readability in comfortable and compact modes, plus light, dark, and system theme behavior.",
+            "parentId": "undefined",
+            "updatedAt": "2026-04-04T08:36:18.397Z"
+          }
+        ],
+        "metadata": {
+          "area": "table-readability",
+          "requiresThemeAwareness": true
+        },
+        "updatedAt": "2026-04-04T08:36:18.397Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-04-04T08:41:35.714Z",
+      "taskCount": 12,
+      "completedCount": 12,
+      "tags": [
+        "master"
       ]
     }
   }
+}

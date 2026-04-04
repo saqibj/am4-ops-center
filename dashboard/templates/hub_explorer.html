@@ -2,18 +2,18 @@
 {% block title %}Hub Explorer{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Hub Explorer</h2>
-<p class="text-gray-400 mb-6">Best extracted routes per hub from <code class="text-gray-500 font-mono">v_best_routes</code>.</p>
+<p class="am4-text-secondary mb-6">Best extracted routes per hub from <code class="am4-text-muted font-mono">v_best_routes</code>.</p>
 
 <form id="hub-filters" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Hub</label>
+        <label class="block text-xs am4-text-secondary mb-1">Hub</label>
         <input type="text" name="hub" list="hub-list" placeholder="Search IATA…"
                hx-get="/api/hub-routes"
                hx-target="#hub-results"
                hx-trigger="change delay:300ms"
                hx-include="#hub-filters"
                hx-indicator="#hub-spinner"
-               class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 min-w-[12rem] font-mono">
+               class="am4-input rounded-md px-3 py-2 min-w-[12rem] font-mono">
         <datalist id="hub-list">
             {% for h in hubs %}
             <option value="{{ h.iata }}">{{ h.iata }} — {{ h.name }}</option>
@@ -21,13 +21,13 @@
         </datalist>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Aircraft type</label>
+        <label class="block text-xs am4-text-secondary mb-1">Aircraft type</label>
         <select name="type"
                 hx-get="/api/hub-routes"
                 hx-target="#hub-results"
                 hx-include="#hub-filters"
                 hx-indicator="#hub-spinner"
-                class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2">
+                class="am4-input rounded-md px-3 py-2">
             <option value="">All types</option>
             <option value="PAX">PAX</option>
             <option value="CARGO">CARGO</option>
@@ -35,34 +35,34 @@
         </select>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Min profit / day</label>
+        <label class="block text-xs am4-text-secondary mb-1">Min profit / day</label>
         <input type="number" name="min_profit" value="0" step="1000"
                hx-get="/api/hub-routes"
                hx-target="#hub-results"
                hx-trigger="change delay:400ms"
                hx-include="#hub-filters"
                hx-indicator="#hub-spinner"
-               class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-36 font-mono">
+               class="am4-input rounded-md px-3 py-2 w-36 font-mono">
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Max flight hrs (0 = none)</label>
+        <label class="block text-xs am4-text-secondary mb-1">Max flight hrs (0 = none)</label>
         <input type="number" name="max_flight_hrs" value="0" step="0.5"
                hx-get="/api/hub-routes"
                hx-target="#hub-results"
                hx-trigger="change delay:400ms"
                hx-include="#hub-filters"
                hx-indicator="#hub-spinner"
-               class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-36 font-mono">
+               class="am4-input rounded-md px-3 py-2 w-36 font-mono">
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Max distance km (0 = none)</label>
+        <label class="block text-xs am4-text-secondary mb-1">Max distance km (0 = none)</label>
         <input type="number" name="max_dist" value="0" step="100"
                hx-get="/api/hub-routes"
                hx-target="#hub-results"
                hx-trigger="change delay:400ms"
                hx-include="#hub-filters"
                hx-indicator="#hub-spinner"
-               class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 w-36 font-mono">
+               class="am4-input rounded-md px-3 py-2 w-36 font-mono">
     </div>
     <div class="flex items-center gap-2 pb-2">
         <input type="checkbox" name="hide_stopovers" value="1" id="hide_stop"
@@ -70,17 +70,17 @@
                hx-target="#hub-results"
                hx-include="#hub-filters"
                hx-indicator="#hub-spinner"
-               class="rounded border-gray-600 bg-gray-700">
-        <label for="hide_stop" class="text-sm text-gray-400">Hide stopover routes</label>
+               class="h-4 w-4 rounded border am4-border accent-[var(--accent)]">
+        <label for="hide_stop" class="text-sm am4-text-secondary">Hide stopover routes</label>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Sort</label>
+        <label class="block text-xs am4-text-secondary mb-1">Sort</label>
         <select name="sort"
                 hx-get="/api/hub-routes"
                 hx-target="#hub-results"
                 hx-include="#hub-filters"
                 hx-indicator="#hub-spinner"
-                class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2">
+                class="am4-input rounded-md px-3 py-2">
             <option value="profit_per_ac_day">Profit/Day</option>
             <option value="profit_per_trip">Profit/Trip</option>
             <option value="contribution">Contribution</option>
@@ -88,20 +88,20 @@
         </select>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Row limit</label>
+        <label class="block text-xs am4-text-secondary mb-1">Row limit</label>
         <select name="limit"
                 hx-get="/api/hub-routes"
                 hx-target="#hub-results"
                 hx-include="#hub-filters"
                 hx-indicator="#hub-spinner"
-                class="bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2">
+                class="am4-input rounded-md px-3 py-2">
             <option value="50">50</option>
             <option value="100">100</option>
             <option value="250">250</option>
             <option value="500">500</option>
         </select>
     </div>
-    <span id="hub-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Loading…</span>
+    <span id="hub-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
 </form>
 
 <div id="hub-summary" class="mb-4"
@@ -111,15 +111,15 @@
      hx-indicator="#hub-spinner">
 </div>
 
-<div id="hub-chart" class="bg-gray-800 rounded-lg border border-gray-700 p-4 mb-6 min-h-[16rem]"
+<div id="hub-chart" class="am4-card rounded-lg shadow-lg p-4 mb-6 min-h-[16rem]"
      hx-get="/api/hub-chart"
      hx-trigger="change delay:300ms from:#hub-filters, load"
      hx-include="#hub-filters"
      hx-indicator="#hub-spinner">
-    <p class="text-gray-400 text-sm">Select a hub for top routes chart (bar).</p>
+    <p class="am4-text-secondary text-sm">Select a hub for top routes chart (bar).</p>
 </div>
 
 <div id="hub-results" hx-indicator="#hub-spinner">
-    <p class="text-gray-400">Enter or select a hub to see routes.</p>
+    <p class="am4-text-secondary">Enter or select a hub to see routes.</p>
 </div>
 {% endblock %}

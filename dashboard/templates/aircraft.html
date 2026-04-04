@@ -2,18 +2,18 @@
 {% block title %}Aircraft{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Aircraft comparison</h2>
-<p class="text-gray-400 mb-6">Best routes for one aircraft across all hubs. Chart: top hubs by average daily profit.</p>
+<p class="am4-text-secondary mb-6">Best routes for one aircraft across all hubs. Chart: top hubs by average daily profit.</p>
 
 <form id="ac-filters" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Aircraft</label>
+        <label class="block text-xs am4-text-secondary mb-1">Aircraft</label>
         <input type="text" name="aircraft" list="ac-list" placeholder="Type or pick…"
                hx-get="/api/aircraft-routes"
                hx-target="#ac-results"
                hx-trigger="change delay:300ms"
                hx-include="#ac-filters"
                hx-indicator="#ac-spinner"
-               class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white w-48 font-mono">
+               class="am4-input rounded-md px-3 py-2 w-48 font-mono">
         <datalist id="ac-list">
             {% for a in aircraft %}
             <option value="{{ a.shortname }}">{{ a.name }} ({{ a.type }})</option>
@@ -21,23 +21,23 @@
         </datalist>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Min profit / day</label>
+        <label class="block text-xs am4-text-secondary mb-1">Min profit / day</label>
         <input type="number" name="min_profit" value="0" step="1000"
                hx-get="/api/aircraft-routes"
                hx-target="#ac-results"
                hx-trigger="change delay:400ms"
                hx-include="#ac-filters"
                hx-indicator="#ac-spinner"
-               class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white w-36 font-mono">
+               class="am4-input rounded-md px-3 py-2 w-36 font-mono">
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Row limit</label>
+        <label class="block text-xs am4-text-secondary mb-1">Row limit</label>
         <select name="limit"
                 hx-get="/api/aircraft-routes"
                 hx-target="#ac-results"
                 hx-include="#ac-filters"
                 hx-indicator="#ac-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white">
+                class="am4-input rounded-md px-3 py-2">
             <option value="100">100</option>
             <option value="200" selected>200</option>
             <option value="500">500</option>
@@ -45,20 +45,20 @@
         </select>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Sort</label>
+        <label class="block text-xs am4-text-secondary mb-1">Sort</label>
         <select name="sort"
                 hx-get="/api/aircraft-routes"
                 hx-target="#ac-results"
                 hx-include="#ac-filters"
                 hx-indicator="#ac-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white">
+                class="am4-input rounded-md px-3 py-2">
             <option value="profit_per_ac_day">Profit/Day</option>
             <option value="contribution">Contribution</option>
             <option value="destination">Destination</option>
             <option value="hub">Hub</option>
         </select>
     </div>
-    <span id="ac-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Loading…</span>
+    <span id="ac-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
 </form>
 
 <div id="ac-stats"
@@ -69,15 +69,15 @@
 </div>
 
 <div id="ac-chart"
-     class="bg-gray-800 rounded-lg border border-gray-700 p-4 mb-6 min-h-[16rem]"
+     class="am4-card rounded-lg shadow-lg p-4 mb-6 min-h-[16rem]"
      hx-get="/api/aircraft-chart"
      hx-trigger="change delay:300ms from:#ac-filters, load"
      hx-include="#ac-filters"
      hx-indicator="#ac-spinner">
-    <p class="text-gray-400 text-sm">Enter an aircraft code for hub profit chart.</p>
+    <p class="am4-text-secondary text-sm">Enter an aircraft code for hub profit chart.</p>
 </div>
 
 <div id="ac-results">
-    <p class="text-gray-400">Select an aircraft to load routes.</p>
+    <p class="am4-text-secondary">Select an aircraft to load routes.</p>
 </div>
 {% endblock %}

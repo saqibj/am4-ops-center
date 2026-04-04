@@ -7,6 +7,9 @@
         const prev = canvas.chartInstance;
         if (prev) prev.destroy();
         const ctx = canvas.getContext('2d');
+        const cs = getComputedStyle(document.documentElement);
+        const tick = (cs.getPropertyValue('--text-muted').trim() || '#9ca3af');
+        const bar = (cs.getPropertyValue('--accent').trim() || '#34d399');
         canvas.chartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -14,17 +17,17 @@
                 datasets: [{
                     label: {{ label | tojson }},
                     data: {{ values | tojson }},
-                    backgroundColor: '#34d399',
+                    backgroundColor: bar,
                     borderRadius: 4,
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: '#9ca3af' } } },
+                plugins: { legend: { labels: { color: tick } } },
                 scales: {
-                    x: { ticks: { color: '#9ca3af', maxRotation: 45, minRotation: 0 } },
-                    y: { ticks: { color: '#9ca3af', callback: v => '$' + Number(v).toLocaleString() } }
+                    x: { ticks: { color: tick, maxRotation: 45, minRotation: 0 } },
+                    y: { ticks: { color: tick, callback: v => '$' + Number(v).toLocaleString() } }
                 }
             }
         });

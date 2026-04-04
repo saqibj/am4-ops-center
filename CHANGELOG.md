@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Nothing yet.
+
+---
+
+## [0.1.1] — 2026-04-04
+
+### Added
+
+- **Settings** page **`/settings`**: **light / dark / system** theme, **comfortable / compact** UI density, **default landing page** (redirect from `/` once per browser tab session when a non-root default is chosen), **notification** toggles (for future in-app use), **airline name** and **logo** (data URL) in the nav shell and Overview welcome line. Persistence in **`localStorage`** (`dashboard/static/js/settings-store.js`); Python mirror **`dashboard/ui_settings.py`** (schema version, allowlists, sanitization).
+- **Theming:** **`dashboard/static/css/theme.css`** (semantic CSS variables, **`am4-*`** surfaces, banded **`am4-table`** rows, compact-density overrides, sticky table headers in horizontal scroll, **`:focus-visible`** rings, **`am4-text-negative`** / danger links).
+- **Boot / UI scripts:** **`theme-boot.js`**, **`branding.js`**, **`shell-branding.js`**, **`settings-page.js`**, **`settings.css`**; landing redirect and **`Am4Notifications.enabled()`** stub in **`app.js`**.
+- **Tests:** **`tests/test_ui_settings.py`**, **`tests/test_dashboard_http.py`**. Optional **`pip install -e ".[dev]"`** for **`pytest`**.
+- **Docs:** **`docs/UIPRO_DESIGN_BRIEF.md`**, **`docs/UIPRO_VISUAL_SPEC.md`**.
+
+### Changed
+
+- **README:** **12** dashboard pages (adds **Settings**), theme / **`localStorage`** behavior, **Tests** section, **`docs/`** and **`tests/`** in project tree, troubleshooting for settings storage.
+
+---
+
+## [0.1.0] — 2026-03-28
+
 ### Added
 
 - **`my_hubs`** managed-hubs table, **`idx_my_hubs_airport`**, and **`v_my_hubs`** view; **`v_my_routes`** / **`v_best_routes`** expose **`hub_name`**, **`hub_country`**, **`dest_name`**, **`dest_fullname`** (and **`dest_country`** on `v_my_routes`; `v_best_routes` keeps existing **`dest_country`**).
@@ -29,10 +51,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `python main.py dashboard` now serves **uvicorn** on **`0.0.0.0:8000`** by default (was Streamlit on port **8501**). New flag **`--host`**.
 - **`v_best_routes`** view is recreated on schema apply and includes **`income_per_ac_day`** (see `database/schema.py`).
 - **README** updated for the new stack, PRD paths, dashboard routes, and `AM4_ROUTEMINE_DB`.
-- **README** (task 10): **10** dashboard pages including **Hub Manager**; removed nonexistent **Buy Next** page; documented **`extract --refresh-hubs`**, **merge vs replace** imports, **`recommend`** CLI, **`--workers`** default **4**, and **`requirements.txt` / `pyproject.toml`** alignment for **`am4`** (`saqibj/am4` **`msvc-fix`**).
+- **README:** **10** dashboard pages including **Hub Manager**; documented **`extract --refresh-hubs`**, **merge vs replace** imports, **`recommend`** CLI, **`--workers`** default **4**, and **`requirements.txt` / `pyproject.toml`** alignment for **`am4`** (`saqibj/am4` **`msvc-fix`**).
 - **`pyproject.toml`**: **`am4`** dependency URL aligned with **`requirements.txt`**.
 - **`create_schema()`** applies **`DROP TABLE IF EXISTS`** for legacy **`fleet_aircraft`** / **`fleet_route_assignment`** before **`my_fleet`** / **`my_routes`**; airline state lives in those tables only (see `database/schema.py`).
 
 ### Removed
 
 - **`dashboard/app.py`** (Streamlit app).
+
+---
+
+## Git tags
+
+- **`v0.1.0`** — annotated tag on the last commit before the Settings / theme bundle on branch **`ui-update`** (FastAPI dashboard + Hub Manager + fleet/routes + Buy Next baseline).
+- **`v0.1.1`** — create on the commit that contains this file and the 0.1.1 code:
+  ```bash
+  git tag -a v0.1.1 -m "Release 0.1.1: Settings, themes, tests, docs"
+  ```
+  Then set the **`[Unreleased]`** footer link in this file to `compare/v0.1.1...HEAD` (until then it uses `v0.1.0...HEAD`).
+
+[Unreleased]: https://github.com/saqibj/am4-ops-center/compare/v0.1.0...HEAD
+[0.1.1]: https://github.com/saqibj/am4-ops-center/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/saqibj/am4-ops-center/releases/tag/v0.1.0

@@ -8,6 +8,8 @@
 
 # AM4 Ops Center ✈️
 
+**Releases:** **0.1.1** (2026-04-04), **0.1.0** (2026-03-28) — [CHANGELOG.md](CHANGELOG.md). **Git tags:** **`v0.1.0`** (annotated); add **`v0.1.1`** after you commit the Settings/theme release (command in CHANGELOG).
+
 > Bulk route profitability mining for Airline Manager 4 — extract, analyze, and optimize across all aircraft × hub combinations in a single offline tool.
 
 AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://github.com/abc8747/am4) package to compute route economics for every valid aircraft × airport combination. It completely eliminates the need for per-hub Discord bot queries. Results are stored in an SQLite database, allowing for offline querying through a lightning-fast FastAPI + Tailwind CSS + HTMX dashboard.
@@ -16,7 +18,7 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 
 ## 📸 Screenshots
 
-> Screenshots coming soon. The dashboard has **11** pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, Buy Next, My Fleet, My Routes, Hub Manager, Contributions, and Heatmap.
+> Screenshots coming soon. The dashboard has **12** pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, Buy Next, My Fleet, My Routes, Hub Manager, Contributions, Heatmap, and **Settings**.
 
 ---
 
@@ -27,8 +29,8 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 - **336 aircraft** — all AM4 aircraft types with full specs
 - **3,900+ airports** — complete airport database with runway, market tier, hub costs
 - **SQLite storage** — 3.8M+ route rows queryable offline
-- **FastAPI dashboard** — dark-mode web UI with Tailwind CSS + HTMX (no page reloads)
-- **11 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, **Buy Next** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Hub Manager** (managed hubs, per-hub / stale refresh), Contributions, Heatmap
+- **FastAPI dashboard** — web UI with **light / dark / system** themes, semantic styling (`theme.css`, `am4-*` utilities), Tailwind CSS (CDN) + HTMX (no page reloads)
+- **12 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, **Buy Next** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Hub Manager** (managed hubs, per-hub / stale refresh), Contributions, Heatmap, and **Settings** (`/settings`: themes, airline branding, default landing page, UI density, notification toggles; stored in browser **`localStorage`**)
 - **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; CSV import defaults to **merge**; **`--replace`** overwrites counts; dashboard forms match the same semantics
 - **CLI `recommend`** / **Buy Next** (`/buy-next`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**)
 - **CSV/Excel export** — dump tables for spreadsheet analysis
@@ -55,6 +57,8 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 - [Dashboard](#dashboard)
   - [Pages](#pages)
   - [Tech Stack](#tech-stack)
+  - [Tests](#tests)
+- [Changelog](CHANGELOG.md)
 - [Upgrading](#upgrading)
 - [Project Structure](#project-structure)
 - [Troubleshooting](#troubleshooting)
@@ -304,15 +308,26 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 | Hub Manager | `/my-hubs` | Managed hubs (`my_hubs`): add IATA, per-hub refresh, **stale** refresh (OK extract older than 7 days), remove |
 | Contributions | `/contributions` | Routes sorted by alliance contribution |
 | Heatmap | `/heatmap` | Map visualization of profitable destinations |
+| Settings | `/settings` | Light / dark / system theme, comfortable or compact density, default landing page (first `/` visit per tab session), notification toggles, airline name + logo; saved in **`localStorage`** (per browser) |
 
 ### Tech Stack
 
 - **Backend:** FastAPI + Jinja2 templates
-- **Frontend:** Tailwind CSS (dark mode) + HTMX (no page reloads)
+- **Frontend:** Tailwind CSS (CDN) + HTMX (no page reloads); **`theme.css`** semantic tokens and **`am4-*`** components; client-side theme boot (`data-theme` on `<html>`)
+- **Settings:** `dashboard/static/js/settings-store.js` (persistence) and `dashboard/ui_settings.py` (shared schema / allowlists for server use)
 - **Charts:** Chart.js
 - **Maps:** Leaflet.js
 - **Database:** SQLite
 - **Core Engine:** am4 (C++ with pybind11 Python bindings)
+
+### Tests
+
+```bash
+pip install -e ".[dev]"
+pytest tests/
+```
+
+Covers UI settings parsing/sanitization and HTTP smoke checks for static assets, `/`, and `/settings`.
 
 ---
 
@@ -353,12 +368,15 @@ am4-routemine/
 ├── dashboard/
 │   ├── server.py            # FastAPI app
 │   ├── db.py                # SQLite helpers
+│   ├── ui_settings.py       # UI settings schema / allowlists (mirrors client store)
 │   ├── hub_freshness.py     # Hub extract stale threshold / display status
 │   ├── routes/
 │   │   ├── pages.py         # Page routes
 │   │   └── api_routes.py    # HTMX + JSON API routes
 │   ├── templates/           # Jinja2 HTML templates
-│   └── static/              # JS, CSS, favicon
+│   └── static/              # favicon; css/ (theme, settings); js/ (theme, settings store, branding, shell)
+├── docs/                    # Design notes (e.g. UIPRO brief / visual spec)
+├── tests/                   # pytest (UI settings + dashboard HTTP smoke)
 ├── PRD/                     # Product specs
 ├── exports/                 # CSV/Excel output
 ├── fleet.csv                # Fleet import data
@@ -383,6 +401,7 @@ am4-routemine/
 | Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |
 | SQLite locked | Close other DB connections, enable WAL mode |
 | Dashboard blank page | Check `AM4_ROUTEMINE_DB` path points to an existing `.db` file |
+| Settings / theme seem “stuck” | Preferences live in **`localStorage`** for this origin; try a hard refresh or clear site data for localhost if corrupted |
 | Aircraft shortname not found | Use am4 shortnames (e.g., `a342` not `A340-200`) |
 | WSL venv broken after move | Delete `.venv` and recreate — pip paths are hardcoded |
 

@@ -2,70 +2,71 @@
 {% block title %}Overview{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Overview</h2>
-<p class="text-gray-400 mb-6">Extraction snapshot from your SQLite database.</p>
+<p id="overview-welcome" class="am4-text-secondary text-sm mb-1">Welcome to your operations dashboard.</p>
+<p class="am4-text-secondary mb-6">Extraction snapshot from your SQLite database.</p>
 
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-    <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Valid routes</p>
-        <p class="text-3xl font-bold font-mono text-emerald-400 mt-1">{{ "{:,}".format(stats.routes or 0) }}</p>
+    <div class="am4-card rounded-lg shadow-lg p-6">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Valid routes</p>
+        <p class="text-3xl font-bold font-mono am4-accent mt-1">{{ "{:,}".format(stats.routes or 0) }}</p>
     </div>
-    <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Hubs (origins)</p>
-        <p class="text-3xl font-bold font-mono text-gray-100 mt-1">{{ "{:,}".format(stats.hubs or 0) }}</p>
+    <div class="am4-card rounded-lg shadow-lg p-6">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Hubs (origins)</p>
+        <p class="text-3xl font-bold font-mono mt-1">{{ "{:,}".format(stats.hubs or 0) }}</p>
     </div>
-    <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Aircraft types</p>
-        <p class="text-3xl font-bold font-mono text-gray-100 mt-1">{{ "{:,}".format(stats.aircraft or 0) }}</p>
+    <div class="am4-card rounded-lg shadow-lg p-6">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Aircraft types</p>
+        <p class="text-3xl font-bold font-mono mt-1">{{ "{:,}".format(stats.aircraft or 0) }}</p>
     </div>
-    <div class="bg-gray-800 rounded-lg shadow-lg p-6 border border-gray-700">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">DB size</p>
-        <p class="text-2xl font-bold font-mono text-gray-100 mt-1">
+    <div class="am4-card rounded-lg shadow-lg p-6">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">DB size</p>
+        <p class="text-2xl font-bold font-mono mt-1">
             {% if db_size_bytes is not none %}
             {{ "{:,}".format(db_size_bytes // 1024) }} KB
             {% else %}
             —
             {% endif %}
         </p>
-        <p class="text-gray-500 text-xs mt-2">Last extract: {{ stats.last_extract or '—' }}</p>
+        <p class="am4-text-muted text-xs mt-2">Last extract: {{ stats.last_extract or '—' }}</p>
     </div>
 </div>
 
-<p class="text-xs text-gray-500 uppercase tracking-wider mb-2">Analysis</p>
+<p class="text-xs am4-text-muted uppercase tracking-wider mb-2">Analysis</p>
 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 mb-6">
-    <a href="/hub-explorer" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">Hub Explorer</a>
-    <a href="/aircraft" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">Aircraft</a>
-    <a href="/route-analyzer" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">Route Analyzer</a>
-    <a href="/fleet-planner" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">Fleet Planner</a>
-    <a href="/buy-next" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">Buy Next</a>
-    <a href="/contributions" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">Contributions</a>
-    <a href="/heatmap" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">Heatmap</a>
+    <a href="/hub-explorer" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">Hub Explorer</a>
+    <a href="/aircraft" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">Aircraft</a>
+    <a href="/route-analyzer" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">Route Analyzer</a>
+    <a href="/fleet-planner" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">Fleet Planner</a>
+    <a href="/buy-next" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">Buy Next</a>
+    <a href="/contributions" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">Contributions</a>
+    <a href="/heatmap" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">Heatmap</a>
 </div>
-<p class="text-xs text-gray-500 uppercase tracking-wider mb-2">My Airline</p>
+<p class="text-xs am4-text-muted uppercase tracking-wider mb-2">My Airline</p>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-    <a href="/my-fleet" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">My Fleet</a>
-    <a href="/my-routes" class="bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-center text-sm">My Routes</a>
+    <a href="/my-fleet" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">My Fleet</a>
+    <a href="/my-routes" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">My Routes</a>
 </div>
 
 <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
-    <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">
+    <div class="am4-card rounded-lg shadow-lg p-6">
         <h3 class="text-lg font-semibold mb-4">Top 10 routes by profit / day</h3>
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-700 text-gray-300 text-xs uppercase tracking-wider">
+            <table class="am4-table w-full text-sm">
+                <thead class="am4-table-head text-xs uppercase tracking-wider">
                     <tr>
-                        <th class="text-left py-2 px-2">Hub</th>
-                        <th class="text-left py-2 px-2">Dest</th>
-                        <th class="text-left py-2 px-2">Aircraft</th>
-                        <th class="text-right py-2 px-2">Profit/day</th>
+                        <th scope="col" class="text-left py-2 px-2">Hub</th>
+                        <th scope="col" class="text-left py-2 px-2">Dest</th>
+                        <th scope="col" class="text-left py-2 px-2">Aircraft</th>
+                        <th scope="col" class="text-right py-2 px-2">Profit/day</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-700">
+                <tbody>
                     {% for r in top_routes %}
-                    <tr class="hover:bg-gray-700 transition-colors">
+                    <tr class="transition-colors">
                         <td class="py-2 px-2 font-mono font-medium">{{ r.hub }}</td>
                         <td class="py-2 px-2 font-mono">{{ r.destination }}</td>
-                        <td class="py-2 px-2 text-gray-400 font-mono">{{ r.aircraft }}</td>
-                        <td class="py-2 px-2 text-right font-mono {% if (r.profit_per_ac_day or 0) >= 0 %}text-emerald-400{% else %}text-red-400{% endif %}">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</td>
+                        <td class="py-2 px-2 am4-text-secondary font-mono">{{ r.aircraft }}</td>
+                        <td class="py-2 px-2 text-right font-mono {% if (r.profit_per_ac_day or 0) >= 0 %}am4-accent{% else %}am4-text-negative{% endif %}">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -73,12 +74,15 @@
         </div>
     </div>
 
-    <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6">
+    <div class="am4-card rounded-lg shadow-lg p-6">
         <h3 class="text-lg font-semibold mb-4">Top 5 hubs by average profit / day</h3>
         <canvas id="overviewHubChart" class="w-full h-64"></canvas>
         <script>
             const octx = document.getElementById('overviewHubChart');
             if (octx) {
+                const cs = getComputedStyle(document.documentElement);
+                const tick = (cs.getPropertyValue('--text-muted').trim() || '#9ca3af');
+                const bar = (cs.getPropertyValue('--accent').trim() || '#34d399');
                 new Chart(octx.getContext('2d'), {
                     type: 'bar',
                     data: {
@@ -86,16 +90,16 @@
                         datasets: [{
                             label: 'Avg profit/day ($)',
                             data: {{ hub_chart_values | tojson }},
-                            backgroundColor: '#34d399',
+                            backgroundColor: bar,
                             borderRadius: 4,
                         }]
                     },
                     options: {
                         responsive: true,
-                        plugins: { legend: { labels: { color: '#9ca3af' } } },
+                        plugins: { legend: { labels: { color: tick } } },
                         scales: {
-                            x: { ticks: { color: '#9ca3af' } },
-                            y: { ticks: { color: '#9ca3af', callback: v => '$' + Number(v).toLocaleString() } }
+                            x: { ticks: { color: tick } },
+                            y: { ticks: { color: tick, callback: v => '$' + Number(v).toLocaleString() } }
                         }
                     }
                 });

@@ -327,7 +327,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-Covers UI settings parsing/sanitization and HTTP smoke checks for static assets, `/`, and `/settings`.
+Covers UI settings parsing/sanitization, HTTP smoke checks for static assets, `/`, and `/settings`, and a regression test that **`/my-routes`**, **`/my-hubs`**, and **`/my-fleet`** include the HTMX **`after-request`** guard (`event.detail.elt !== event.currentTarget`) on add forms so bubbled child requests do not trigger **`form.reset()`**.
 
 ---
 

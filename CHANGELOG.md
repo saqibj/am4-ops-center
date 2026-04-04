@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **My Routes** (`/my-routes`): HTMX **`after-request`** on the add-route form was listening to **bubbled** events from child requests (airport/aircraft search), so successful search responses triggered **`form.reset()`** and cleared the hub; shared **`hx-indicator`** also showed **“Saving…”** for those searches. **Guard** `event.detail.elt !== event.currentTarget` on the form handler; **`hx-indicator="false"`** on search inputs; separate **“Loading routes…”** indicator for the inventory panel vs save.
+- **Hub Manager** (`/my-hubs`) and **My Fleet** (`/my-fleet`): same **`after-request`** guard on add forms (and on **Refresh stale hubs**) so bubbled child HTMX cannot run the wrong handler.
+
+### Added
+
+- **Tests:** `test_my_inventory_pages_form_after_request_elt_guard` in **`tests/test_dashboard_http.py`** — regression check that **`/my-routes`**, **`/my-hubs`**, and **`/my-fleet`** render the elt guard on their add forms.
 
 ---
 

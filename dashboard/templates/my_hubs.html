@@ -18,7 +18,7 @@
           hx-target="#hub-inventory"
           hx-swap="innerHTML"
           hx-indicator="#hub-inv-spinner"
-          hx-on::after-request="if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-hub-inv-error') === -1) { document.getElementById('hub-add-form').reset(); htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' }); }">
+          hx-on::after-request="if (event.detail.elt !== event.currentTarget) return; if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-hub-inv-error') === -1) { document.getElementById('hub-add-form').reset(); htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' }); }">
         <div class="min-w-[16rem] flex-1">
             <label class="block text-xs am4-text-secondary mb-1">IATA code(s)</label>
             <input type="text" name="iata_list" required placeholder="KHI or KHI,DXB,LHR"
@@ -42,7 +42,7 @@
           hx-swap="innerHTML"
           hx-indicator="#hub-inv-spinner"
           hx-confirm="Refresh only hubs whose last OK extract is older than {{ stale_after_days }} days? (Errors and never-extracted hubs use per-row Refresh.)"
-          hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' })">
+          hx-on::after-request="if (event.detail.elt !== event.currentTarget) return; if (event.detail.successful) htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' })">
         <button type="submit" class="bg-amber-600/90 hover:bg-amber-500 rounded-md px-4 py-2 text-sm font-medium">
             Refresh stale hubs
         </button>

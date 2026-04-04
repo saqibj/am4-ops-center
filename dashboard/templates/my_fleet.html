@@ -17,7 +17,7 @@
           hx-target="#fleet-inventory"
           hx-swap="innerHTML"
           hx-indicator="#fleet-inv-spinner"
-          hx-on::after-request="if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-fleet-error') === -1) { document.getElementById('fleet-add-form').reset(); htmx.ajax('GET', '/api/fleet/summary', { target: '#fleet-summary', swap: 'innerHTML' }); }">
+          hx-on::after-request="if (event.detail.elt !== event.currentTarget) return; if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-fleet-error') === -1) { document.getElementById('fleet-add-form').reset(); htmx.ajax('GET', '/api/fleet/summary', { target: '#fleet-summary', swap: 'innerHTML' }); }">
         <div>
             <label class="block text-xs am4-text-secondary mb-1">Aircraft (shortname)</label>
             <input type="text" name="aircraft" list="fleet-ac-list" required placeholder="e.g. b738"

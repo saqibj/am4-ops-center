@@ -17,12 +17,13 @@
           hx-target="#routes-inventory"
           hx-swap="innerHTML"
           hx-indicator="#routes-inv-spinner"
-          hx-on::after-request="if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-routes-error') === -1) { document.getElementById('routes-add-form').reset(); htmx.ajax('GET', '/api/routes/summary', { target: '#routes-summary', swap: 'innerHTML' }); }">
+          hx-on::after-request="if (event.detail.elt !== event.currentTarget) return; if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-routes-error') === -1) { document.getElementById('routes-add-form').reset(); htmx.ajax('GET', '/api/routes/summary', { target: '#routes-summary', swap: 'innerHTML' }); }">
         <div class="relative min-w-[11rem]">
             <label class="block text-xs am4-text-secondary mb-1">Hub (IATA)</label>
             <input type="text" id="hub_iata" name="hub_iata" list="routes-airport-list" required placeholder="KHI"
                    autocomplete="off"
                    class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono uppercase w-full"
+                   hx-indicator="false"
                    hx-get="/api/search/airports"
                    hx-trigger="keyup changed delay:400ms from:#hub_iata, focus from:#hub_iata"
                    hx-target="#hub-air-search-panel"
@@ -35,6 +36,7 @@
             <input type="text" id="destination_iata" name="destination_iata" list="routes-airport-list" required placeholder="DXB"
                    autocomplete="off"
                    class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono uppercase w-full"
+                   hx-indicator="false"
                    hx-get="/api/search/airports"
                    hx-trigger="keyup changed delay:400ms from:#destination_iata, focus from:#destination_iata"
                    hx-target="#dest-air-search-panel"
@@ -47,6 +49,7 @@
             <input type="text" id="aircraft_route" name="aircraft" list="routes-ac-list" required placeholder="b738"
                    autocomplete="off"
                    class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono lowercase w-full"
+                   hx-indicator="false"
                    hx-get="/api/search/aircraft"
                    hx-trigger="keyup changed delay:400ms from:#aircraft_route, focus from:#aircraft_route"
                    hx-target="#ac-route-search-panel"
@@ -95,10 +98,13 @@
     </datalist>
 </div>
 
-<div id="routes-inventory"
-     hx-get="/api/routes/inventory"
-     hx-trigger="load"
-     hx-indicator="#routes-inv-spinner">
-    <p class="am4-text-secondary">Loading…</p>
+<div class="mb-8">
+    <span id="routes-inv-load-spinner" class="htmx-indicator am4-accent text-sm mb-2 inline-block">Loading routes…</span>
+    <div id="routes-inventory"
+         hx-get="/api/routes/inventory"
+         hx-trigger="load"
+         hx-indicator="#routes-inv-load-spinner">
+        <p class="am4-text-secondary">Loading…</p>
+    </div>
 </div>
 {% endblock %}

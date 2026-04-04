@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
+from html import escape as html_escape
 
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
+from commands.fleet_recommend import fleet_recommend_rows
+from config import UserConfig
 from dashboard.db import DB_PATH, fetch_all, fetch_one, get_db
+from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
 from dashboard.server import templates
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -76,6 +81,95 @@ def _contrib_order(sort_col: str) -> str:
 
 def _truthy_stopover_hide(v: str) -> bool:
     return v in ("1", "on", "true", "yes")
+
+
+_FIELD_ID_OK = re.compile(r"^[a-zA-Z][\w\-]*$")
+
+
+def _safe_field_id(field_id: str, default: str = "hub_iata") -> str:
+    fid = (field_id or default).strip()
+    return fid if _FIELD_ID_OK.fullmatch(fid) else default
+
+
+def _search_term_airports(q: str, hub_iata: str, destination_iata: str) -> str:
+    for raw in (q, hub_iata, destination_iata):
+        t = (raw or "").strip()
+        if t:
+            return t
+    return ""
+
+
+@router.get("/search/airports", response_class=HTMLResponse)
+def api_search_airports(
+    request: Request,
+    q: str = Query(""),
+    hub_iata: str = Query(""),
+    destination_iata: str = Query(""),
+    field_id: str = Query("hub_iata"),
+):
+    term = _search_term_airports(q, hub_iata, destination_iata)
+    if len(term) < 2:
+        return HTMLResponse("")
+    fid = _safe_field_id(field_id, "hub_iata")
+    ut = term.upper()
+    lt = term.lower()
+    sql = """
+        SELECT iata, icao, name, fullname, country
+        FROM airports
+        WHERE iata IS NOT NULL AND TRIM(iata) != ''
+          AND (
+            (iata IS NOT NULL AND INSTR(UPPER(iata), ?) > 0)
+            OR (icao IS NOT NULL AND TRIM(icao) != '' AND INSTR(UPPER(icao), ?) > 0)
+            OR INSTR(LOWER(COALESCE(name, '')), ?) > 0
+            OR INSTR(LOWER(COALESCE(fullname, '')), ?) > 0
+            OR INSTR(LOWER(COALESCE(country, '')), ?) > 0
+          )
+        ORDER BY iata COLLATE NOCASE
+        LIMIT 25
+    """
+    conn = get_db()
+    try:
+        rows = fetch_all(conn, sql, [ut, ut, lt, lt, lt])
+    finally:
+        conn.close()
+    return templates.TemplateResponse(
+        request,
+        "partials/search_airports_results.html",
+        {"rows": rows, "field_id": fid},
+    )
+
+
+@router.get("/search/aircraft", response_class=HTMLResponse)
+def api_search_aircraft(
+    request: Request,
+    q: str = Query(""),
+    aircraft: str = Query(""),
+    field_id: str = Query("aircraft_route"),
+):
+    term = (q or aircraft or "").strip()
+    if len(term) < 1:
+        return HTMLResponse("")
+    fid = _safe_field_id(field_id, "aircraft_route")
+    lt = term.lower()
+    sql = """
+        SELECT shortname, name, type, cost
+        FROM aircraft
+        WHERE INSTR(LOWER(shortname), ?) > 0
+           OR INSTR(LOWER(COALESCE(name, '')), ?) > 0
+           OR INSTR(LOWER(COALESCE(type, '')), ?) > 0
+        ORDER BY shortname COLLATE NOCASE
+        LIMIT 25
+    """
+    conn = get_db()
+    try:
+        rows = fetch_all(conn, sql, [lt, lt, lt])
+    finally:
+        conn.close()
+    return templates.TemplateResponse(
+        request,
+        "partials/search_aircraft_results.html",
+        {"rows": rows, "field_id": fid},
+    )
 
 
 @router.get("/hub-routes", response_class=HTMLResponse)
@@ -329,7 +423,9 @@ def api_route_destinations(request: Request, origin: str = Query("")):
         rows = fetch_all(
             conn,
             """
-            SELECT DISTINCT ad.iata AS iata
+            SELECT DISTINCT ad.iata AS iata,
+                   COALESCE(ad.name, '') AS name,
+                   COALESCE(ad.country, '') AS country
             FROM route_aircraft ra
             JOIN airports ao ON ra.origin_id = ao.id
             JOIN airports ad ON ra.dest_id = ad.id
@@ -342,7 +438,22 @@ def api_route_destinations(request: Request, origin: str = Query("")):
     finally:
         conn.close()
 
-    options = "".join(f'<option value="{d["iata"]}">{d["iata"]}</option>' for d in rows)
+    def _opt_label(d: dict) -> str:
+        iata = d["iata"]
+        nm = (d.get("name") or "").strip()
+        co = (d.get("country") or "").strip()
+        if nm and co:
+            return f"{iata} — {nm} ({co})"
+        if nm:
+            return f"{iata} — {nm}"
+        if co:
+            return f"{iata} ({co})"
+        return iata
+
+    options = "".join(
+        f'<option value="{html_escape(d["iata"])}">{html_escape(_opt_label(d))}</option>'
+        for d in rows
+    )
     return HTMLResponse(
         f"<select name='dest' class='bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white w-full max-w-xs' "
         f"hx-get='/api/route-compare' hx-trigger='change' "
@@ -426,46 +537,35 @@ def api_route_chart(request: Request, origin: str = Query(""), dest: str = Query
     )
 
 
+def _query_flag_on(v: str) -> bool:
+    return v.strip().lower() in ("1", "true", "on", "yes")
+
+
 @router.get("/fleet-plan", response_class=HTMLResponse)
 def api_fleet_plan(
     request: Request,
     hub: str = Query(""),
     budget: int = Query(200_000_000, ge=0),
     top_n: int = Query(15, ge=1, le=100),
+    hide_owned: str = Query(""),
 ):
     if not hub.strip():
         return HTMLResponse("<p class='text-gray-400'>Select a hub.</p>")
 
     conn = get_db()
     try:
-        hub_row = fetch_one(
+        rows, err = fleet_recommend_rows(
             conn,
-            "SELECT id FROM airports WHERE UPPER(iata) = UPPER(?) LIMIT 1",
-            [hub.strip()],
+            hub.strip(),
+            int(budget),
+            int(top_n),
+            hide_owned=_query_flag_on(hide_owned),
         )
-        if not hub_row:
-            return HTMLResponse("<p class='text-amber-400'>Unknown hub.</p>")
-        origin_id = hub_row["id"]
-        sql = """
-            SELECT ac.shortname, ac.name, ac.type, ac.cost,
-                   COUNT(*) AS routes,
-                   AVG(ra.profit_per_ac_day) AS avg_daily_profit,
-                   MAX(ra.profit_per_ac_day) AS best_daily_profit
-            FROM route_aircraft ra
-            JOIN aircraft ac ON ra.aircraft_id = ac.id
-            WHERE ra.is_valid = 1 AND ra.origin_id = ? AND ac.cost <= ?
-            GROUP BY ra.aircraft_id
-            ORDER BY avg_daily_profit DESC
-            LIMIT ?
-        """
-        rows = fetch_all(conn, sql, [origin_id, int(budget), top_n])
     finally:
         conn.close()
 
-    for r in rows:
-        avg = float(r["avg_daily_profit"] or 0)
-        cost = int(r["cost"] or 0)
-        r["days_to_breakeven"] = round(cost / avg, 1) if avg > 0 and cost > 0 else None
+    if err == "unknown_hub":
+        return HTMLResponse("<p class='text-amber-400'>Unknown hub.</p>")
 
     return templates.TemplateResponse(
         request,
@@ -618,22 +718,22 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
     payload = json.dumps(markers)
     html = f"""
 <div class="rounded-lg border border-gray-700 overflow-hidden">
-  <div id="routemine-leaflet-map" class="h-[600px] w-full bg-gray-800"></div>
+  <div id="ops-center-leaflet-map" class="h-[600px] w-full bg-gray-800"></div>
 </div>
-<script type="application/json" id="routemine-leaflet-data">{payload}</script>
+<script type="application/json" id="ops-center-leaflet-data">{payload}</script>
 <script>
 (function() {{
-  const el = document.getElementById("routemine-leaflet-map");
-  const raw = document.getElementById("routemine-leaflet-data");
+  const el = document.getElementById("ops-center-leaflet-map");
+  const raw = document.getElementById("ops-center-leaflet-data");
   if (!el || !raw) return;
   const markers = JSON.parse(raw.textContent);
-  if (window.__routemineMap) {{
-    try {{ window.__routemineMap.remove(); }} catch (e) {{}}
-    window.__routemineMap = null;
+  if (window.__opsCenterMap) {{
+    try {{ window.__opsCenterMap.remove(); }} catch (e) {{}}
+    window.__opsCenterMap = null;
   }}
   const center = markers.length ? [markers[0].lat, markers[0].lng] : [20, 0];
   const map = L.map(el).setView(center, markers.length ? 4 : 2);
-  window.__routemineMap = map;
+  window.__opsCenterMap = map;
   L.tileLayer('https://{{s}}.basemaps.cartocdn.com/dark_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{
     attribution: '&copy; CartoDB',
   }}).addTo(map);
@@ -889,9 +989,28 @@ def _my_fleet_rows(conn) -> list[dict]:
     return fetch_all(
         conn,
         """
-        SELECT id, shortname, ac_name, quantity, notes
-        FROM v_my_fleet
-        ORDER BY shortname COLLATE NOCASE
+        SELECT v.id,
+               v.aircraft_id,
+               v.shortname,
+               v.ac_name,
+               v.ac_type,
+               v.quantity,
+               v.notes,
+               COALESCE(v.cost, 0) AS unit_cost,
+               COALESCE(ass.assigned, 0) AS assigned,
+               CASE
+                   WHEN v.quantity > COALESCE(ass.assigned, 0)
+                   THEN v.quantity - COALESCE(ass.assigned, 0)
+                   ELSE 0
+               END AS free,
+               v.quantity * COALESCE(v.cost, 0) AS total_value
+        FROM v_my_fleet v
+        LEFT JOIN (
+            SELECT aircraft_id, SUM(num_assigned) AS assigned
+            FROM my_routes
+            GROUP BY aircraft_id
+        ) ass ON ass.aircraft_id = v.aircraft_id
+        ORDER BY v.shortname COLLATE NOCASE
         """,
     )
 
@@ -900,18 +1019,20 @@ def _my_routes_rows(conn) -> list[dict]:
     return fetch_all(
         conn,
         """
-        SELECT mr.id,
-               ho.iata AS hub,
-               hd.iata AS destination,
-               ac.shortname AS aircraft,
-               mr.num_assigned,
-               mr.notes,
+        SELECT v.id,
+               v.hub,
+               v.destination,
+               v.aircraft,
+               v.hub_name,
+               v.hub_country,
+               v.dest_name,
+               v.dest_fullname,
+               v.dest_country,
+               v.num_assigned,
+               v.notes,
                best.p AS profit_per_ac_day,
                best.dkm AS distance_km
-        FROM my_routes mr
-        JOIN airports ho ON mr.origin_id = ho.id
-        JOIN airports hd ON mr.dest_id = hd.id
-        JOIN aircraft ac ON mr.aircraft_id = ac.id
+        FROM v_my_routes v
         LEFT JOIN (
             SELECT origin_id, dest_id, aircraft_id,
                    MAX(profit_per_ac_day) AS p,
@@ -919,10 +1040,10 @@ def _my_routes_rows(conn) -> list[dict]:
             FROM route_aircraft
             WHERE is_valid = 1
             GROUP BY origin_id, dest_id, aircraft_id
-        ) best ON best.origin_id = mr.origin_id
-            AND best.dest_id = mr.dest_id
-            AND best.aircraft_id = mr.aircraft_id
-        ORDER BY hub COLLATE NOCASE, destination COLLATE NOCASE, aircraft COLLATE NOCASE
+        ) best ON best.origin_id = v.origin_id
+            AND best.dest_id = v.dest_id
+            AND best.aircraft_id = v.aircraft_id
+        ORDER BY v.hub COLLATE NOCASE, v.destination COLLATE NOCASE, v.aircraft COLLATE NOCASE
         """,
     )
 
@@ -954,28 +1075,70 @@ def api_fleet_summary(request: Request):
             row = fetch_one(
                 conn,
                 """
-                SELECT COUNT(*) AS types, COALESCE(SUM(quantity), 0) AS planes
-                FROM my_fleet
+                SELECT COUNT(*) AS types, COALESCE(SUM(mf.quantity), 0) AS planes
+                FROM my_fleet mf
                 """,
             )
             est = _airline_est_profit_from_my_routes(conn)
             rc = fetch_one(conn, "SELECT COUNT(*) AS c FROM my_routes")
             route_rows = int(rc["c"] or 0) if rc else 0
+            val_row = fetch_one(
+                conn,
+                """
+                SELECT COALESCE(SUM(mf.quantity * COALESCE(ac.cost, 0)), 0) AS fleet_value
+                FROM my_fleet mf
+                JOIN aircraft ac ON mf.aircraft_id = ac.id
+                """,
+            )
+            ag_row = fetch_one(
+                conn,
+                """
+                SELECT COALESCE(SUM(num_assigned), 0) AS assigned_total
+                FROM my_routes
+                """,
+            )
+            free_row = fetch_one(
+                conn,
+                """
+                SELECT COALESCE(SUM(
+                    CASE
+                        WHEN mf.quantity > COALESCE(ra.asg, 0)
+                        THEN mf.quantity - COALESCE(ra.asg, 0)
+                        ELSE 0
+                    END
+                ), 0) AS free_total
+                FROM my_fleet mf
+                LEFT JOIN (
+                    SELECT aircraft_id, SUM(num_assigned) AS asg
+                    FROM my_routes
+                    GROUP BY aircraft_id
+                ) ra ON ra.aircraft_id = mf.aircraft_id
+                """,
+            )
         finally:
             conn.close()
     except FileNotFoundError:
         row = {"types": 0, "planes": 0}
         est = 0.0
         route_rows = 0
+        val_row = {"fleet_value": 0}
+        ag_row = {"assigned_total": 0}
+        free_row = {"free_total": 0}
     except sqlite3.OperationalError:
         row = {"types": 0, "planes": 0}
         est = 0.0
         route_rows = 0
+        val_row = {"fleet_value": 0}
+        ag_row = {"assigned_total": 0}
+        free_row = {"free_total": 0}
     stats = {
         "types": int(row["types"] or 0) if row else 0,
         "planes": int(row["planes"] or 0) if row else 0,
         "est_profit": est,
         "route_rows": route_rows,
+        "fleet_value": float(val_row["fleet_value"] or 0) if val_row else 0.0,
+        "assigned_total": int(ag_row["assigned_total"] or 0) if ag_row else 0,
+        "free_total": int(free_row["free_total"] or 0) if free_row else 0,
     }
     return templates.TemplateResponse(
         request,
@@ -1005,18 +1168,36 @@ def api_fleet_add(
             else:
                 q = int(quantity) if quantity else 1
                 q = max(1, min(999, q))
+                prev = fetch_one(
+                    conn,
+                    "SELECT quantity FROM my_fleet WHERE aircraft_id = ?",
+                    [int(ac["id"])],
+                )
                 conn.execute(
                     """
                     INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
                     VALUES (?, ?, ?, datetime('now'))
                     ON CONFLICT(aircraft_id) DO UPDATE SET
-                        quantity = excluded.quantity,
-                        notes = COALESCE(excluded.notes, my_fleet.notes),
+                        quantity = MIN(999, my_fleet.quantity + excluded.quantity),
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_fleet.notes
+                        END,
                         updated_at = datetime('now')
                     """,
                     (int(ac["id"]), q, notes.strip() or None),
                 )
                 conn.commit()
+                after = fetch_one(
+                    conn,
+                    "SELECT quantity FROM my_fleet WHERE aircraft_id = ?",
+                    [int(ac["id"])],
+                )
+                if prev:
+                    msg = f"Merged +{q} (now {int(after['quantity']) if after else q} owned for {aircraft.strip()})."
+                else:
+                    msg = f"Added {q} × {aircraft.strip()}."
         finally:
             conn.close()
     except FileNotFoundError:
@@ -1034,9 +1215,11 @@ def api_fleet_add(
         fleets = []
 
     ctx: dict = {"fleets": fleets}
-    if msg:
+    if msg and ("Database" in msg or "Unknown" in msg or "missing" in msg):
         ctx["flash_err"] = msg
-    else:
+    elif msg:
+        ctx["flash"] = msg
+    elif not ctx.get("flash_err"):
         ctx["flash"] = "Saved fleet row."
     return templates.TemplateResponse(request, "partials/fleet_inventory.html", ctx)
 
@@ -1072,6 +1255,131 @@ def api_fleet_delete(request: Request, fleet_id: int = Form(...)):
     )
 
 
+@router.post("/fleet/{fleet_id}/buy", response_class=HTMLResponse)
+def api_fleet_buy(request: Request, fleet_id: int, add_count: int = Form(1)):
+    flash: str | None = None
+    flash_err: str | None = None
+    try:
+        conn = get_db()
+        try:
+            row = fetch_one(
+                conn,
+                "SELECT id, quantity FROM my_fleet WHERE id = ?",
+                (int(fleet_id),),
+            )
+            if not row:
+                flash_err = "Fleet row not found."
+            else:
+                add = max(1, min(999, int(add_count) if add_count else 1))
+                cur_q = int(row["quantity"] or 0)
+                new_q = min(999, cur_q + add)
+                added = new_q - cur_q
+                conn.execute(
+                    """
+                    UPDATE my_fleet
+                    SET quantity = ?, updated_at = datetime('now')
+                    WHERE id = ?
+                    """,
+                    (new_q, int(fleet_id)),
+                )
+                conn.commit()
+                flash = f"+{added} bought (now {new_q} owned)."
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        flash_err = "Database not found."
+    except sqlite3.OperationalError as exc:
+        flash_err = str(exc)
+
+    try:
+        conn = get_db()
+        try:
+            fleets = _my_fleet_rows(conn)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        fleets = []
+    ctx: dict = {"fleets": fleets}
+    if flash_err:
+        ctx["flash_err"] = flash_err
+    elif flash:
+        ctx["flash"] = flash
+    return templates.TemplateResponse(request, "partials/fleet_inventory.html", ctx)
+
+
+@router.post("/fleet/{fleet_id}/sell", response_class=HTMLResponse)
+def api_fleet_sell(request: Request, fleet_id: int, sell_count: int = Form(1)):
+    flash: str | None = None
+    flash_err: str | None = None
+    try:
+        conn = get_db()
+        try:
+            row = fetch_one(
+                conn,
+                """
+                SELECT mf.id, mf.quantity, mf.aircraft_id
+                FROM my_fleet mf
+                WHERE mf.id = ?
+                """,
+                (int(fleet_id),),
+            )
+            if not row:
+                flash_err = "Fleet row not found."
+            else:
+                qty = int(row["quantity"] or 0)
+                aid = int(row["aircraft_id"])
+                ag = fetch_one(
+                    conn,
+                    "SELECT COALESCE(SUM(num_assigned), 0) AS s FROM my_routes WHERE aircraft_id = ?",
+                    [aid],
+                )
+                assigned = int(ag["s"] or 0) if ag else 0
+                free = max(0, qty - assigned)
+                want = max(1, int(sell_count) if sell_count else 1)
+                sell_n = min(want, free)
+                if free <= 0:
+                    flash_err = "No unassigned aircraft to sell (reduce My Routes assignments first)."
+                elif sell_n < want:
+                    flash_err = f"Only {free} unassigned; cannot sell {want}."
+                else:
+                    new_q = qty - sell_n
+                    if new_q <= 0:
+                        conn.execute("DELETE FROM my_fleet WHERE id = ?", (int(fleet_id),))
+                        flash = f"Sold all {qty}; removed type from fleet."
+                    else:
+                        conn.execute(
+                            """
+                            UPDATE my_fleet
+                            SET quantity = ?, updated_at = datetime('now')
+                            WHERE id = ?
+                            """,
+                            (new_q, int(fleet_id)),
+                        )
+                        flash = f"Sold {sell_n} (now {new_q} owned)."
+                    conn.commit()
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        flash_err = "Database not found."
+    except sqlite3.OperationalError as exc:
+        flash_err = str(exc)
+
+    try:
+        conn = get_db()
+        try:
+            fleets = _my_fleet_rows(conn)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        fleets = []
+    ctx: dict = {"fleets": fleets}
+    if flash_err:
+        ctx["flash_err"] = flash_err
+    elif flash:
+        ctx["flash"] = flash
+    return templates.TemplateResponse(request, "partials/fleet_inventory.html", ctx)
+
+
 @router.get("/fleet/json")
 def api_fleet_json() -> list[dict]:
     try:
@@ -1087,7 +1395,12 @@ def api_fleet_json() -> list[dict]:
             "id": r["id"],
             "shortname": r["shortname"],
             "ac_name": r["ac_name"],
+            "ac_type": r.get("ac_type"),
             "quantity": r["quantity"],
+            "assigned": r.get("assigned", 0),
+            "free": r.get("free", 0),
+            "unit_cost": r.get("unit_cost", 0),
+            "total_value": r.get("total_value", 0),
             "notes": r["notes"],
         }
         for r in rows
@@ -1095,6 +1408,176 @@ def api_fleet_json() -> list[dict]:
 
 
 # --- My routes (my_routes table) ---
+
+
+@router.get("/route-exists", response_class=HTMLResponse)
+def api_route_exists(
+    request: Request,
+    origin: str = Query("", description="Hub IATA (alias for hub_iata)"),
+    dest: str = Query("", description="Destination IATA (alias for destination_iata)"),
+    aircraft: str = Query(""),
+    hub_iata: str = Query(""),
+    destination_iata: str = Query(""),
+    num_assigned: int = Query(1, ge=1, le=999),
+):
+    h = (origin or hub_iata or "").strip()
+    d = (dest or destination_iata or "").strip()
+    ac = (aircraft or "").strip()
+    incomplete = not h or not d or not ac
+    if incomplete:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_exists_hint.html",
+            {"incomplete": True, "exists": False},
+        )
+    try:
+        conn = get_db()
+        try:
+            hub = fetch_one(
+                conn,
+                "SELECT id, iata FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+                [h],
+            )
+            apd = fetch_one(
+                conn,
+                "SELECT id, iata FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+                [d],
+            )
+            acr = fetch_one(
+                conn,
+                "SELECT id, shortname FROM aircraft WHERE LOWER(TRIM(shortname)) = LOWER(TRIM(?)) LIMIT 1",
+                [ac],
+            )
+            if not hub or not apd or not acr:
+                return templates.TemplateResponse(
+                    request,
+                    "partials/route_exists_hint.html",
+                    {
+                        "incomplete": False,
+                        "lookup_failed": True,
+                        "exists": False,
+                        "hub": h,
+                        "dest": d,
+                        "aircraft": ac,
+                    },
+                )
+            row = fetch_one(
+                conn,
+                """
+                SELECT num_assigned FROM my_routes
+                WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                """,
+                [int(hub["id"]), int(apd["id"]), int(acr["id"])],
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_exists_hint.html",
+            {"incomplete": True, "exists": False},
+        )
+    except sqlite3.OperationalError:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_exists_hint.html",
+            {"incomplete": True, "exists": False},
+        )
+
+    add_n = max(1, min(999, int(num_assigned or 1)))
+    if not row:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_exists_hint.html",
+            {
+                "incomplete": False,
+                "exists": False,
+                "hub": h,
+                "dest": d,
+                "aircraft": acr.get("shortname") or ac,
+            },
+        )
+    cur = int(row["num_assigned"] or 0)
+    return templates.TemplateResponse(
+        request,
+        "partials/route_exists_hint.html",
+        {
+            "incomplete": False,
+            "exists": True,
+            "hub": hub.get("iata") or h,
+            "dest": apd.get("iata") or d,
+            "aircraft": acr.get("shortname") or ac,
+            "current": cur,
+            "adding": add_n,
+        },
+    )
+
+
+@router.get("/routes/pair-coverage", response_class=HTMLResponse)
+def api_routes_pair_coverage(
+    request: Request,
+    hub_iata: str = Query(""),
+    destination_iata: str = Query(""),
+):
+    hub = hub_iata.strip().upper()
+    dest = destination_iata.strip().upper()
+    my_rows: list[dict] = []
+    extract_rows: list[dict] = []
+    if not hub or not dest:
+        return templates.TemplateResponse(
+            request,
+            "partials/route_pair_coverage.html",
+            {"hub": hub, "dest": dest, "my_rows": [], "extract_rows": []},
+        )
+    try:
+        conn = get_db()
+        try:
+            my_rows = fetch_all(
+                conn,
+                """
+                SELECT ac.shortname AS aircraft, mr.num_assigned, mr.notes
+                FROM my_routes mr
+                JOIN airports ho ON mr.origin_id = ho.id
+                JOIN airports hd ON mr.dest_id = hd.id
+                JOIN aircraft ac ON mr.aircraft_id = ac.id
+                WHERE UPPER(TRIM(ho.iata)) = UPPER(?) AND UPPER(TRIM(hd.iata)) = UPPER(?)
+                ORDER BY ac.shortname COLLATE NOCASE
+                """,
+                [hub, dest],
+            )
+            extract_rows = fetch_all(
+                conn,
+                """
+                SELECT ac.shortname, MAX(ra.profit_per_ac_day) AS profit_per_ac_day
+                FROM route_aircraft ra
+                JOIN airports a_orig ON ra.origin_id = a_orig.id
+                JOIN airports a_dest ON ra.dest_id = a_dest.id
+                JOIN aircraft ac ON ra.aircraft_id = ac.id
+                WHERE ra.is_valid = 1
+                  AND UPPER(TRIM(a_orig.iata)) = UPPER(?)
+                  AND UPPER(TRIM(a_dest.iata)) = UPPER(?)
+                GROUP BY ra.aircraft_id
+                ORDER BY profit_per_ac_day DESC
+                LIMIT 8
+                """,
+                [hub, dest],
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        pass
+    except sqlite3.OperationalError:
+        pass
+    return templates.TemplateResponse(
+        request,
+        "partials/route_pair_coverage.html",
+        {
+            "hub": hub,
+            "dest": dest,
+            "my_rows": my_rows,
+            "extract_rows": extract_rows,
+        },
+    )
 
 
 @router.get("/routes/inventory", response_class=HTMLResponse)
@@ -1186,13 +1669,25 @@ def api_routes_add(
             else:
                 n = int(num_assigned) if num_assigned else 1
                 n = max(1, min(999, n))
+                prev = fetch_one(
+                    conn,
+                    """
+                    SELECT num_assigned FROM my_routes
+                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                    """,
+                    [int(hub["id"]), int(dest["id"]), int(ac["id"])],
+                )
                 conn.execute(
                     """
                     INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
                     VALUES (?, ?, ?, ?, ?, datetime('now'))
                     ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
-                        num_assigned = excluded.num_assigned,
-                        notes = COALESCE(excluded.notes, my_routes.notes),
+                        num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_routes.notes
+                        END,
                         updated_at = datetime('now')
                     """,
                     (
@@ -1204,6 +1699,24 @@ def api_routes_add(
                     ),
                 )
                 conn.commit()
+                after = fetch_one(
+                    conn,
+                    """
+                    SELECT num_assigned FROM my_routes
+                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                    """,
+                    [int(hub["id"]), int(dest["id"]), int(ac["id"])],
+                )
+                if prev:
+                    msg = (
+                        f"Merged +{n} (now {int(after['num_assigned']) if after else n} assigned for "
+                        f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()} / {aircraft.strip()})."
+                    )
+                else:
+                    msg = (
+                        f"Added {n} × {aircraft.strip()} on "
+                        f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()}."
+                    )
         finally:
             conn.close()
     except FileNotFoundError:
@@ -1221,9 +1734,11 @@ def api_routes_add(
         routes = []
 
     ctx: dict = {"routes": routes}
-    if msg:
+    if msg and ("Unknown" in msg or "Database" in msg or "missing" in msg):
         ctx["flash_err"] = msg
-    else:
+    elif msg:
+        ctx["flash"] = msg
+    elif not ctx.get("flash_err"):
         ctx["flash"] = "Saved route assignment."
     return templates.TemplateResponse(request, "partials/my_routes_inventory.html", ctx)
 
@@ -1282,3 +1797,325 @@ def api_routes_json() -> list[dict]:
         }
         for r in rows
     ]
+
+
+# --- Hub Manager (my_hubs) ---
+
+
+def _dashboard_extract_config() -> UserConfig:
+    return UserConfig()
+
+
+_HUBS_AM4_UNAVAILABLE_MSG = (
+    "The am4 package is not available in this Python environment. "
+    "Hub add and refresh need am4 (see README): use Python 3.10–3.12, then "
+    "pip install -r requirements.txt. On Windows without a working C++ build, use WSL."
+)
+
+
+def _am4_init() -> None:
+    from am4.utils.db import init
+
+    init()
+
+
+def _hubs_ensure_schema(conn: sqlite3.Connection) -> None:
+    from database.schema import create_schema
+
+    create_schema(conn)
+
+
+def _hub_inventory_rows(conn: sqlite3.Connection) -> list[dict]:
+    return fetch_all(
+        conn,
+        """
+        SELECT h.id, h.airport_id, h.iata, h.icao, h.name, h.fullname, h.country,
+               h.notes, h.is_active, h.last_extracted_at, h.last_extract_status, h.last_extract_error,
+               (SELECT COUNT(*) FROM route_aircraft ra
+                WHERE ra.origin_id = h.airport_id AND ra.is_valid = 1) AS route_count,
+               (SELECT MAX(ra.profit_per_ac_day) FROM route_aircraft ra
+                WHERE ra.origin_id = h.airport_id AND ra.is_valid = 1) AS best_profit_day
+        FROM v_my_hubs h
+        ORDER BY h.iata COLLATE NOCASE
+        """,
+    )
+
+
+def _hub_inventory_response(
+    request: Request,
+    *,
+    flash: str | None = None,
+    flash_err: str | None = None,
+) -> HTMLResponse:
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            hubs = _hub_inventory_rows(conn)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        hubs = []
+        flash_err = flash_err or "Database not found."
+    except sqlite3.OperationalError as exc:
+        hubs = []
+        flash_err = flash_err or f"Database or view missing: {exc}"
+    for h in hubs:
+        h["display_status"] = hub_display_status(
+            h.get("last_extract_status"), h.get("last_extracted_at")
+        )
+    ctx: dict = {"hubs": hubs, "stale_after_days": STALE_AFTER_DAYS}
+    if flash:
+        ctx["flash"] = flash
+    if flash_err:
+        ctx["flash_err"] = flash_err
+    return templates.TemplateResponse(request, "partials/hub_inventory.html", ctx)
+
+
+@router.get("/hubs/inventory", response_class=HTMLResponse)
+def api_hubs_inventory(request: Request):
+    return _hub_inventory_response(request)
+
+
+@router.get("/hubs/summary", response_class=HTMLResponse)
+def api_hubs_summary(request: Request):
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            d = STALE_AFTER_DAYS
+            row = fetch_one(
+                conn,
+                f"""
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active,
+                       SUM(CASE
+                         WHEN last_extract_status = 'ok' AND NOT (
+                           last_extracted_at IS NOT NULL
+                           AND TRIM(last_extracted_at) != ''
+                           AND datetime(last_extracted_at) IS NOT NULL
+                           AND datetime(last_extracted_at) < datetime('now', '-{d} days')
+                         ) THEN 1 ELSE 0
+                       END) AS fresh_ok,
+                       SUM(CASE
+                         WHEN last_extract_status = 'ok'
+                          AND last_extracted_at IS NOT NULL
+                          AND TRIM(last_extracted_at) != ''
+                          AND datetime(last_extracted_at) IS NOT NULL
+                          AND datetime(last_extracted_at) < datetime('now', '-{d} days')
+                         THEN 1 ELSE 0
+                       END) AS stale_n,
+                       SUM(CASE
+                         WHEN last_extract_status = 'error' THEN 1
+                         WHEN last_extract_status = 'running' THEN 1
+                         WHEN last_extract_status IS NULL
+                           OR TRIM(COALESCE(last_extract_status, '')) = '' THEN 1
+                         WHEN last_extract_status NOT IN ('ok', 'error', 'running') THEN 1
+                         ELSE 0
+                       END) AS other_n
+                FROM my_hubs
+                """,
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        row = {
+            "total": 0,
+            "active": 0,
+            "fresh_ok": 0,
+            "stale_n": 0,
+            "other_n": 0,
+        }
+    except sqlite3.OperationalError:
+        row = {
+            "total": 0,
+            "active": 0,
+            "fresh_ok": 0,
+            "stale_n": 0,
+            "other_n": 0,
+        }
+    stats = {
+        "total": int(row["total"] or 0) if row else 0,
+        "active": int(row["active"] or 0) if row else 0,
+        "fresh_ok": int(row["fresh_ok"] or 0) if row else 0,
+        "stale_n": int(row["stale_n"] or 0) if row else 0,
+        "other_n": int(row["other_n"] or 0) if row else 0,
+        "stale_after_days": STALE_AFTER_DAYS,
+    }
+    return templates.TemplateResponse(request, "partials/hub_summary.html", {"stats": stats})
+
+
+@router.post("/hubs/add", response_class=HTMLResponse)
+def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form("")):
+    parts = [p.strip().upper() for p in (iata_list or "").replace(";", ",").split(",") if p.strip()]
+    if not parts:
+        return _hub_inventory_response(request, flash_err="Enter at least one IATA code.")
+
+    errs: list[str] = []
+    n_ok = 0
+    notes_val = notes.strip() or None
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            cfg = _dashboard_extract_config()
+            _am4_init()
+            from extractors.routes import upsert_airport_from_am4
+
+            for iata in parts:
+                ap_id, err = upsert_airport_from_am4(conn, cfg, iata)
+                if err or ap_id is None:
+                    errs.append(f"{iata}: {err or 'unknown error'}")
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO my_hubs (airport_id, notes, is_active, updated_at)
+                    VALUES (?, ?, 1, datetime('now'))
+                    ON CONFLICT(airport_id) DO UPDATE SET
+                        is_active = 1,
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_hubs.notes
+                        END,
+                        updated_at = datetime('now')
+                    """,
+                    (ap_id, notes_val),
+                )
+                n_ok += 1
+            conn.commit()
+        finally:
+            conn.close()
+    except ImportError:
+        return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
+    except FileNotFoundError:
+        return _hub_inventory_response(request, flash_err="Database not found.")
+    except sqlite3.OperationalError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+
+    if n_ok == 0:
+        return _hub_inventory_response(
+            request,
+            flash_err="\n".join(errs) if errs else "No hubs could be added.",
+        )
+    msg = f"Added or updated {n_ok} hub(s)."
+    if errs:
+        msg += "\n\n" + "\n".join(errs)
+        return _hub_inventory_response(request, flash_err=msg)
+    return _hub_inventory_response(request, flash=msg)
+
+
+@router.post("/hubs/refresh", response_class=HTMLResponse)
+def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
+    iata: str | None = None
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            row = fetch_one(
+                conn,
+                "SELECT iata FROM v_my_hubs WHERE id = ? LIMIT 1",
+                [int(hub_id)],
+            )
+            if not row or not row.get("iata"):
+                return _hub_inventory_response(request, flash_err="Hub not found.")
+            iata = str(row["iata"]).strip()
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return _hub_inventory_response(request, flash_err="Database not found.")
+
+    try:
+        _am4_init()
+        from extractors.routes import refresh_single_hub
+
+        refresh_single_hub(DB_PATH, _dashboard_extract_config(), iata)
+    except ImportError:
+        return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
+    except RuntimeError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+    except ValueError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+    except Exception as exc:
+        return _hub_inventory_response(request, flash_err=str(exc)[:800])
+
+    return _hub_inventory_response(request, flash=f"Refreshed routes for {iata}.")
+
+
+@router.post("/hubs/refresh-stale", response_class=HTMLResponse)
+def api_hubs_refresh_stale(request: Request):
+    stale: list[dict] = []
+    d = STALE_AFTER_DAYS
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            stale = fetch_all(
+                conn,
+                f"""
+                SELECT id, iata FROM v_my_hubs
+                WHERE last_extract_status = 'ok'
+                  AND last_extracted_at IS NOT NULL
+                  AND TRIM(last_extracted_at) != ''
+                  AND datetime(last_extracted_at) IS NOT NULL
+                  AND datetime(last_extracted_at) < datetime('now', '-{d} days')
+                ORDER BY iata COLLATE NOCASE
+                """,
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return _hub_inventory_response(request, flash_err="Database not found.")
+    except sqlite3.OperationalError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+
+    if not stale:
+        return _hub_inventory_response(
+            request,
+            flash=f"No stale hubs (all OK extracts within {d} days, or use per-hub Refresh for errors).",
+        )
+
+    try:
+        _am4_init()
+        from extractors.routes import refresh_single_hub
+    except ImportError:
+        return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
+
+    cfg = _dashboard_extract_config()
+    errors: list[str] = []
+    ok_n = 0
+    for row in stale:
+        code = (row.get("iata") or "").strip()
+        if not code:
+            continue
+        try:
+            refresh_single_hub(DB_PATH, cfg, code)
+            ok_n += 1
+        except (RuntimeError, ValueError) as exc:
+            errors.append(f"{code}: {exc}")
+        except Exception as exc:
+            errors.append(f"{code}: {str(exc)[:200]}")
+
+    msg = f"Refreshed {ok_n} stale hub(s) (extract older than {d} days)."
+    if errors:
+        msg += "\n" + "\n".join(errors)
+        return _hub_inventory_response(request, flash_err=msg)
+    return _hub_inventory_response(request, flash=msg)
+
+
+@router.post("/hubs/delete", response_class=HTMLResponse)
+def api_hubs_delete(request: Request, hub_id: int = Form(...)):
+    try:
+        conn = get_db()
+        try:
+            _hubs_ensure_schema(conn)
+            conn.execute("DELETE FROM my_hubs WHERE id = ?", (int(hub_id),))
+            conn.commit()
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return _hub_inventory_response(request, flash_err="Database not found.")
+    except sqlite3.OperationalError as exc:
+        return _hub_inventory_response(request, flash_err=str(exc))
+
+    return _hub_inventory_response(request, flash="Removed hub from manager.")

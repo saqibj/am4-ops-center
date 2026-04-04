@@ -1,0 +1,28 @@
+{% if not hub or not dest %}
+<p class="text-gray-600 text-xs mt-2">Select hub and destination to see assignments and extracted options.</p>
+{% else %}
+<div class="mt-3 space-y-3 text-sm border border-gray-700 rounded-lg p-3 bg-gray-800/50">
+    <div>
+        <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">My routes — {{ hub }} → {{ dest }}</p>
+        {% if not my_rows %}
+        <p class="text-gray-500 text-xs">No rows in <code class="text-gray-400">my_routes</code> for this pair yet.</p>
+        {% else %}
+        <ul class="font-mono text-gray-200 space-y-1 text-xs">
+            {% for r in my_rows %}
+            <li><span class="text-emerald-400">{{ r.aircraft }}</span> — {{ r.num_assigned }} assigned{% if r.notes %} <span class="text-gray-500">({{ r.notes }})</span>{% endif %}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% if extract_rows %}
+    <div>
+        <p class="text-gray-400 text-xs uppercase tracking-wider mb-1">Top extracted (profit / ac / day)</p>
+        <ul class="font-mono text-gray-300 space-y-1 text-xs">
+            {% for r in extract_rows %}
+            <li><span class="text-sky-300">{{ r.shortname }}</span> — ${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}

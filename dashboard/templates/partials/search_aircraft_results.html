@@ -1,0 +1,16 @@
+{% if not rows %}
+<p class="text-gray-500 text-xs px-2 py-1.5 border border-gray-600 rounded-md bg-gray-800">No matches.</p>
+{% else %}
+<div class="border border-gray-600 rounded-md bg-gray-800 max-h-52 overflow-y-auto text-sm shadow-lg">
+    {% for r in rows %}
+    <button type="button"
+            class="block w-full text-left px-3 py-2 hover:bg-gray-700 border-b border-gray-700/60 last:border-0"
+            data-sn="{{ r.shortname }}"
+            onclick="(function(btn){var id='{{ field_id }}';var el=document.getElementById(id);if(el)el.value=btn.dataset.sn;var p=btn.closest('.search-ac-panel');if(p)p.innerHTML='';})(this)">
+        <span class="font-mono text-emerald-400">{{ r.shortname }}</span>
+        <span class="text-gray-300 text-xs">{% if r.name %}{{ r.name }}{% else %}—{% endif %}</span>
+        {% if r.type %}<span class="text-gray-500 text-xs"> · {{ r.type }}</span>{% endif %}
+    </button>
+    {% endfor %}
+</div>
+{% endif %}

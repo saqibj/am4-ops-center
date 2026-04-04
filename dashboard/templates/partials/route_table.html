@@ -1,3 +1,4 @@
+{% from 'partials/airport_badge.html' import airport_dest_route_cell %}
 {% set incl = "[name='hub'],[name='type'],[name='min_profit'],[name='max_dist'],[name='max_flight_hrs'],[name='hide_stopovers'],[name='limit']" %}
 <div class="overflow-x-auto rounded-lg border border-gray-700">
     <table class="w-full text-sm min-w-[1000px]">
@@ -48,7 +49,7 @@
         <tbody class="divide-y divide-gray-700">
             {% for r in routes %}
             <tr class="hover:bg-gray-700 transition-colors">
-                <td class="px-3 py-2 font-mono font-medium">{{ r.destination }}</td>
+                <td class="px-3 py-2">{{ airport_dest_route_cell(r) }}</td>
                 <td class="px-3 py-2 font-mono">{{ r.aircraft }}</td>
                 <td class="px-3 py-2 text-gray-400">{{ r.ac_type }}</td>
                 <td class="px-3 py-2 text-right font-mono">{{ "{:,.0f}".format(r.distance_km or 0) }}</td>

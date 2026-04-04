@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Hub Manager{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Hub Manager</h2>
+<p class="text-gray-400 mb-6">Managed hubs (<code class="text-gray-500">my_hubs</code>): track airports and run <strong class="text-gray-300">selective route refresh</strong> without a full extract. Requires aircraft/airports from a prior <code class="text-gray-500">python main.py extract</code>.</p>
+
+<div id="hub-summary" class="mb-8"
+     hx-get="/api/hubs/summary"
+     hx-trigger="load">
+</div>
+
+<div class="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-6">
+    <h3 class="text-lg font-semibold mb-4">Add hub(s)</h3>
+    <p class="text-gray-500 text-sm mb-4">One IATA or comma-separated list (e.g. <code class="text-gray-400">KHI, DXB</code>). Airports are loaded from AM4 if missing locally.</p>
+    <form id="hub-add-form"
+          class="flex flex-wrap gap-4 items-end"
+          hx-post="/api/hubs/add"
+          hx-target="#hub-inventory"
+          hx-swap="innerHTML"
+          hx-indicator="#hub-inv-spinner"
+          hx-on::after-request="if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-hub-inv-error') === -1) { document.getElementById('hub-add-form').reset(); htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' }); }">
+        <div class="min-w-[16rem] flex-1">
+            <label class="block text-xs text-gray-400 mb-1">IATA code(s)</label>
+            <input type="text" name="iata_list" required placeholder="KHI or KHI,DXB,LHR"
+                   class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2 font-mono uppercase">
+        </div>
+        <div class="min-w-[12rem]">
+            <label class="block text-xs text-gray-400 mb-1">Notes (optional)</label>
+            <input type="text" name="notes" placeholder="Applied to new rows"
+                   class="w-full bg-gray-700 border border-gray-600 text-white rounded-md px-3 py-2">
+        </div>
+        <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-md px-4 py-2 text-sm font-medium">
+            Add
+        </button>
+        <span id="hub-inv-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Working…</span>
+    </form>
+</div>
+
+<div class="flex flex-wrap gap-3 mb-6">
+    <form hx-post="/api/hubs/refresh-stale"
+          hx-target="#hub-inventory"
+          hx-swap="innerHTML"
+          hx-indicator="#hub-inv-spinner"
+          hx-confirm="Refresh only hubs whose last OK extract is older than {{ stale_after_days }} days? (Errors and never-extracted hubs use per-row Refresh.)"
+          hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' })">
+        <button type="submit" class="bg-amber-600/90 hover:bg-amber-500 text-white rounded-md px-4 py-2 text-sm font-medium">
+            Refresh stale hubs
+        </button>
+    </form>
+    <p class="text-gray-500 text-xs w-full sm:w-auto sm:ml-2">Stale = status OK but last extract &gt; {{ stale_after_days }} days ago (UTC).</p>
+</div>
+
+<div id="hub-inventory"
+     hx-get="/api/hubs/inventory"
+     hx-trigger="load"
+     hx-indicator="#hub-inv-spinner">
+    <p class="text-gray-400">Loading hubs…</p>
+</div>
+{% endblock %}

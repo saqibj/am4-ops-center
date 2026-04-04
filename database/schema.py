@@ -152,6 +152,21 @@ CREATE INDEX IF NOT EXISTS idx_my_routes_origin ON my_routes(origin_id);
 CREATE INDEX IF NOT EXISTS idx_my_routes_dest ON my_routes(dest_id);
 CREATE INDEX IF NOT EXISTS idx_my_routes_ac ON my_routes(aircraft_id);
 
+CREATE TABLE IF NOT EXISTS my_hubs (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    airport_id          INTEGER NOT NULL UNIQUE,
+    notes               TEXT,
+    is_active           INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_extracted_at   TIMESTAMP,
+    last_extract_status TEXT,
+    last_extract_error  TEXT,
+    FOREIGN KEY (airport_id) REFERENCES airports(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_my_hubs_airport ON my_hubs(airport_id);
+
 DROP VIEW IF EXISTS v_my_fleet;
 CREATE VIEW v_my_fleet AS
 SELECT
@@ -168,6 +183,27 @@ SELECT
 FROM my_fleet mf
 JOIN aircraft ac ON mf.aircraft_id = ac.id;
 
+DROP VIEW IF EXISTS v_my_hubs;
+CREATE VIEW v_my_hubs AS
+SELECT
+    mh.id,
+    mh.airport_id,
+    a.iata,
+    a.icao,
+    a.name,
+    a.fullname,
+    a.country,
+    a.continent,
+    a.market,
+    a.hub_cost,
+    mh.notes,
+    mh.is_active,
+    mh.last_extracted_at,
+    mh.last_extract_status,
+    mh.last_extract_error
+FROM my_hubs mh
+JOIN airports a ON mh.airport_id = a.id;
+
 DROP VIEW IF EXISTS v_my_routes;
 CREATE VIEW v_my_routes AS
 SELECT
@@ -182,7 +218,12 @@ SELECT
     ho.iata AS hub,
     hd.iata AS destination,
     ac.shortname AS aircraft,
-    ac.name AS ac_name
+    ac.name AS ac_name,
+    ho.name AS hub_name,
+    ho.country AS hub_country,
+    hd.name AS dest_name,
+    hd.fullname AS dest_fullname,
+    hd.country AS dest_country
 FROM my_routes mr
 JOIN airports ho ON mr.origin_id = ho.id
 JOIN airports hd ON mr.dest_id = hd.id
@@ -206,7 +247,11 @@ SELECT
     ra.flight_time_hrs,
     ra.needs_stopover,
     ra.stopover_iata,
-    ra.warnings
+    ra.warnings,
+    a_orig.name AS hub_name,
+    a_orig.country AS hub_country,
+    a_dest.name AS dest_name,
+    a_dest.fullname AS dest_fullname
 FROM route_aircraft ra
 JOIN airports a_orig ON ra.origin_id = a_orig.id
 JOIN airports a_dest ON ra.dest_id = a_dest.id

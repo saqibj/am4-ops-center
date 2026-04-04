@@ -1,0 +1,82 @@
+<div {% if flash_err %}data-hub-inv-error="1"{% endif %}>
+    {% if flash %}
+    <p class="text-emerald-400 text-sm mb-4">{{ flash }}</p>
+    {% endif %}
+    {% if flash_err %}
+    <p class="text-red-400 text-sm mb-4 whitespace-pre-wrap">{{ flash_err }}</p>
+    {% endif %}
+
+    {% if not hubs %}
+    <p class="text-gray-400">No managed hubs yet. Add IATA codes above (airports are created via AM4 if needed).</p>
+    {% else %}
+    <div class="overflow-x-auto rounded-lg border border-gray-700">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-700 text-gray-300 text-xs uppercase tracking-wider">
+                <tr>
+                    <th class="text-left px-4 py-3">Hub</th>
+                    <th class="text-left px-4 py-3">Airport</th>
+                    <th class="text-left px-4 py-3">Status</th>
+                    <th class="text-left px-4 py-3">Last extract</th>
+                    <th class="text-right px-4 py-3">Routes</th>
+                    <th class="text-right px-4 py-3">Best $/day</th>
+                    <th class="text-left px-4 py-3">Notes</th>
+                    <th class="text-right px-4 py-3"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700">
+                {% for h in hubs %}
+                <tr class="hover:bg-gray-800/80 transition-colors {% if not h.is_active %}opacity-50{% endif %}">
+                    <td class="px-4 py-3 font-mono font-medium text-emerald-400">{{ h.iata or '—' }}</td>
+                    <td class="px-4 py-3 text-gray-400 max-w-[12rem] truncate" title="{{ h.fullname or h.name or '' }}">{{ h.name or '—' }}</td>
+                    <td class="px-4 py-3">
+                        {% if h.display_status == 'ok' %}
+                        <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-emerald-900/60 text-emerald-300">ok</span>
+                        {% elif h.display_status == 'stale' %}
+                        <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-orange-900/50 text-orange-200" title="Last OK extract is older than {{ stale_after_days }} days">stale</span>
+                        {% elif h.display_status == 'running' %}
+                        <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-amber-900/60 text-amber-200">running</span>
+                        {% elif h.display_status == 'error' %}
+                        <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-red-900/60 text-red-300" title="{{ h.last_extract_error or '' }}">error</span>
+                        {% elif h.display_status == 'never' %}
+                        <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-400" title="No completed extract yet">never</span>
+                        {% else %}
+                        <span class="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 text-xs font-mono">{{ h.last_extracted_at or '—' }}</td>
+                    <td class="px-4 py-3 text-right font-mono">{{ h.route_count or 0 }}</td>
+                    <td class="px-4 py-3 text-right font-mono text-emerald-300/90">
+                        {% if h.best_profit_day is not none %}
+                        ${{ "{:,.0f}".format(h.best_profit_day | float) }}
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-gray-500 max-w-[10rem] truncate">{{ h.notes or '—' }}</td>
+                    <td class="px-4 py-3 text-right whitespace-nowrap space-x-2">
+                        <form hx-post="/api/hubs/refresh"
+                              hx-target="#hub-inventory"
+                              hx-swap="innerHTML"
+                              hx-indicator="#hub-inv-spinner"
+                              hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' })"
+                              class="inline">
+                            <input type="hidden" name="hub_id" value="{{ h.id }}">
+                            <button type="submit" class="text-emerald-400 hover:text-emerald-300 text-xs underline-offset-2 hover:underline">Refresh</button>
+                        </form>
+                        <form hx-post="/api/hubs/delete"
+                              hx-target="#hub-inventory"
+                              hx-swap="innerHTML"
+                              hx-confirm="Remove this hub from Hub Manager only? (Extracted routes for this origin stay in the DB.)"
+                              hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' })"
+                              class="inline">
+                            <input type="hidden" name="hub_id" value="{{ h.id }}">
+                            <button type="submit" class="text-red-400 hover:text-red-300 text-xs underline-offset-2 hover:underline">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>

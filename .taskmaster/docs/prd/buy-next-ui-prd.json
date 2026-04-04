@@ -1,0 +1,206 @@
+{
+    "title": "Product Requirements: Buy Next UI (/buy-next)",
+    "document_status": {
+      "phase": "Next (post Taskmaster 1–10)",
+      "audience": [
+        "Implementers",
+        "Taskmaster parse-prd"
+      ],
+      "repo": "am4-ops-center",
+      "repo_description": "AM4 RouteMine dashboard + CLI"
+    },
+    "purpose": {
+      "summary": "Deliver a first-class Buy Next dashboard experience at /buy-next that answers: 'Given my cash budget at a hub, which aircraft should I consider buying next?'",
+      "alignment": [
+        "README historical promise",
+        "User mental model of ROI-ranked purchase recommendations"
+      ],
+      "current_logic_locations": [
+        {
+          "surface": "CLI",
+          "entrypoint": "python main.py recommend --hub IATA --budget N --top M",
+          "code_path": "commands/airline.py",
+          "function": "recommend()"
+        },
+        {
+          "surface": "Dashboard",
+          "page": "/fleet-planner",
+          "api": "GET /api/fleet-plan",
+          "template": "partials/fleet_plan_table.html"
+        }
+      ],
+      "current_ranking_logic": {
+        "scope": "hub origin_id",
+        "budget_filter": "aircraft.cost <= budget",
+        "aggregation_source": "route_aircraft",
+        "metrics": [
+          "AVG(profit_per_ac_day)",
+          "MAX(profit_per_ac_day)"
+        ],
+        "ordering": "avg daily profit descending",
+        "days_to_break_even": "cost / avg_daily_profit when applicable"
+      },
+      "gap": "There is no /buy-next route; users must discover Fleet Planner or the CLI.",
+      "product_intent": "The Buy Next page should be purpose-built copy and IA, not a silent duplicate forever."
+    },
+    "goals": [
+      "Add /buy-next to the app (FastAPI pages.py, template, nav in base.html).",
+      "Ship MVP quickly with low risk by reusing proven Fleet Planner behavior and HTMX patterns.",
+      "Prefer one shared implementation for SQL and row shaping across CLI, /api/fleet-plan, and /buy-next.",
+      "Clarify that Buy Next means budget-constrained, hub-scoped next aircraft suggestions from extracted route_aircraft data, not AM4 live market prices or alliance meta-game."
+    ],
+    "non_goals": [
+      "Replacing AM4 in-game purchase flow or validating real-time availability.",
+      "Multi-hub portfolio optimization across the whole airline in v1.",
+      "Automatic writes to my_fleet without explicit user confirmation."
+    ],
+    "user_stories": [
+      "As a player, I open Buy Next from the nav and pick hub and budget so I see aircraft ranked by average daily profit at that hub, within budget.",
+      "As a player, I see days to break-even (cost divided by avg daily profit) consistent with Fleet Planner and CLI.",
+      "As a player, I understand this uses saved extraction data (route_aircraft), so I should refresh hubs or extract if numbers feel stale."
+    ],
+    "mvp": {
+      "objective": "A dedicated Buy Next page that matches Fleet Planner behavior with minimal new code.",
+      "scope": {
+        "route": {
+          "method": "GET",
+          "path": "/buy-next",
+          "handler": "page_buy_next",
+          "file": "dashboard/routes/pages.py",
+          "hub_list_source": "Distinct origins from route_aircraft where valid, same as Fleet Planner"
+        },
+        "ui": {
+          "template": "buy_next.html",
+          "requirements": [
+            "Title and short explainer",
+            "Budget explanation",
+            "Extracted routes explanation",
+            "Break-even definition"
+          ],
+          "form_strategy": [
+            "Reuse the same form controls as fleet_planner.html",
+            "Or include a shared partial for the filter form to avoid duplication"
+          ],
+          "htmx": {
+            "reuse_api": "GET /api/fleet-plan",
+            "pattern": [
+              "hx-get",
+              "hx-target",
+              "hx-include"
+            ],
+            "new_api_required": false
+          }
+        },
+        "navigation": {
+          "file": "base.html",
+          "add_link": "Buy Next",
+          "placement_options": [
+            "Under My Airline after My Routes",
+            "Adjacent to Fleet Planner"
+          ],
+          "note": "Pick one and stay consistent."
+        },
+        "overview_index": {
+          "add_quick_link_card": true,
+          "target": "/buy-next",
+          "condition": "If other pages already do the same for Fleet Planner"
+        }
+      },
+      "acceptance_criteria": [
+        "/buy-next loads without DB errors when route_aircraft has data.",
+        "Changing hub, budget, and top N updates the table identically to Fleet Planner for the same inputs.",
+        "Nav shows Buy Next and active styling matches other items if applicable.",
+        "README or dashboard copy does not claim features beyond MVP."
+      ],
+      "limitations": [
+        "Does not subtract already owned aircraft unless Stretch A is implemented.",
+        "Rank key is average profit_per_ac_day across extracted routes for that hub and aircraft type."
+      ]
+    },
+    "engineering_notes": {
+      "consolidate_duplicate_logic": {
+        "priority": "Should do with MVP or immediately after",
+        "proposed_function": "fleet_recommend_rows(conn, hub_iata, budget, top_n) -> list[dict]",
+        "suggested_locations": [
+          "commands/airline.py",
+          "dashboard/fleet_recommend.py"
+        ],
+        "return_shape": [
+          "Rows with keys used by fleet_plan_table.html",
+          "Precomputed days_to_breakeven"
+        ],
+        "consumers": [
+          "CLI recommend() prints TSV from that function",
+          "api_fleet_plan calls that function",
+          "api_buy_next can call that function"
+        ],
+        "benefit": "Ensures CLI and dashboard never diverge."
+      },
+      "optional_api_name": {
+        "path": "/api/buy-next",
+        "behavior": "Thin alias to the same handler as /api/fleet-plan or redirect",
+        "required_for_mvp": false,
+        "reason": "Only useful if analytics separation is wanted"
+      }
+    },
+    "stretch_goals": [
+      {
+        "name": "Stretch A",
+        "title": "Already own context",
+        "priority": "High value, still practical",
+        "items": [
+          "Join my_fleet to show quantity owned per aircraft shortname (0 if none).",
+          "Optional toggle to hide aircraft already owned."
+        ]
+      },
+      {
+        "name": "Stretch B",
+        "title": "Hub search / airport badge",
+        "items": [
+          "Reuse /api/search/airports for hub entry if hub list is huge."
+        ]
+      },
+      {
+        "name": "Stretch C",
+        "title": "Action row",
+        "items": [
+          "Add 'Add 1 to My Fleet' POST to existing /api/fleet/add with aircraft shortname.",
+          "Requires CSRF-safe patterns already used elsewhere.",
+          "Confirm merge semantics and flash messaging."
+        ]
+      },
+      {
+        "name": "Stretch D",
+        "title": "Ranking alternatives",
+        "items": [
+          "Toggle sort by avg profit/day (default), best profit/day, or days to break-even ascending.",
+          "Document that ROI in marketing terms maps to these metrics, not a separate formula."
+        ]
+      }
+    ],
+    "taskmaster_usage": {
+      "tag_suggestion": [
+        "feature-buy-next",
+        "master"
+      ],
+      "suggested_task_breakdown": [
+        "Shared fleet_recommend_rows plus wire CLI and api_fleet_plan.",
+        "Page route plus buy_next.html plus nav plus optional index link.",
+        "README documentation for /buy-next versus /fleet-planner.",
+        "Stretch A, B, and C as separate tasks with dependencies."
+      ]
+    },
+    "success_metrics": [
+      "Users can complete hub plus budget plus table review without using CLI.",
+      "No regression in Fleet Planner behavior after refactor.",
+      "Single SQL path for recommendations."
+    ],
+    "references": [
+      "commands/airline.py — recommend()",
+      "dashboard/routes/api_routes.py — api_fleet_plan, GET /fleet-plan",
+      "dashboard/templates/fleet_planner.html",
+      "partials/fleet_plan_table.html",
+      "dashboard/routes/pages.py — page_fleet_planner",
+      "docs/BASELINE_GUARDRAILS.md — notes on /buy-next absence prior to this work"
+    ]
+  }

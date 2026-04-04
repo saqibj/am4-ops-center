@@ -6,6 +6,7 @@ import csv
 import sys
 from pathlib import Path
 
+from commands.fleet_recommend import fleet_recommend_rows
 from database.schema import create_schema, get_connection
 
 
@@ -35,7 +36,7 @@ def _airport_id(conn, iata: str) -> int | None:
     return int(row[0]) if row else None
 
 
-def fleet_import(db_path: str, file_path: str) -> None:
+def fleet_import(db_path: str, file_path: str, *, mode: str = "merge") -> None:
     path = Path(file_path)
     if not path.is_file():
         print(f"Error: file not found: {path}", file=sys.stderr)
@@ -68,17 +69,34 @@ def fleet_import(db_path: str, file_path: str) -> None:
                 errors.append(f"line {lineno}: unknown aircraft shortname {sn!r}")
                 continue
             notes = row.get("notes") or None
-            conn.execute(
-                """
-                INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
-                VALUES (?, ?, ?, datetime('now'))
-                ON CONFLICT(aircraft_id) DO UPDATE SET
-                    quantity = excluded.quantity,
-                    notes = COALESCE(excluded.notes, my_fleet.notes),
-                    updated_at = datetime('now')
-                """,
-                (aid, cnt, notes),
-            )
+            if mode == "replace":
+                conn.execute(
+                    """
+                    INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                    ON CONFLICT(aircraft_id) DO UPDATE SET
+                        quantity = excluded.quantity,
+                        notes = COALESCE(excluded.notes, my_fleet.notes),
+                        updated_at = datetime('now')
+                    """,
+                    (aid, cnt, notes),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
+                    VALUES (?, ?, ?, datetime('now'))
+                    ON CONFLICT(aircraft_id) DO UPDATE SET
+                        quantity = MIN(999, my_fleet.quantity + excluded.quantity),
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_fleet.notes
+                        END,
+                        updated_at = datetime('now')
+                    """,
+                    (aid, cnt, notes),
+                )
             n_ok += 1
     conn.commit()
     conn.close()
@@ -125,7 +143,7 @@ def fleet_list(db_path: str) -> None:
         print(f"{r[0]}\t{r[1]}\t{r[2]}\t{r[3]}")
 
 
-def routes_import(db_path: str, file_path: str) -> None:
+def routes_import(db_path: str, file_path: str, *, mode: str = "merge") -> None:
     path = Path(file_path)
     if not path.is_file():
         print(f"Error: file not found: {path}", file=sys.stderr)
@@ -168,17 +186,34 @@ def routes_import(db_path: str, file_path: str) -> None:
                 errors.append(f"line {lineno}: unknown aircraft {ac!r}")
                 continue
             notes = row.get("notes") or None
-            conn.execute(
-                """
-                INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
-                VALUES (?, ?, ?, ?, ?, datetime('now'))
-                ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
-                    num_assigned = excluded.num_assigned,
-                    notes = COALESCE(excluded.notes, my_routes.notes),
-                    updated_at = datetime('now')
-                """,
-                (oid, did, aid, n, notes),
-            )
+            if mode == "replace":
+                conn.execute(
+                    """
+                    INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
+                        num_assigned = excluded.num_assigned,
+                        notes = COALESCE(excluded.notes, my_routes.notes),
+                        updated_at = datetime('now')
+                    """,
+                    (oid, did, aid, n, notes),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
+                        num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
+                        notes = CASE
+                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                            THEN excluded.notes
+                            ELSE my_routes.notes
+                        END,
+                        updated_at = datetime('now')
+                    """,
+                    (oid, did, aid, n, notes),
+                )
             n_ok += 1
     conn.commit()
     conn.close()
@@ -210,42 +245,38 @@ def routes_export(db_path: str, output_path: str) -> None:
     print(f"Wrote {len(rows)} row(s) to {out}")
 
 
-def recommend(db_path: str, hub: str, budget: int, top_n: int) -> None:
+def recommend(
+    db_path: str,
+    hub: str,
+    budget: int,
+    top_n: int,
+    *,
+    hide_owned: bool = False,
+) -> None:
     conn = get_connection(db_path)
-    hub_row = conn.execute(
-        "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
-        [hub],
-    ).fetchone()
-    if not hub_row:
+    try:
+        rows, err = fleet_recommend_rows(
+            conn, hub, int(budget), int(top_n), hide_owned=hide_owned
+        )
+    finally:
+        conn.close()
+    if err == "unknown_hub":
         print(f"Unknown hub IATA: {hub}", file=sys.stderr)
         sys.exit(2)
-    origin_id = int(hub_row[0])
-    rows = conn.execute(
-        """
-        SELECT ac.shortname, ac.name, ac.type, ac.cost,
-               COUNT(*) AS routes,
-               AVG(ra.profit_per_ac_day) AS avg_daily_profit,
-               MAX(ra.profit_per_ac_day) AS best_daily_profit
-        FROM route_aircraft ra
-        JOIN aircraft ac ON ra.aircraft_id = ac.id
-        WHERE ra.is_valid = 1 AND ra.origin_id = ? AND ac.cost <= ?
-        GROUP BY ra.aircraft_id
-        ORDER BY avg_daily_profit DESC
-        LIMIT ?
-        """,
-        (origin_id, int(budget), int(top_n)),
-    ).fetchall()
-    conn.close()
     if not rows:
         print("No aircraft match this hub and budget (or no extraction data).")
         return
     print(
-        "shortname\tname\ttype\tcost\troutes\tavg_profit_day\tbest_profit_day\tdays_breakeven"
+        "shortname\tname\ttype\tcost\towned\troutes\tavg_profit_day\tbest_profit_day\t"
+        "days_breakeven"
     )
     for r in rows:
-        avg = float(r[5] or 0)
-        cost = int(r[3] or 0)
-        be = round(cost / avg, 1) if avg > 0 and cost > 0 else ""
+        avg = float(r.get("avg_daily_profit") or 0)
+        cost = int(r.get("cost") or 0)
+        be = r.get("days_to_breakeven")
+        be_out = "" if be is None else be
+        owned = int(r.get("owned_qty") or 0)
         print(
-            f"{r[0]}\t{r[1]}\t{r[2]}\t{cost}\t{r[4]}\t{round(avg, 2)}\t{round(float(r[6] or 0), 2)}\t{be}"
+            f"{r['shortname']}\t{r['name']}\t{r['type']}\t{cost}\t{owned}\t{r['routes']}\t"
+            f"{round(avg, 2)}\t{round(float(r.get('best_daily_profit') or 0), 2)}\t{be_out}"
         )

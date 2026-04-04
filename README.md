@@ -4,7 +4,7 @@
 ![HTMX](https://img.shields.io/badge/HTMX-2.0-3366CC?logo=htmx&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
-![Platform](https://img.shields.io/badge/Platform-WSL%20%7C%20Linux%20%7C%20macOS-lightgrey)
+![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20WSL%20%7C%20Linux%20%7C%20macOS-lightgrey?logo=windows&logoColor=white)
 
 # AM4 Ops Center ✈️
 
@@ -16,7 +16,7 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 
 ## 📸 Screenshots
 
-> Screenshots coming soon. The dashboard features 9 pages including Hub Explorer, Aircraft Comparison, Route Analyzer, Fleet Management, and a Global Heatmap.
+> Screenshots coming soon. The dashboard has **11** pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, Buy Next, My Fleet, My Routes, Hub Manager, Contributions, and Heatmap.
 
 ---
 
@@ -28,10 +28,10 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 - **3,900+ airports** — complete airport database with runway, market tier, hub costs
 - **SQLite storage** — 3.8M+ route rows queryable offline
 - **FastAPI dashboard** — dark-mode web UI with Tailwind CSS + HTMX (no page reloads)
-- **9 dashboard pages** — Overview, Hub Explorer, Aircraft Comparison, Route Analyzer, Fleet Planner, My Fleet, My Routes, Contribution Optimizer, Global Heatmap
-- **Fleet management** — track owned aircraft, active routes, CSV import/export
-- **"Buy Next" engine** — ROI-ranked aircraft purchase recommendations
-- **CSV/Excel export** — dump any table for spreadsheet analysis
+- **11 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, **Buy Next** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Hub Manager** (managed hubs, per-hub / stale refresh), Contributions, Heatmap
+- **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; CSV import defaults to **merge**; **`--replace`** overwrites counts; dashboard forms match the same semantics
+- **CLI `recommend`** / **Buy Next** (`/buy-next`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**)
+- **CSV/Excel export** — dump tables for spreadsheet analysis
 - **Fully offline** — after initial setup, no internet needed
 
 ---
@@ -84,7 +84,7 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 git clone https://github.com/saqibj/am4-routemine.git && cd am4-routemine
 python3 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip
-pip install "am4 @ git+https://github.com/abc8747/am4.git@master" && pip install -r requirements.txt
+pip install -r requirements.txt
 python3 -c "from am4.utils.db import init; init(); print('✅ am4 OK')"
 ```
 
@@ -108,17 +108,12 @@ python3 -c "from am4.utils.db import init; init(); print('✅ am4 OK')"
    pip install --upgrade pip
    ```
 
-4. **Install the am4 package** (compiles C++ core with GCC, ~2 minutes)
-   ```bash
-   pip install "am4 @ git+https://github.com/abc8747/am4.git@master"
-   ```
-
-5. **Install remaining dependencies**
+4. **Install Python dependencies** (includes **`am4`** from Git — compiles C++ core with GCC, ~2 minutes)
    ```bash
    pip install -r requirements.txt
    ```
 
-6. **Verify installation**
+5. **Verify installation**
    ```bash
    python3 -c "from am4.utils.db import init; init(); from am4.utils.aircraft import Aircraft; print(Aircraft.search('b738').ac.name)"
    # Expected: B737-800
@@ -146,35 +141,47 @@ cursor .   # or: code .
 
 Alternatively, you can use Cursor's "WSL: Connect to WSL" command (`Ctrl`+`Shift`+`P`).
 
+### `requirements.txt` and `pyproject.toml`
+
+Both list the same direct dependencies. **`requirements.txt`** is the recommended install path (`pip install -r requirements.txt`). **`pyproject.toml`** matches it (including the same **`am4`** Git URL: `github.com/saqibj/am4` branch **`msvc-fix`**) so `pip install -e .` stays consistent. If you change the `am4` source, update **both** files.
+
 ---
 
 ## 💻 Usage
 
 ### Extract Route Data
 
+**Full rebuild** (default `extract` without `--refresh-hubs`): runs a bulk extraction for `--hubs …` or `--all-hubs`. Use this when building the database from scratch or refreshing masters + routes at scale.
+
+**Hub-only refresh** (`--refresh-hubs` + `--hubs`): recomputes **`route_aircraft`** / **`route_demands`** only for the listed origins. Faster and scoped; requires **aircraft** (and normal prerequisites) from a **prior full extract**. Cannot be combined with `--all-hubs`.
+
 ```bash
-# Extract specific hubs (recommended start)
-python3 main.py extract --hubs KHI,DXB --mode easy --workers 1
+# Full rebuild — specific hubs (typical first run)
+python3 main.py extract --hubs KHI,DXB --mode easy --workers 4
 
-# Extract all your hubs
-python3 main.py extract --hubs KHI,DXB,LHR,JFK,HKG,MJD --mode easy --workers 1
+# Full rebuild — your hub list
+python3 main.py extract --hubs KHI,DXB,LHR,JFK,HKG,MJD --mode easy --workers 4
 
-# Extract ALL airports as hubs (takes hours)
-python3 main.py extract --all-hubs --mode easy --workers 1
+# Full rebuild — ALL airports as hubs (very long-running)
+python3 main.py extract --all-hubs --mode easy --workers 4
+
+# Hub-only refresh (after data already exists)
+python3 main.py extract --refresh-hubs --hubs KHI,DXB --mode easy --workers 4
 ```
 
 **Extract options:**
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--hubs` | — | Comma-separated IATA codes |
-| `--all-hubs` | `false` | Process all 3,900+ airports as hubs |
+| `--hubs` | — | Comma-separated IATA codes (required with `--refresh-hubs`; for full extract, provide `--hubs` or `--all-hubs`) |
+| `--all-hubs` | `false` | Process all airports as hubs (**full rebuild only**; not with `--refresh-hubs`) |
+| `--refresh-hubs` | `false` | **Hub-only** route recompute for `--hubs` only |
 | `--mode` | `easy` | Game mode: `easy` or `realism` |
 | `--ci` | `200` | Cost Index (0–200) |
 | `--reputation` | `87.0` | Player reputation (0–100) |
 | `--aircraft` | all | Filter by aircraft: `b738,a388` |
 | `--db` | `am4_data.db` | SQLite output path |
-| `--workers` | `1` | Parallel threads (1 recommended) |
+| `--workers` | `4` | Parallel worker count (lower if you see instability) |
 
 ### Query Routes
 
@@ -204,18 +211,32 @@ python3 main.py dashboard --db custom.db  # custom database
 
 ### Fleet Management
 
+**Import semantics:** **`fleet import`** and **`routes import`** default to **`--merge`**: duplicate rows **add** to stored `quantity` / `num_assigned` (capped at 999). Use **`--replace`** to **overwrite** counts from the CSV for matching keys.
+
 ```bash
-# Import fleet from CSV
+# Import fleet (merge is default)
 python3 main.py fleet import --file fleet.csv
 
-# Import routes from CSV
+# Replace fleet counts from file for duplicates
+python3 main.py fleet import --replace --file fleet.csv
+
+# Import routes (merge is default)
 python3 main.py routes import --file my_routes.csv
+
+# Overwrite route assignment counts from file
+python3 main.py routes import --replace --file my_routes.csv
 
 # Export fleet
 python3 main.py fleet export --output fleet_backup.csv
 
 # List fleet
 python3 main.py fleet list
+```
+
+**CLI recommendations** (extracted routes + budget):
+
+```bash
+python3 main.py recommend --hub KHI --budget 500000000 --top 25
 ```
 
 **Fleet CSV format:** `shortname,count,notes`
@@ -274,12 +295,13 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 |------|-----|-------------|
 | Overview | `/` | Stats, top routes, quick links |
 | Hub Explorer | `/hub-explorer` | Routes from a hub, filterable by aircraft/type/profit |
-| Aircraft Comparison | `/aircraft` | Best routes for a specific aircraft across all hubs |
-| Route Analyzer | `/route-analyzer` | All aircraft ranked for a specific route |
-| Fleet Planner | `/fleet-planner` | Budget-based aircraft/route recommendations |
-| My Fleet | `/my-fleet` | Owned aircraft with inline editing, CSV import/export |
-| My Routes | `/my-routes` | Active route assignments with profit calculations |
-| Buy Next | `/buy-next` | ROI-ranked purchase recommendations |
+| Aircraft | `/aircraft` | Aircraft list and comparison against extracted routes |
+| Route Analyzer | `/route-analyzer` | All aircraft ranked for a specific origin → destination |
+| Fleet Planner | `/fleet-planner` | Budget-based aircraft / route suggestions |
+| Buy Next | `/buy-next` | Same ranking as Fleet Planner / `recommend`; **Owned** from `my_fleet` and optional **hide types I already own** (also `recommend --hide-owned`) |
+| My Fleet | `/my-fleet` | `my_fleet` table: quantities, assigned vs free, buy/sell, CSV |
+| My Routes | `/my-routes` | `my_routes` assignments, merge on add, duplicate hints |
+| Hub Manager | `/my-hubs` | Managed hubs (`my_hubs`): add IATA, per-hub refresh, **stale** refresh (OK extract older than 7 days), remove |
 | Contributions | `/contributions` | Routes sorted by alliance contribution |
 | Heatmap | `/heatmap` | Map visualization of profitable destinations |
 
@@ -297,11 +319,11 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 ## 🔼 Upgrading
 
 ```bash
-# Update the am4 game data package
-pip install --upgrade "am4 @ git+https://github.com/abc8747/am4.git@master"
+# Update the am4 package (same URL as requirements.txt / pyproject.toml)
+pip install --upgrade "am4 @ git+https://github.com/saqibj/am4.git@msvc-fix"
 
 # Re-extract routes with updated data
-python3 main.py extract --hubs KHI,DXB,LHR,JFK,HKG,MJD --mode easy --workers 1
+python3 main.py extract --hubs KHI,DXB,LHR,JFK,HKG,MJD --mode easy --workers 4
 
 # Pull the latest code
 git pull origin main
@@ -331,6 +353,7 @@ am4-routemine/
 ├── dashboard/
 │   ├── server.py            # FastAPI app
 │   ├── db.py                # SQLite helpers
+│   ├── hub_freshness.py     # Hub extract stale threshold / display status
 │   ├── routes/
 │   │   ├── pages.py         # Page routes
 │   │   └── api_routes.py    # HTMX + JSON API routes
@@ -354,10 +377,10 @@ am4-routemine/
 |-------|-----|
 | `am4` build fails on Windows/MSVC | Use WSL Ubuntu — GCC compiles it cleanly |
 | `am4` build fails on Python 3.13+ | Use Python 3.10–3.12 |
-| `ModuleNotFoundError: am4` | Activate venv: `source .venv/bin/activate` |
+| `ModuleNotFoundError: am4` or Hub Manager flash **“The am4 package is not available…”** | Use **Python 3.10–3.12**, create/activate a venv (`python3 -m venv .venv` then `source .venv/bin/activate`, or on Windows `py -3.12 -m venv .venv` then `.\.venv\Scripts\Activate.ps1`), run `pip install -r requirements.txt`, and start the dashboard with **that** interpreter (`python main.py dashboard …`). The UI loads without `am4`, but **add hub** and **refresh** need it. |
 | Segfault on import | Must call `init()` before any am4 module usage |
 | `init()` downloads data files | Normal on first run — needs internet connection once |
-| Extraction is slow | Use `--workers 1` (parallel hands on large datasets) |
+| Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |
 | SQLite locked | Close other DB connections, enable WAL mode |
 | Dashboard blank page | Check `AM4_ROUTEMINE_DB` path points to an existing `.db` file |
 | Aircraft shortname not found | Use am4 shortnames (e.g., `a342` not `A340-200`) |

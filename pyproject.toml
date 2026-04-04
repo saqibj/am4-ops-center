@@ -5,7 +5,7 @@ description = "Bulk AM4 route extraction into SQLite, CSV/Excel, and FastAPI das
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-  "am4 @ git+https://github.com/abc8747/am4.git@master",
+  "am4 @ git+https://github.com/saqibj/am4.git@msvc-fix",
   "fastapi>=0.115.0",
   "uvicorn>=0.30.0",
   "jinja2>=3.1.0",

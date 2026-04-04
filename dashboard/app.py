@@ -43,8 +43,8 @@ def _aircraft_options(conn: sqlite3.Connection) -> pd.DataFrame:
     )
 
 
-st.set_page_config(page_title="AM4 RouteMine", layout="wide")
-st.title("AM4 RouteMine")
+st.set_page_config(page_title="AM4 Ops Center", layout="wide")
+st.title("AM4 Ops Center")
 
 try:
     conn = _conn()

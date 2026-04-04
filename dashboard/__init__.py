@@ -1,1 +1,1 @@
-"""Streamlit dashboard for AM4 RouteMine."""
+"""Streamlit dashboard for AM4 Ops Center."""

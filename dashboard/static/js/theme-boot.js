@@ -16,7 +16,7 @@
       var d = JSON.parse(raw);
       var m = d && d.appearance && d.appearance.theme_mode;
       if (m === "light" || m === "dark" || m === "system") return m;
-    } catch (e) {
+    } catch {
       /* ignore */
     }
     return "dark";
@@ -30,7 +30,7 @@
         return "dark";
       }
       return "light";
-    } catch (e) {
+    } catch {
       return "dark";
     }
   }
@@ -44,7 +44,7 @@
       if (global.Am4Branding && typeof global.Am4Branding.syncDefaultAppLogos === "function") {
         global.Am4Branding.syncDefaultAppLogos();
       }
-    } catch (e) {
+    } catch {
       /* ignore */
     }
   }
@@ -53,10 +53,10 @@
     if (mediaQuery && onMediaChange) {
       try {
         mediaQuery.removeEventListener("change", onMediaChange);
-      } catch (e) {
+      } catch {
         try {
           mediaQuery.removeListener(onMediaChange);
-        } catch (e2) {
+        } catch {
           /* ignore */
         }
       }
@@ -80,7 +80,7 @@
       } else if (mediaQuery.addListener) {
         mediaQuery.addListener(onMediaChange);
       }
-    } catch (e) {
+    } catch {
       mediaQuery = null;
       onMediaChange = null;
     }

@@ -27,7 +27,7 @@
     if (themeMode === "dark") return "dark";
     try {
       return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    } catch (e) {
+    } catch {
       return "dark";
     }
   }
@@ -60,7 +60,7 @@
   function isDirty() {
     try {
       return JSON.stringify(collectDraftState()) !== JSON.stringify(saved);
-    } catch (e) {
+    } catch {
       return true;
     }
   }

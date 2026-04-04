@@ -51,6 +51,7 @@
   function sanitizeAirlineName(raw) {
     if (raw == null) return "";
     var text = String(raw)
+      /* eslint-disable-next-line no-control-regex -- strip C0 controls except tab/LF/CR */
       .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "")
       .trim()
       .replace(/\s+/g, " ");
@@ -126,7 +127,7 @@
     try {
       var data = JSON.parse(raw);
       return normalizeFromObject(data);
-    } catch (e) {
+    } catch {
       return defaults();
     }
   }
@@ -157,7 +158,7 @@
     if (typeof global.matchMedia !== "function") return null;
     try {
       return global.matchMedia("(prefers-color-scheme: dark)").matches;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -178,7 +179,7 @@
       if (typeof global.localStorage === "undefined") return defaults();
       var raw = global.localStorage.getItem(STORAGE_KEY);
       return parseStored(raw);
-    } catch (e) {
+    } catch {
       return defaults();
     }
   }
@@ -188,7 +189,7 @@
       if (typeof global.localStorage !== "undefined") {
         global.localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
       }
-    } catch (e) {
+    } catch {
       /* quota / private mode */
     }
   }
@@ -212,14 +213,14 @@
     for (var i = 0; i < listeners.length; i++) {
       try {
         listeners[i](snap);
-      } catch (e) {
+      } catch {
         /* ignore subscriber errors */
       }
     }
     try {
       var ev = new CustomEvent("am4-settings-changed", { detail: snap });
       global.dispatchEvent(ev);
-    } catch (e) {
+    } catch {
       /* IE / very old */
     }
   }

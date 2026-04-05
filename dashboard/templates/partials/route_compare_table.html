@@ -1,46 +1,46 @@
 {% set incl = "[name='origin'],[name='dest']" %}
-<div class="overflow-x-auto rounded-lg border border-gray-700">
-    <table class="w-full text-sm min-w-[960px]">
-        <thead class="bg-gray-700 text-gray-300 text-xs uppercase tracking-wider">
+<div class="overflow-x-auto rounded-lg am4-bordered">
+    <table class="am4-table w-full text-sm min-w-[960px]">
+        <thead class="am4-table-head text-xs uppercase tracking-wider">
             <tr>
-                <th class="px-3 py-3 text-left">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-left">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/route-compare" hx-target="#route-compare-table" hx-include="{{ incl }}" hx-vals='{"sort":"shortname"}' hx-indicator="#route-spinner">Aircraft</button>
                 </th>
-                <th class="px-3 py-3 text-left">Name</th>
-                <th class="px-3 py-3 text-left">Type</th>
-                <th class="px-3 py-3 text-right">Cost</th>
-                <th class="px-3 py-3 text-right">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-left">Name</th>
+                <th scope="col" class="px-3 py-3 text-left">Type</th>
+                <th scope="col" class="px-3 py-3 text-right">Cost</th>
+                <th scope="col" class="px-3 py-3 text-right">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/route-compare" hx-target="#route-compare-table" hx-include="{{ incl }}" hx-vals='{"sort":"profit_per_ac_day"}' hx-indicator="#route-spinner">Profit/d</button>
                 </th>
-                <th class="px-3 py-3 text-right">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-right">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/route-compare" hx-target="#route-compare-table" hx-include="{{ incl }}" hx-vals='{"sort":"trips_per_day"}' hx-indicator="#route-spinner">Trips/d</button>
                 </th>
-                <th class="px-3 py-3 text-right">$/trip</th>
-                <th class="px-3 py-3 text-center text-[10px] normal-case">Y/J/F cfg</th>
-                <th class="px-3 py-3 text-center text-[10px] normal-case">Y/J/F $</th>
-                <th class="px-3 py-3 text-right">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-right">$/trip</th>
+                <th scope="col" class="px-3 py-3 text-center text-[10px] normal-case">Y/J/F cfg</th>
+                <th scope="col" class="px-3 py-3 text-center text-[10px] normal-case">Y/J/F $</th>
+                <th scope="col" class="px-3 py-3 text-right">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/route-compare" hx-target="#route-compare-table" hx-include="{{ incl }}" hx-vals='{"sort":"flight_time_hrs"}' hx-indicator="#route-spinner">Flt h</button>
                 </th>
-                <th class="px-3 py-3 text-right">Dist km</th>
-                <th class="px-3 py-3 text-right">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-right">Dist km</th>
+                <th scope="col" class="px-3 py-3 text-right">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/route-compare" hx-target="#route-compare-table" hx-include="{{ incl }}" hx-vals='{"sort":"contribution"}' hx-indicator="#route-spinner">Contrib</button>
                 </th>
-                <th class="px-3 py-3 text-center">Stop</th>
+                <th scope="col" class="px-3 py-3 text-center">Stop</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-gray-700">
+        <tbody>
             {% for r in rows %}
-            <tr class="hover:bg-gray-700 transition-colors">
+            <tr class="transition-colors">
                 <td class="px-3 py-2 font-mono font-medium">{{ r.shortname }}</td>
-                <td class="px-3 py-2 text-gray-400">{{ r.name }}</td>
-                <td class="px-3 py-2 text-gray-500">{{ r.type }}</td>
+                <td class="px-3 py-2 am4-text-secondary">{{ r.name }}</td>
+                <td class="px-3 py-2 am4-text-muted">{{ r.type }}</td>
                 <td class="px-3 py-2 text-right font-mono">${{ "{:,.0f}".format(r.cost or 0) }}</td>
-                <td class="px-3 py-2 text-right font-mono text-emerald-400">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</td>
+                <td class="px-3 py-2 text-right font-mono am4-accent">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</td>
                 <td class="px-3 py-2 text-right font-mono">{{ r.trips_per_day }}</td>
                 <td class="px-3 py-2 text-right font-mono">${{ "{:,.0f}".format(r.profit_per_trip or 0) }}</td>
                 <td class="px-3 py-2 text-center text-xs font-mono">{{ r.config_y }}/{{ r.config_j }}/{{ r.config_f }}</td>
@@ -54,4 +54,4 @@
         </tbody>
     </table>
 </div>
-<p class="text-gray-400 text-sm mt-4">{{ rows|length }} aircraft options{% if sort %} (sorted: {{ sort }}){% endif %}</p>
+<p class="am4-text-secondary text-sm mt-4">{{ rows|length }} aircraft options{% if sort %} (sorted: {{ sort }}){% endif %}</p>

@@ -2,17 +2,17 @@
 {% block title %}Route Analyzer{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Route analyzer</h2>
-<p class="text-gray-400 mb-6">All viable aircraft ranked for an origin → destination pair.</p>
+<p class="am4-text-secondary mb-6">All viable aircraft ranked for an origin → destination pair.</p>
 
 <form id="route-analyzer-form" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Origin</label>
+        <label class="block text-xs am4-text-secondary mb-1">Origin</label>
         <select name="origin"
                 hx-get="/api/route-destinations"
                 hx-target="#dest-inner"
                 hx-swap="innerHTML"
                 hx-include="#route-analyzer-form"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white min-w-[8rem] font-mono">
+                class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono">
             <option value="">Origin…</option>
             {% for o in origins %}
             <option value="{{ o.iata }}">{{ o.iata }}{% if o.name %} — {{ o.name }}{% endif %}{% if o.country %} ({{ o.country }}){% endif %}</option>
@@ -20,21 +20,21 @@
         </select>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Destination</label>
+        <label class="block text-xs am4-text-secondary mb-1">Destination</label>
         <div id="dest-inner">
-            <select name="dest" disabled class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white opacity-50 min-w-[8rem] font-mono">
+            <select name="dest" disabled class="am4-input rounded-md px-3 py-2 opacity-50 min-w-[8rem] font-mono">
                 <option value="">Pick origin first</option>
             </select>
         </div>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Sort</label>
+        <label class="block text-xs am4-text-secondary mb-1">Sort</label>
         <select name="sort"
                 hx-get="/api/route-compare"
                 hx-target="#route-compare-table"
                 hx-include="#route-analyzer-form"
                 hx-indicator="#route-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white">
+                class="am4-input rounded-md px-3 py-2">
             <option value="profit_per_ac_day">Profit/Day</option>
             <option value="contribution">Contribution</option>
             <option value="flight_time_hrs">Flight time</option>
@@ -42,19 +42,19 @@
             <option value="shortname">Aircraft name</option>
         </select>
     </div>
-    <span id="route-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Loading…</span>
+    <span id="route-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
 </form>
 
 <div id="route-chart"
-     class="bg-gray-800 rounded-lg border border-gray-700 p-4 mb-6 min-h-[14rem]"
+     class="am4-card rounded-lg shadow-lg p-4 mb-6 min-h-[14rem]"
      hx-get="/api/route-chart"
      hx-trigger="change from:#route-analyzer-form"
      hx-include="#route-analyzer-form"
      hx-indicator="#route-spinner">
-    <p class="text-gray-400 text-sm">Choose origin and destination for a comparison chart.</p>
+    <p class="am4-text-secondary text-sm">Choose origin and destination for a comparison chart.</p>
 </div>
 
 <div id="route-compare-table">
-    <p class="text-gray-400">Select origin and destination.</p>
+    <p class="am4-text-secondary">Select origin and destination.</p>
 </div>
 {% endblock %}

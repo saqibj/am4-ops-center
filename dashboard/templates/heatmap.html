@@ -2,30 +2,30 @@
 {% block title %}Heatmap{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Global heatmap</h2>
-<p class="text-gray-400 mb-6">Destinations from a hub; marker color = relative profit (green higher, red lower).</p>
+<p class="am4-text-secondary mb-6">Destinations from a hub; marker color = relative profit (green higher, red lower).</p>
 
 <form id="heatmap-filters" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Hub</label>
+        <label class="block text-xs am4-text-secondary mb-1">Hub</label>
         <select name="hub"
                 hx-get="/api/heatmap-panel"
                 hx-target="#map-container"
                 hx-include="#heatmap-filters"
                 hx-indicator="#map-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white min-w-[10rem] font-mono">
+                class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono">
             {% for h in hubs %}
             <option value="{{ h.iata }}" {% if h.iata == default_hub %}selected{% endif %}>{{ h.iata }}{% if h.name %} — {{ h.name }}{% endif %}</option>
             {% endfor %}
         </select>
     </div>
     <div>
-        <label class="block text-xs text-gray-400 mb-1">Top destinations</label>
+        <label class="block text-xs am4-text-secondary mb-1">Top destinations</label>
         <select name="top_n"
                 hx-get="/api/heatmap-panel"
                 hx-target="#map-container"
                 hx-include="#heatmap-filters"
                 hx-indicator="#map-spinner"
-                class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white">
+                class="am4-input rounded-md px-3 py-2">
             <option value="50">50</option>
             <option value="100" selected>100</option>
             <option value="200">200</option>
@@ -33,7 +33,7 @@
             <option value="500">500</option>
         </select>
     </div>
-    <span id="map-spinner" class="htmx-indicator text-emerald-400 text-sm pb-2">Loading map…</span>
+    <span id="map-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading map…</span>
 </form>
 
 <div id="map-container"
@@ -45,9 +45,9 @@
      hx-indicator="#map-spinner"
      {% endif %}>
     {% if not hubs %}
-    <p class="text-gray-400">No hubs in database.</p>
+    <p class="am4-text-secondary">No hubs in database.</p>
     {% else %}
-    <p class="text-gray-400">Loading map…</p>
+    <p class="am4-text-secondary">Loading map…</p>
     {% endif %}
 </div>
 {% endblock %}

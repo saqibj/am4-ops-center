@@ -1,16 +1,21 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="application-name" content="AM4 Ops Center">
     <title>AM4 Ops Center — {% block title %}Dashboard{% endblock %}</title>
     <link rel="icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <script src="/static/js/theme-boot.js"></script>
+    <script src="/static/js/branding.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="/static/js/settings-store.js" defer></script>
+    <script src="/static/js/shell-branding.js" defer></script>
     <script src="/static/js/app.js" defer></script>
     <style>
         [hx-indicator] .htmx-indicator { display: none; }
@@ -18,36 +23,46 @@
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen flex">
+<body class="am4-body min-h-screen flex">
     <input type="checkbox" id="nav-toggle" class="peer sr-only" aria-label="Toggle menu">
-    <label for="nav-toggle" class="fixed top-4 left-4 z-50 lg:hidden flex items-center justify-center w-10 h-10 rounded-md bg-gray-700 border border-gray-600 text-emerald-400 cursor-pointer">
+    <label for="nav-toggle" class="am4-mobile-menu-btn fixed top-4 left-4 z-50 lg:hidden flex items-center justify-center w-10 h-10 rounded-md cursor-pointer">
         ☰
     </label>
 
-    <nav class="fixed inset-y-0 left-0 z-40 w-64 bg-gray-800 border-r border-gray-700 p-4 space-y-2
-                -translate-x-full peer-checked:translate-x-0 transition-transform duration-200 lg:translate-x-0 lg:static lg:flex-shrink-0">
-        <h1 class="text-xl font-bold text-emerald-400 mb-6 pr-10">AM4 Ops Center</h1>
-        <a href="/" class="block px-3 py-2 rounded-md hover:bg-gray-700 text-gray-100">Overview</a>
-        <a href="/hub-explorer" class="block px-3 py-2 rounded-md hover:bg-gray-700">Hub Explorer</a>
-        <a href="/aircraft" class="block px-3 py-2 rounded-md hover:bg-gray-700">Aircraft</a>
-        <a href="/route-analyzer" class="block px-3 py-2 rounded-md hover:bg-gray-700">Route Analyzer</a>
-        <a href="/fleet-planner" class="block px-3 py-2 rounded-md hover:bg-gray-700">Fleet Planner</a>
-        <a href="/buy-next" class="block px-3 py-2 rounded-md hover:bg-gray-700">Buy Next</a>
-        <p class="text-xs text-gray-500 uppercase tracking-wider px-3 pt-4 pb-1">My Airline</p>
-        <a href="/my-fleet" class="block px-3 py-2 rounded-md hover:bg-gray-700">My Fleet</a>
-        <a href="/my-routes" class="block px-3 py-2 rounded-md hover:bg-gray-700">My Routes</a>
-        <a href="/my-hubs" class="block px-3 py-2 rounded-md hover:bg-gray-700">Hub Manager</a>
-        <a href="/contributions" class="block px-3 py-2 rounded-md hover:bg-gray-700">Contributions</a>
-        <a href="/heatmap" class="block px-3 py-2 rounded-md hover:bg-gray-700">Heatmap</a>
-        <div class="absolute bottom-4 left-4 right-4 text-xs text-gray-500">
+    <nav class="am4-nav border-r fixed inset-y-0 left-0 z-40 w-64 p-4 space-y-2 -translate-x-full peer-checked:translate-x-0 transition-transform duration-200 lg:translate-x-0 lg:static lg:flex-shrink-0">
+        <div class="am4-nav-lockup flex items-start gap-2 pr-10">
+            <img id="shell-airline-logo" alt="" width="40" height="40" decoding="async"
+                class="hidden h-8 w-8 max-w-[2.5rem] object-contain flex-shrink-0 mt-0.5 rounded-sm am4-bordered" />
+            <img src="/static/img/app-logo-dark.png" width="128" height="128" alt=""
+                class="am4-app-logo h-8 w-auto max-w-[120px] object-contain flex-shrink-0 mt-0.5"
+                data-am4-default-logo decoding="async" />
+            <div class="min-w-0 flex-1">
+                <h1 class="text-xl font-bold am4-accent leading-tight">AM4 Ops Center</h1>
+                <p id="shell-airline-name" class="hidden text-sm am4-text-muted leading-snug mt-0.5 truncate" title=""></p>
+            </div>
+        </div>
+        <a href="/" class="am4-nav-link block px-3 py-2 rounded-md">Overview</a>
+        <a href="/hub-explorer" class="am4-nav-link block px-3 py-2 rounded-md">Hub Explorer</a>
+        <a href="/aircraft" class="am4-nav-link block px-3 py-2 rounded-md">Aircraft</a>
+        <a href="/route-analyzer" class="am4-nav-link block px-3 py-2 rounded-md">Route Analyzer</a>
+        <a href="/fleet-planner" class="am4-nav-link block px-3 py-2 rounded-md">Fleet Planner</a>
+        <a href="/buy-next" class="am4-nav-link block px-3 py-2 rounded-md">Buy Next</a>
+        <p class="text-xs am4-text-muted uppercase tracking-wider px-3 pt-4 pb-1">My Airline</p>
+        <a href="/my-fleet" class="am4-nav-link block px-3 py-2 rounded-md">My Fleet</a>
+        <a href="/my-routes" class="am4-nav-link block px-3 py-2 rounded-md">My Routes</a>
+        <a href="/my-hubs" class="am4-nav-link block px-3 py-2 rounded-md">Hub Manager</a>
+        <a href="/contributions" class="am4-nav-link block px-3 py-2 rounded-md">Contributions</a>
+        <a href="/heatmap" class="am4-nav-link block px-3 py-2 rounded-md">Heatmap</a>
+        <a href="/settings" class="am4-nav-link block px-3 py-2 rounded-md mt-2">Settings</a>
+        <div class="absolute bottom-4 left-4 right-4 text-xs am4-text-muted">
             DB: {{ db_name }}<br>
             {{ route_count }} routes
         </div>
     </nav>
 
-    <label for="nav-toggle" class="fixed inset-0 bg-black/50 z-30 hidden peer-checked:block lg:hidden"></label>
+    <label for="nav-toggle" class="am4-overlay-scrim fixed inset-0 z-30 hidden peer-checked:block lg:hidden"></label>
 
-    <main class="flex-1 p-4 lg:p-6 overflow-auto pt-16 lg:pt-6 w-full min-w-0">
+    <main class="flex-1 overflow-auto w-full min-w-0 am4-main">
         {% block content %}{% endblock %}
     </main>
 </body>

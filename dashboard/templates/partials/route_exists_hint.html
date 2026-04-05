@@ -1,13 +1,13 @@
 {% if incomplete %}
 {% elif lookup_failed %}
-<p class="text-gray-500 text-xs mt-2">Unknown hub, destination, or aircraft in the database.</p>
+<p class="am4-text-muted text-xs mt-2">Unknown hub, destination, or aircraft in the database.</p>
 {% elif not exists %}
-<p class="text-gray-500 text-xs mt-2">No saved row yet for this hub–destination–aircraft combination.</p>
+<p class="am4-text-muted text-xs mt-2">No saved row yet for this hub–destination–aircraft combination.</p>
 {% else %}
 <p class="text-amber-200/90 text-sm mt-2 border border-amber-700/50 rounded-md px-3 py-2 bg-amber-900/20">
     This route already exists:
-    <span class="font-mono text-white">{{ hub }}</span> → <span class="font-mono text-white">{{ dest }}</span>
-    with <span class="font-mono text-white">{{ aircraft }}</span>,
+    <span class="font-mono">{{ hub }}</span> → <span class="font-mono">{{ dest }}</span>
+    with <span class="font-mono">{{ aircraft }}</span>,
     <strong>{{ current }}</strong> assigned.
     Saving will <strong>add</strong> <span class="font-mono">{{ adding }}</span> more (merged, max 999 total).
 </p>

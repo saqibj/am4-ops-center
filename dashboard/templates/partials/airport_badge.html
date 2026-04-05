@@ -1,30 +1,30 @@
 {# Reusable airport display: IATA plus optional name / country. #}
 {% macro airport_badge_compact(iata, name='', country='') %}
 <span class="inline-flex items-baseline gap-1.5 flex-wrap">
-    <span class="font-mono text-emerald-400 font-medium">{{ iata or '—' }}</span>
+    <span class="font-mono am4-accent font-medium">{{ iata or '—' }}</span>
     {% if name %}
-    <span class="text-gray-400 text-xs truncate max-w-[12rem]" title="{{ name }}{% if country %}, {{ country }}{% endif %}">{{ name }}</span>
+    <span class="am4-text-secondary text-xs truncate max-w-[12rem]" title="{{ name }}{% if country %}, {{ country }}{% endif %}">{{ name }}</span>
     {% endif %}
-    {% if country %}<span class="text-gray-500 text-xs">({{ country }})</span>{% endif %}
+    {% if country %}<span class="am4-text-muted text-xs">({{ country }})</span>{% endif %}
 </span>
 {% endmacro %}
 
 {% macro airport_badge_expanded(iata, name='', fullname='', country='') %}
 <div class="leading-tight">
-    <div class="font-mono text-emerald-400 font-medium">{{ iata or '—' }}</div>
+    <div class="font-mono am4-accent font-medium">{{ iata or '—' }}</div>
     {% if fullname or name %}
-    <div class="text-gray-300 text-xs">{{ fullname or name }}</div>
+    <div class="am4-text-secondary text-xs">{{ fullname or name }}</div>
     {% endif %}
-    {% if country %}<div class="text-gray-500 text-xs">{{ country }}</div>{% endif %}
+    {% if country %}<div class="am4-text-muted text-xs">{{ country }}</div>{% endif %}
 </div>
 {% endmacro %}
 
 {% macro airport_dest_route_cell(r) %}
-<div class="font-mono font-medium text-emerald-400">{{ r.destination }}</div>
+<div class="font-mono font-medium am4-accent">{{ r.destination }}</div>
 {% if r.dest_name or r.dest_fullname or r.dest_country %}
-<div class="text-gray-400 text-xs leading-snug mt-0.5">
+<div class="am4-text-secondary text-xs leading-snug mt-0.5">
     {% if r.dest_fullname or r.dest_name %}{{ r.dest_fullname or r.dest_name }}{% endif %}
-    {% if r.dest_country %}<span class="text-gray-500"> · {{ r.dest_country }}</span>{% endif %}
+    {% if r.dest_country %}<span class="am4-text-muted"> · {{ r.dest_country }}</span>{% endif %}
 </div>
 {% endif %}
 {% endmacro %}

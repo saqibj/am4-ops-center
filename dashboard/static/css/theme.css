@@ -1,0 +1,225 @@
+/* AM4 Ops Center — semantic surfaces (data-theme on <html>: light | dark) */
+
+:root {
+  color-scheme: dark;
+  --surface-page: #0f1419;
+  --surface-raised: #1a1f26;
+  --surface-sunken: #252b33;
+  --border-subtle: #3d4550;
+  --text-primary: #e6e9ef;
+  --text-secondary: #9aa3b2;
+  --text-muted: #6b7280;
+  --accent: #34d399;
+  --accent-muted: rgba(52, 211, 153, 0.12);
+  --nav-hover: rgba(255, 255, 255, 0.08);
+  --overlay-scrim: rgba(0, 0, 0, 0.5);
+  --table-row-alt: rgba(255, 255, 255, 0.04);
+  --table-row-hover: rgba(52, 211, 153, 0.1);
+  --input-bg: #252b33;
+  --input-border: #3d4550;
+  --text-negative: #f87171;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface-page: #f0f2f5;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e8eaee;
+  --border-subtle: #d1d5db;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --accent: #059669;
+  --accent-muted: rgba(5, 150, 105, 0.12);
+  --nav-hover: rgba(0, 0, 0, 0.06);
+  --overlay-scrim: rgba(0, 0, 0, 0.35);
+  --table-row-alt: #f3f4f6;
+  --table-row-hover: rgba(5, 150, 105, 0.14);
+  --input-bg: #ffffff;
+  --input-border: #d1d5db;
+  --text-negative: #b91c1c;
+}
+
+.am4-body {
+  background-color: var(--surface-page);
+  color: var(--text-primary);
+}
+
+.am4-nav {
+  background-color: var(--surface-raised);
+  border-color: var(--border-subtle);
+}
+
+.am4-nav-link {
+  color: var(--text-primary);
+}
+.am4-nav-link:hover {
+  background-color: var(--nav-hover);
+}
+
+.am4-text-muted {
+  color: var(--text-muted);
+}
+.am4-text-secondary {
+  color: var(--text-secondary);
+}
+.am4-accent {
+  color: var(--accent);
+}
+
+.am4-card {
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+}
+
+.am4-sunken {
+  background-color: var(--surface-sunken);
+}
+
+.am4-border {
+  border-color: var(--border-subtle);
+}
+
+.am4-table {
+  color: var(--text-primary);
+}
+
+.am4-table-head th {
+  background-color: var(--surface-sunken);
+  color: var(--text-secondary);
+}
+
+.am4-table tbody tr {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.am4-table tbody tr:nth-child(even) {
+  background-color: var(--table-row-alt);
+}
+
+.am4-table tbody tr:hover {
+  background-color: var(--table-row-hover);
+}
+
+/* Sticky header row inside horizontal scroll containers (scrolling box = overflow ancestor). */
+.overflow-x-auto .am4-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: var(--surface-sunken);
+  box-shadow: 0 1px 0 var(--border-subtle);
+}
+
+/* Keyboard focus: visible ring in both themes (skip inert / disabled handled by UA). */
+.am4-body :where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.am4-text-negative {
+  color: var(--text-negative);
+}
+
+.am4-link-danger {
+  color: var(--text-negative);
+  text-underline-offset: 2px;
+}
+
+.am4-link-danger:hover {
+  filter: brightness(1.12);
+}
+
+.am4-border-negative {
+  border-color: color-mix(in srgb, var(--text-negative) 55%, transparent);
+}
+
+.am4-input {
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+}
+
+.am4-row-hover-soft:hover {
+  background-color: var(--nav-hover);
+}
+
+.am4-panel {
+  background-color: var(--surface-raised);
+}
+
+.am4-btn-ghost:hover {
+  background-color: var(--nav-hover);
+}
+
+.am4-mobile-menu-btn {
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  color: var(--accent);
+}
+
+.am4-overlay-scrim {
+  background-color: var(--overlay-scrim);
+}
+
+.am4-bordered {
+  border: 1px solid var(--border-subtle);
+}
+
+.am4-quick-link {
+  display: block;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+.am4-quick-link:hover {
+  background-color: var(--nav-hover);
+}
+
+.am4-sort-btn:hover {
+  color: var(--accent);
+}
+
+/* Main content padding (density-aware; replaces Tailwind p-4 lg:p-6 on <main>) */
+.am4-main {
+  padding: 4rem 1rem 1rem;
+}
+@media (min-width: 1024px) {
+  .am4-main {
+    padding: 1.5rem;
+  }
+}
+
+.am4-density-compact .am4-main {
+  padding: 3.5rem 0.75rem 0.75rem;
+}
+@media (min-width: 1024px) {
+  .am4-density-compact .am4-main {
+    padding: 1rem;
+  }
+}
+
+.am4-nav-lockup {
+  margin-bottom: 1.5rem;
+}
+
+.am4-density-compact .am4-nav-lockup {
+  margin-bottom: 1rem;
+}
+
+.am4-density-compact nav.am4-nav.space-y-2 > :not([hidden]) ~ :not([hidden]),
+.am4-density-compact nav.am4-nav.space-y-2 > * + * {
+  margin-top: 0.25rem !important;
+}
+
+.am4-density-compact .am4-nav-link {
+  padding: 0.375rem 0.625rem !important;
+}
+
+.am4-density-compact table.am4-table th,
+.am4-density-compact table.am4-table td {
+  padding: 0.25rem 0.5rem !important;
+}
+
+.am4-density-compact .am4-card {
+  padding: 0.75rem 1rem !important;
+}

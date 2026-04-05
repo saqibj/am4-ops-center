@@ -187,7 +187,7 @@ def api_hub_routes(
 ):
     atype = filter_type.strip() or ac_type.strip()
     if not hub.strip():
-        return HTMLResponse("<p class='text-gray-400'>Select a hub.</p>")
+        return HTMLResponse("<p class='am4-text-secondary'>Select a hub.</p>")
 
     sort_col = sort if sort in HUB_SORT_COLUMNS else "profit_per_ac_day"
     order_sql = _hub_order(sort_col)
@@ -294,7 +294,7 @@ def api_hub_chart(
 ):
     atype = filter_type.strip() or ac_type.strip()
     if not hub.strip():
-        return HTMLResponse("<p class='text-gray-400 text-sm'>Select a hub for the chart.</p>")
+        return HTMLResponse("<p class='am4-text-secondary text-sm'>Select a hub for the chart.</p>")
 
     query = """
         SELECT destination, aircraft, profit_per_ac_day FROM v_best_routes
@@ -347,7 +347,7 @@ def api_aircraft_routes(
     limit: int = Query(200, ge=1, le=5000),
 ):
     if not aircraft.strip():
-        return HTMLResponse("<p class='text-gray-400'>Select an aircraft.</p>")
+        return HTMLResponse("<p class='am4-text-secondary'>Select an aircraft.</p>")
 
     sort_col = sort if sort in AC_SORT else "profit_per_ac_day"
     order_sql = _ac_order(sort_col)
@@ -414,7 +414,7 @@ def api_aircraft_stats(request: Request, aircraft: str = Query("")):
 def api_route_destinations(request: Request, origin: str = Query("")):
     if not origin.strip():
         return HTMLResponse(
-            "<select name='dest' class='bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white w-full max-w-xs' "
+            "<select name='dest' class='am4-input rounded-md px-3 py-2 w-full max-w-xs' "
             "disabled><option value=''>Pick origin first</option></select>"
         )
 
@@ -455,7 +455,7 @@ def api_route_destinations(request: Request, origin: str = Query("")):
         for d in rows
     )
     return HTMLResponse(
-        f"<select name='dest' class='bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white w-full max-w-xs' "
+        f"<select name='dest' class='am4-input rounded-md px-3 py-2 w-full max-w-xs' "
         f"hx-get='/api/route-compare' hx-trigger='change' "
         f"hx-target='#route-compare-table' hx-include='#route-analyzer-form' "
         f"hx-indicator='#route-spinner'><option value=''>Destination…</option>{options}</select>"
@@ -470,7 +470,7 @@ def api_route_compare(
     sort: str = Query("profit_per_ac_day"),
 ):
     if not origin.strip() or not dest.strip() or origin.strip().upper() == dest.strip().upper():
-        return HTMLResponse("<p class='text-gray-400'>Choose origin and destination (different airports).</p>")
+        return HTMLResponse("<p class='am4-text-secondary'>Choose origin and destination (different airports).</p>")
 
     sort_col = sort if sort in ROUTE_SORT else "profit_per_ac_day"
     order_sql = _route_order(sort_col)
@@ -521,7 +521,7 @@ def api_route_chart(request: Request, origin: str = Query(""), dest: str = Query
         conn.close()
 
     if not data:
-        return HTMLResponse("<p class='text-gray-400 text-sm'>No data for this pair.</p>")
+        return HTMLResponse("<p class='am4-text-secondary text-sm'>No data for this pair.</p>")
     labels = [r["shortname"] for r in data]
     values = [float(r["profit_per_ac_day"] or 0) for r in data]
 
@@ -550,7 +550,7 @@ def api_fleet_plan(
     hide_owned: str = Query(""),
 ):
     if not hub.strip():
-        return HTMLResponse("<p class='text-gray-400'>Select a hub.</p>")
+        return HTMLResponse("<p class='am4-text-secondary'>Select a hub.</p>")
 
     conn = get_db()
     try:
@@ -669,7 +669,7 @@ def api_heatmap_data(hub: str = Query(""), top_n: int = Query(100, ge=10, le=500
 def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query(100, ge=10, le=500)):
     """HTML+script panel driven by /api/heatmap-data JSON (same shape as inline markers)."""
     if not hub.strip():
-        return HTMLResponse("<p class='text-gray-400 p-4'>Select a hub.</p>")
+        return HTMLResponse("<p class='am4-text-secondary p-4'>Select a hub.</p>")
 
     conn = get_db()
     try:
@@ -695,7 +695,7 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
         conn.close()
 
     if not rows:
-        return HTMLResponse("<p class='text-gray-400 p-4'>No geocoded destinations for this hub.</p>")
+        return HTMLResponse("<p class='am4-text-secondary p-4'>No geocoded destinations for this hub.</p>")
 
     profits = [float(r["profit_per_ac_day"] or 0) for r in rows]
     p_min, p_max = min(profits), max(profits)
@@ -717,8 +717,8 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
         )
     payload = json.dumps(markers)
     html = f"""
-<div class="rounded-lg border border-gray-700 overflow-hidden">
-  <div id="ops-center-leaflet-map" class="h-[600px] w-full bg-gray-800"></div>
+<div class="rounded-lg am4-bordered overflow-hidden">
+  <div id="ops-center-leaflet-map" class="h-[600px] w-full am4-sunken"></div>
 </div>
 <script type="application/json" id="ops-center-leaflet-data">{payload}</script>
 <script>
@@ -756,14 +756,14 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
     mk.bindPopup(
       `<strong>${{m.iata}}</strong> ${{m.name ? '(' + m.name + ')' : ''}}<br/>` +
       `Profit/day: $${{profit}}<br/>` +
-      `<span class="text-gray-500 text-xs">${{(m.aircraft || '').slice(0,120)}}</span>`
+      `<span class="am4-text-muted text-xs">${{(m.aircraft || '').slice(0,120)}}</span>`
     );
     bounds.push([m.lat, m.lng]);
   }});
   if (bounds.length) map.fitBounds(bounds, {{ padding: [40, 40], maxZoom: 8 }});
 }})();
 </script>
-<p class="text-gray-400 text-sm mt-2">{len(markers)} destinations (top by best aircraft profit).</p>
+<p class="am4-text-secondary text-sm mt-2">{len(markers)} destinations (top by best aircraft profit).</p>
 """
     return HTMLResponse(html)
 
@@ -937,7 +937,7 @@ def api_aircraft_chart(
     limit: int = Query(25, ge=5, le=100),
 ):
     if not aircraft.strip():
-        return HTMLResponse("<p class='text-gray-400 text-sm'>Select an aircraft.</p>")
+        return HTMLResponse("<p class='am4-text-secondary text-sm'>Select an aircraft.</p>")
     sql = """
         SELECT hub, AVG(profit_per_ac_day) AS avg_p
         FROM v_best_routes

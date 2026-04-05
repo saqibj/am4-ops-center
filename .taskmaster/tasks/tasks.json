@@ -1,61 +1,27 @@
 {
-    "master": {
-      "tasks": [
-        {
-        "id": 1,
-        "title": "Extract shared fleet recommendation logic",
-        "description": "Create a single shared implementation for aircraft recommendation rows used by CLI and dashboard APIs.",
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Fix My Routes hub reset and stuck saving bug",
+        "description": "Investigate and fix a bug on the My Routes page where selecting a destination resets the selected hub and leaves the page stuck showing 'saving'.",
         "status": "done",
-          "dependencies": [],
-          "priority": "high",
-          "details": "Add fleet_recommend_rows(conn, hub_iata, budget, top_n) in a shared location. Return rows with aircraft, avg_daily_profit, max_daily_profit, cost, and days_to_breakeven. Wire existing CLI recommend() and api_fleet_plan to use it.",
-          "testStrategy": "Confirm CLI recommend output and /api/fleet-plan output match for the same hub, budget, and top_n.",
-          "subtasks": []
-        },
-        {
-          "id": 2,
-          "title": "Add Buy Next page route and template",
-          "description": "Create /buy-next page and template using Fleet Planner behavior.",
-          "status": "done",
-          "dependencies": [1],
-          "priority": "high",
-          "details": "Add page_buy_next in dashboard/routes/pages.py and create buy_next.html. Reuse Fleet Planner filters and HTMX behavior. Use the same valid origin hub sourcing from route_aircraft.",
-          "testStrategy": "Load /buy-next and verify the table updates correctly when hub, budget, or top N changes.",
-          "subtasks": []
-        },
-        {
-          "id": 3,
-          "title": "Add Buy Next to navigation",
-          "description": "Expose Buy Next in the dashboard navigation and any overview card area.",
-          "status": "done",
-          "dependencies": [2],
-          "priority": "medium",
-          "details": "Update base.html to add Buy Next in a consistent location near Fleet Planner or My Routes. Add active styling if used elsewhere.",
-          "testStrategy": "Verify nav link appears and active state is correct on /buy-next.",
-          "subtasks": []
-        },
-        {
-          "id": 4,
-          "title": "Document Buy Next behavior and MVP limits",
-          "description": "Update README and page copy so behavior matches the shipped feature.",
-          "status": "done",
-          "dependencies": [2, 3],
-          "priority": "medium",
-          "details": "Document that Buy Next is hub-scoped, budget-constrained, based on extracted route_aircraft data, and uses average daily profit ranking. Mention that already-owned aircraft filtering is not in MVP unless Stretch A is added.",
-          "testStrategy": "Review README and UI copy to confirm there are no claims beyond MVP.",
-          "subtasks": []
-        },
-        {
-          "id": 5,
-          "title": "Add already-owned aircraft context",
-          "description": "Show owned quantity and optionally hide aircraft already owned.",
-          "status": "done",
-          "dependencies": [1, 2],
-          "priority": "low",
-          "details": "Join my_fleet by aircraft shortname, show quantity owned, and add a hide-owned toggle.",
-          "testStrategy": "Verify owned counts display correctly and toggle filters as expected.",
-          "subtasks": []
-        }
+        "dependencies": [],
+        "priority": "high",
+        "details": "Locate the My Routes page and trace the state flow for hub selection, destination selection, and save status handling. Check controlled vs uncontrolled select components, useEffect dependencies, form initialization/reinitialization, query param syncing, and any store logic. Confirm the actual root cause before changing code. Apply the smallest clean fix possible. Avoid broad refactors. Make sure hub selection persists while choosing a destination and ensure the saving state clears correctly on success or failure.",
+        "testStrategy": "Verify that selecting a hub persists when selecting a destination, the page does not remain stuck on 'saving', route create/edit flows still work, and dependent dropdown behavior remains correct.",
+        "subtasks": [],
+        "updatedAt": "2026-04-04T09:26:31.387Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-04-04T09:26:31.387Z",
+      "taskCount": 1,
+      "completedCount": 1,
+      "tags": [
+        "master"
       ]
     }
   }
+}

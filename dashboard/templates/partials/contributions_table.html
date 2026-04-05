@@ -1,46 +1,46 @@
 {% set incl = "[name='hub'],[name='ac_type'],[name='min_contribution'],[name='limit']" %}
-<div class="overflow-x-auto rounded-lg border border-gray-700">
-    <table class="w-full text-sm min-w-[1100px]">
-        <thead class="bg-gray-700 text-gray-300 text-xs uppercase tracking-wider">
+<div class="overflow-x-auto rounded-lg am4-bordered">
+    <table class="am4-table w-full text-sm min-w-[1100px]">
+        <thead class="am4-table-head text-xs uppercase tracking-wider">
             <tr>
-                <th class="px-3 py-3 text-left">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-left">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/contributions" hx-target="#contrib-results" hx-include="{{ incl }}" hx-vals='{"sort":"hub"}' hx-indicator="#contrib-spinner">Hub</button>
                 </th>
-                <th class="px-3 py-3 text-left">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-left">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/contributions" hx-target="#contrib-results" hx-include="{{ incl }}" hx-vals='{"sort":"destination"}' hx-indicator="#contrib-spinner">Dest</button>
                 </th>
-                <th class="px-3 py-3 text-left">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-left">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/contributions" hx-target="#contrib-results" hx-include="{{ incl }}" hx-vals='{"sort":"aircraft"}' hx-indicator="#contrib-spinner">Aircraft</button>
                 </th>
-                <th class="px-3 py-3 text-left">Type</th>
-                <th class="px-3 py-3 text-right">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-left">Type</th>
+                <th scope="col" class="px-3 py-3 text-right">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/contributions" hx-target="#contrib-results" hx-include="{{ incl }}" hx-vals='{"sort":"profit_per_ac_day"}' hx-indicator="#contrib-spinner">Profit/d</button>
                 </th>
-                <th class="px-3 py-3 text-right">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-right">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/contributions" hx-target="#contrib-results" hx-include="{{ incl }}" hx-vals='{"sort":"contribution"}' hx-indicator="#contrib-spinner">Contribution</button>
                 </th>
-                <th class="px-3 py-3 text-right">
-                    <button type="button" class="hover:text-emerald-400 font-semibold cursor-pointer"
+                <th scope="col" class="px-3 py-3 text-right">
+                    <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/contributions" hx-target="#contrib-results" hx-include="{{ incl }}" hx-vals='{"sort":"contrib_ratio"}' hx-indicator="#contrib-spinner">C/P ratio</button>
                 </th>
-                <th class="px-3 py-3 text-right">Dist km</th>
+                <th scope="col" class="px-3 py-3 text-right">Dist km</th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-gray-700">
+        <tbody>
             {% for r in rows %}
-            <tr class="hover:bg-gray-700 transition-colors">
+            <tr class="transition-colors">
                 <td class="px-3 py-2 font-mono font-medium">{{ r.hub }}</td>
                 <td class="px-3 py-2 font-mono">{{ r.destination }}</td>
                 <td class="px-3 py-2 font-mono">{{ r.aircraft }}</td>
-                <td class="px-3 py-2 text-gray-400">{{ r.ac_type }}</td>
-                <td class="px-3 py-2 text-right font-mono text-emerald-400">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</td>
+                <td class="px-3 py-2 am4-text-secondary">{{ r.ac_type }}</td>
+                <td class="px-3 py-2 text-right font-mono am4-accent">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</td>
                 <td class="px-3 py-2 text-right font-mono text-emerald-300">${{ "{:,.0f}".format(r.contribution or 0) }}</td>
-                <td class="px-3 py-2 text-right font-mono text-gray-300">
+                <td class="px-3 py-2 text-right font-mono am4-text-secondary">
                     {% if r.contrib_ratio is not none %}
                     {{ "%.3f"|format(r.contrib_ratio) }}
                     {% else %}
@@ -53,4 +53,4 @@
         </tbody>
     </table>
 </div>
-<p class="text-gray-400 text-sm mt-4">{{ rows|length }} rows{% if sort %} (sorted: {{ sort }}){% endif %}</p>
+<p class="am4-text-secondary text-sm mt-4">{{ rows|length }} rows{% if sort %} (sorted: {{ sort }}){% endif %}</p>

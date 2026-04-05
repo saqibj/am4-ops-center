@@ -1,39 +1,39 @@
 {% if scope == 'global' %}
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 shadow-lg">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Routes</p>
-        <p class="text-2xl font-bold font-mono text-emerald-400">{{ "{:,}".format(stats.routes or 0) }}</p>
+    <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Routes</p>
+        <p class="text-2xl font-bold font-mono am4-accent">{{ "{:,}".format(stats.routes or 0) }}</p>
     </div>
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 shadow-lg">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Hubs</p>
-        <p class="text-2xl font-bold font-mono text-gray-100">{{ "{:,}".format(stats.hubs or 0) }}</p>
+    <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Hubs</p>
+        <p class="text-2xl font-bold font-mono">{{ "{:,}".format(stats.hubs or 0) }}</p>
     </div>
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 shadow-lg">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Aircraft</p>
-        <p class="text-2xl font-bold font-mono text-gray-100">{{ "{:,}".format(stats.aircraft or 0) }}</p>
+    <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Aircraft</p>
+        <p class="text-2xl font-bold font-mono">{{ "{:,}".format(stats.aircraft or 0) }}</p>
     </div>
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 shadow-lg">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">DB size</p>
-        <p class="text-xl font-bold font-mono text-gray-100">
+    <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">DB size</p>
+        <p class="text-xl font-bold font-mono">
             {% if db_size_bytes is not none %}
             {{ "{:,}".format(db_size_bytes // 1024) }} KB
             {% else %}—{% endif %}
         </p>
-        <p class="text-gray-500 text-xs mt-1">Last: {{ stats.last_extract or '—' }}</p>
+        <p class="am4-text-muted text-xs mt-1">Last: {{ stats.last_extract or '—' }}</p>
     </div>
 </div>
 {% else %}
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 shadow-lg">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Viable routes</p>
-        <p class="text-2xl font-bold font-mono text-gray-100">{{ stats.n or 0 }}</p>
+    <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Viable routes</p>
+        <p class="text-2xl font-bold font-mono">{{ stats.n or 0 }}</p>
     </div>
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 shadow-lg">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Avg profit / day</p>
-        <p class="text-2xl font-bold font-mono text-emerald-400">${{ "{:,.0f}".format(stats.avg_profit or 0) }}</p>
+    <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Avg profit / day</p>
+        <p class="text-2xl font-bold font-mono am4-accent">${{ "{:,.0f}".format(stats.avg_profit or 0) }}</p>
     </div>
-    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 shadow-lg">
-        <p class="text-gray-400 text-xs uppercase tracking-wider">Best profit / day</p>
+    <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Best profit / day</p>
         <p class="text-2xl font-bold font-mono text-emerald-300">${{ "{:,.0f}".format(stats.best_profit or 0) }}</p>
     </div>
 </div>

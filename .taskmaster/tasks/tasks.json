@@ -289,7 +289,7 @@
         "id": "22",
         "title": "Move min_runway filter from extraction time to query time",
         "description": "Fix the airports.py footgun: airports with short runways are permanently excluded from the DB during extraction, so changing fleet later can't find them.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "1"
         ],

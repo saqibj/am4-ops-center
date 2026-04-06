@@ -192,6 +192,8 @@ python3 main.py extract --refresh-hubs --hubs KHI,DXB --mode easy --workers 4
 | `--aircraft-id-max` | `1000` | Exclusive end of am4 aircraft ID scan (`range(0, N)`) |
 | `--airport-id-max` | `8000` | Exclusive end of am4 airport ID scan (`range(0, N)`) |
 
+Bulk extraction writes **every** valid am4 airport to SQLite (all runway lengths). **`min_runway`** in `UserConfig` only affects **adding a hub** through the dashboard (short strips are rejected there if below the threshold).
+
 ### Query Routes
 
 ```bash

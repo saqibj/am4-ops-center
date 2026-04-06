@@ -26,6 +26,7 @@ class UserConfig:
     co2_training: int = 0
     repair_training: int = 0
 
+    #: Minimum runway (m) for adding a hub via dashboard upsert; not used when bulk-extracting airports.
     min_runway: int = 0
     min_profit_per_day: float = 0.0
     max_flight_time_hours: float = -1.0

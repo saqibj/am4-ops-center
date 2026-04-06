@@ -11,7 +11,11 @@ log = logging.getLogger(__name__)
 
 
 def extract_all_airports(conn: sqlite3.Connection, config: UserConfig) -> list[dict]:
-    """Iterate airport IDs and insert valid rows. Call after init()."""
+    """Iterate airport IDs and insert valid rows. Call after init().
+
+    All valid am4 airports are stored regardless of ``UserConfig.min_runway``; that
+    setting is applied elsewhere (e.g. hub add via ``upsert_airport_from_am4``).
+    """
     from am4.utils.airport import Airport
 
     rows: list[dict] = []
@@ -22,15 +26,12 @@ def extract_all_airports(conn: sqlite3.Connection, config: UserConfig) -> list[d
         market, hub_cost
     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
-    min_rwy = config.min_runway
     max_id = max(1, int(config.airport_id_max))
     for ap_id in range(0, max_id):
         try:
             result = Airport.search(str(ap_id))
             ap = result.ap
             if not ap.valid:
-                continue
-            if int(ap.rwy) < min_rwy:
                 continue
             conn.execute(
                 sql,

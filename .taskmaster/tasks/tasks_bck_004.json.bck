@@ -1,0 +1,27 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Fix My Routes hub reset and stuck saving bug",
+        "description": "Investigate and fix a bug on the My Routes page where selecting a destination resets the selected hub and leaves the page stuck showing 'saving'.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "details": "Locate the My Routes page and trace the state flow for hub selection, destination selection, and save status handling. Check controlled vs uncontrolled select components, useEffect dependencies, form initialization/reinitialization, query param syncing, and any store logic. Confirm the actual root cause before changing code. Apply the smallest clean fix possible. Avoid broad refactors. Make sure hub selection persists while choosing a destination and ensure the saving state clears correctly on success or failure.",
+        "testStrategy": "Verify that selecting a hub persists when selecting a destination, the page does not remain stuck on 'saving', route create/edit flows still work, and dependent dropdown behavior remains correct.",
+        "subtasks": [],
+        "updatedAt": "2026-04-04T09:26:31.387Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-04-04T09:26:31.387Z",
+      "taskCount": 1,
+      "completedCount": 1,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

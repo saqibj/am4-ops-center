@@ -212,6 +212,27 @@ def test_save_load_extract_config_roundtrip(tmp_path) -> None:
     assert got.total_planes_owned == 42
 
 
+def test_user_config_extract_id_scan_defaults() -> None:
+    c = UserConfig()
+    assert c.aircraft_id_max == 1000
+    assert c.airport_id_max == 8000
+
+
+def test_save_load_extract_config_preserves_id_max(tmp_path) -> None:
+    db = tmp_path / "meta_ids.db"
+    conn = get_connection(db)
+    create_schema(conn)
+    cfg = UserConfig(aircraft_id_max=200, airport_id_max=5000)
+    save_extract_config(conn, cfg)
+    conn.close()
+    c2 = get_connection(db)
+    got = load_extract_config(c2)
+    c2.close()
+    assert got is not None
+    assert got.aircraft_id_max == 200
+    assert got.airport_id_max == 5000
+
+
 def test_derived_total_planes_none_when_fleet_empty(tmp_path) -> None:
     db = tmp_path / "fleet.db"
     conn = get_connection(db)

@@ -5,13 +5,16 @@ from __future__ import annotations
 import logging
 import sqlite3
 
+from config import UserConfig
+
 log = logging.getLogger(__name__)
 
 
-def extract_all_aircraft(conn: sqlite3.Connection) -> list[dict]:
+def extract_all_aircraft(conn: sqlite3.Connection, config: UserConfig) -> list[dict]:
     """Iterate aircraft IDs and insert valid rows. Call after init()."""
     from am4.utils.aircraft import Aircraft
 
+    max_id = max(1, int(config.aircraft_id_max))
     rows: list[dict] = []
     n_skipped = 0
     sql = """
@@ -21,7 +24,7 @@ def extract_all_aircraft(conn: sqlite3.Connection) -> list[dict]:
         pilots, crew, engineers, technicians, wingspan, length
     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
-    for ac_id in range(0, 500):
+    for ac_id in range(0, max_id):
         try:
             result = Aircraft.search(str(ac_id))
             ac = result.ac

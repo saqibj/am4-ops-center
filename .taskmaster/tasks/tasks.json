@@ -276,7 +276,7 @@
         "id": "21",
         "title": "Make aircraft/airport extraction ID ranges configurable",
         "description": "Fix SEC/functional finding - hardcoded range(0, 500) for aircraft and range(0, 4500) for airports silently misses new AM4 content.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "1"
         ],

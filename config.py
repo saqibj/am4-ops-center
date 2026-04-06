@@ -36,3 +36,8 @@ class UserConfig:
     hubs: list[str] = field(default_factory=list)
 
     max_workers: int = 4
+
+    #: Exclusive upper bound for am4 aircraft ID scan (``range(0, aircraft_id_max)``).
+    aircraft_id_max: int = 1000
+    #: Exclusive upper bound for am4 airport ID scan (``range(0, airport_id_max)``).
+    airport_id_max: int = 8000

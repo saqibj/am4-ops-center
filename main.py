@@ -55,6 +55,8 @@ def _config_from_extract_args(args: argparse.Namespace) -> UserConfig:
         cfg.hubs = [x.strip() for x in args.hubs.split(",") if x.strip()]
     if args.aircraft:
         cfg.aircraft_filter = [x.strip() for x in args.aircraft.split(",") if x.strip()]
+    cfg.aircraft_id_max = max(1, int(args.aircraft_id_max))
+    cfg.airport_id_max = max(1, int(args.airport_id_max))
     return cfg
 
 
@@ -276,6 +278,18 @@ def main() -> None:
         type=int,
         default=None,
         help="Override total_planes_owned (AM4 discount). Default: sum of my_fleet quantities, else 50.",
+    )
+    ex.add_argument(
+        "--aircraft-id-max",
+        type=int,
+        default=1000,
+        help="Exclusive upper bound for scanning am4 aircraft IDs (default 1000).",
+    )
+    ex.add_argument(
+        "--airport-id-max",
+        type=int,
+        default=8000,
+        help="Exclusive upper bound for scanning am4 airport IDs (default 8000).",
     )
     ex.set_defaults(func=cmd_extract)
 

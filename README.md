@@ -189,6 +189,8 @@ python3 main.py extract --refresh-hubs --hubs KHI,DXB --mode easy --workers 4
 | `--aircraft` | all | Filter by aircraft: `b738,a388` |
 | `--db` | `am4_data.db` | SQLite output path |
 | `--workers` | `4` | Parallel worker count (lower if you see instability) |
+| `--aircraft-id-max` | `1000` | Exclusive end of am4 aircraft ID scan (`range(0, N)`) |
+| `--airport-id-max` | `8000` | Exclusive end of am4 airport ID scan (`range(0, N)`) |
 
 ### Query Routes
 

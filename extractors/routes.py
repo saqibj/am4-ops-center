@@ -497,7 +497,7 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
     replace_master_tables(conn)
 
     print("[1/3] Extracting aircraft…")
-    aircraft_rows = extract_all_aircraft(conn)
+    aircraft_rows = extract_all_aircraft(conn, cfg)
     print(f"    → {len(aircraft_rows)} aircraft")
 
     print("[2/3] Extracting airports…")

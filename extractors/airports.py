@@ -23,7 +23,8 @@ def extract_all_airports(conn: sqlite3.Connection, config: UserConfig) -> list[d
     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
     """
     min_rwy = config.min_runway
-    for ap_id in range(0, 4500):
+    max_id = max(1, int(config.airport_id_max))
+    for ap_id in range(0, max_id):
         try:
             result = Airport.search(str(ap_id))
             ap = result.ap

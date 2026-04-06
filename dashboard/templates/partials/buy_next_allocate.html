@@ -1,0 +1,66 @@
+<div class="rounded-lg border border-emerald-800/45 bg-emerald-950/15 p-4 text-sm">
+    {% if warnings %}
+    <ul class="text-amber-200/95 text-xs mb-3 list-disc pl-4 space-y-0.5">
+        {% for w in warnings %}
+        <li>{{ w }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if not picks %}
+    <p class="am4-text-secondary">No allocation: pick hubs with valid routes for this aircraft, or lower quantity.</p>
+    {% else %}
+    <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+        <div>
+            <span class="font-semibold am4-accent">{{ name }}</span>
+            <span class="font-mono text-xs am4-text-muted ml-1">{{ shortname }}</span>
+        </div>
+        <div class="font-mono text-xs am4-text-muted">
+            Copies <strong class="text-emerald-300">{{ quantity_allocated }}</strong> / {{ quantity_requested }} requested
+        </div>
+    </div>
+
+    <div class="grid gap-3 sm:grid-cols-2 mb-4">
+        <div class="rounded-md am4-bordered p-3 am4-sunken">
+            <div class="text-xs am4-text-muted uppercase tracking-wide">Total marginal profit / day</div>
+            <div class="text-xl font-mono text-emerald-300">${{ "{:,.0f}".format(total_daily) }}</div>
+        </div>
+        <div class="rounded-md am4-bordered p-3 am4-sunken">
+            <div class="text-xs am4-text-muted uppercase tracking-wide">Payback (placed capital)</div>
+            <div class="text-xl font-mono text-emerald-300">
+                {% if payback_days is not none %}{{ payback_days }}d{% else %}—{% endif %}
+            </div>
+            <div class="text-[10px] am4-text-muted mt-1">
+                ${{ "{:,}".format(capital_placed) }} placed
+                {% if quantity_allocated < quantity_requested %}
+                (requested ${{ "{:,}".format(capital_requested) }})
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <h4 class="text-xs font-semibold am4-text-muted uppercase tracking-wider mb-2">By hub</h4>
+    <div class="space-y-3">
+        {% for hs in hub_summary %}
+        <div class="rounded-md border border-[var(--border-subtle)] p-3 bg-[var(--surface-elevated)]">
+            <div class="flex flex-wrap justify-between gap-2 mb-2">
+                <span class="font-mono font-semibold am4-accent">{{ hs.hub }}</span>
+                <span class="font-mono text-xs">
+                    <span class="am4-text-muted">{{ hs.copies }} copy(ies)</span>
+                    <span class="text-emerald-300 ml-2">${{ "{:,.0f}".format(hs.daily) }}/d</span>
+                </span>
+            </div>
+            <ol class="text-xs font-mono space-y-1 am4-text-secondary list-decimal pl-4">
+                {% for r in hs.routes %}
+                <li>
+                    → {{ r.dest }}
+                    <span class="am4-text-muted">Y/J/F {{ r.config_y }}/{{ r.config_j }}/{{ r.config_f }}</span>
+                    <span class="text-emerald-300">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}/d</span>
+                </li>
+                {% endfor %}
+            </ol>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>

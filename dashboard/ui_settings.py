@@ -29,6 +29,7 @@ ALLOWED_LANDING_PATHS: frozenset[str] = frozenset(
         "/hub-explorer",
         "/aircraft",
         "/route-analyzer",
+        "/scenarios",
         "/fleet-planner",
         "/buy-next",
         "/my-fleet",

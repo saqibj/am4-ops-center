@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Scenarios (`/scenarios`):** fuel and CO₂ price sliders vs extraction baselines stored on **`route_aircraft`** (`fuel_price`, `co2_price` columns, backfilled on dashboard connect / migrate); **`GET /api/scenarios`** recomputes daily profit from stored costs, with **My Routes** (default) or full-database scope, optional hub filter, totals / flip counts, and top-10 gain/loss assignments.
 - **Hub ROI (`/hub-roi`):** per-hub cards for hubs you operate (**My Routes**), with capital deployed, daily profit, payback days, route and copy counts, and average profit per assigned copy; hubs sorted by lowest avg $/copy first with the worst hub highlighted; totals row with blended payback; footnote on capital accounting.
 - **Fleet Health (`/fleet-health`):** compares each **My Routes** assignment to the best **`route_aircraft`** alternative on the same origin–destination (by profit per aircraft per day), with hub / minimum gap / “hide optimal” / reconfig-only filters; HTMX loads **`/api/fleet-health`** and shows swap vs reconfigure suggestions plus a summary of estimated daily profit left on the table.
 - **Buy Next page (`/buy-next`):** recommends aircraft to purchase next by payback period (cost ÷ average daily profit), with optional budget, hub, aircraft type, Top N, and “exclude owned” filters; HTMX loads **`/api/buy-next`** and shows top three routes with Y/J/F configuration per result.

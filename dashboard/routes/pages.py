@@ -5,7 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from dashboard.db import base_context, fetch_all, get_db
+from config import UserConfig
+from dashboard.db import base_context, fetch_all, fetch_one, get_db
+from database.schema import load_extract_config
 from dashboard.hub_freshness import STALE_AFTER_DAYS
 from dashboard.server import templates
 from dashboard.ui_settings import ALLOWED_LANDING_PATHS
@@ -346,6 +348,35 @@ def page_hub_roi(request: Request):
     ctx = base_context(request)
     ctx.update(_hub_roi_summary())
     return templates.TemplateResponse(request, "hub_roi.html", ctx)
+
+
+@router.get("/scenarios", response_class=HTMLResponse)
+def page_scenarios(request: Request):
+    ctx = base_context(request)
+    ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    try:
+        conn = get_db()
+        try:
+            cfg = load_extract_config(conn)
+            if cfg:
+                df, dc = float(cfg.fuel_price), float(cfg.co2_price)
+            else:
+                row = fetch_one(
+                    conn,
+                    "SELECT fuel_price, co2_price FROM route_aircraft WHERE fuel_price IS NOT NULL LIMIT 1",
+                )
+                if row and row.get("fuel_price") is not None:
+                    df = float(row["fuel_price"])
+                    dc = float(row["co2_price"] or UserConfig().co2_price)
+                else:
+                    df, dc = UserConfig().fuel_price, UserConfig().co2_price
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        df, dc = UserConfig().fuel_price, UserConfig().co2_price
+    ctx["default_fuel"] = df
+    ctx["default_co2"] = dc
+    return templates.TemplateResponse(request, "scenarios.html", ctx)
 
 
 @router.get("/my-routes", response_class=HTMLResponse)

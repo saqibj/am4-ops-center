@@ -112,6 +112,8 @@ CREATE TABLE IF NOT EXISTS route_aircraft (
     is_valid            INTEGER,
 
     game_mode           TEXT,
+    fuel_price          REAL,
+    co2_price           REAL,
     extracted_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (origin_id)   REFERENCES airports(id),
@@ -601,6 +603,8 @@ CREATE TABLE route_aircraft__m (
     warnings            TEXT,
     is_valid            INTEGER,
     game_mode           TEXT,
+    fuel_price          REAL,
+    co2_price           REAL,
     extracted_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (origin_id)   REFERENCES airports(id),
     FOREIGN KEY (dest_id)     REFERENCES airports(id),
@@ -701,12 +705,35 @@ def _migrate_route_aircraft_unique(conn: sqlite3.Connection) -> None:
     conn.executescript(ROUTE_AIRCRAFT_INDEX_SQL)
 
 
+def _route_aircraft_has_column(conn: sqlite3.Connection, col: str) -> bool:
+    cur = conn.execute("PRAGMA table_info(route_aircraft)")
+    return any(row[1] == col for row in cur.fetchall())
+
+
+def ensure_route_aircraft_baseline_prices(conn: sqlite3.Connection) -> None:
+    """Add ``fuel_price`` / ``co2_price`` (extraction baselines) and backfill NULLs.
+
+    Safe to call on every dashboard DB open; idempotent.
+    """
+    if not _route_aircraft_has_column(conn, "fuel_price"):
+        conn.execute("ALTER TABLE route_aircraft ADD COLUMN fuel_price REAL")
+    if not _route_aircraft_has_column(conn, "co2_price"):
+        conn.execute("ALTER TABLE route_aircraft ADD COLUMN co2_price REAL")
+    cfg = load_extract_config(conn)
+    fp = float(cfg.fuel_price) if cfg else UserConfig().fuel_price
+    cp = float(cfg.co2_price) if cfg else UserConfig().co2_price
+    conn.execute("UPDATE route_aircraft SET fuel_price = ? WHERE fuel_price IS NULL", (fp,))
+    conn.execute("UPDATE route_aircraft SET co2_price = ? WHERE co2_price IS NULL", (cp,))
+    conn.commit()
+
+
 def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
     """Apply unique constraints to DBs created before the schema update. Safe to run multiple times."""
     conn.execute("PRAGMA foreign_keys = OFF")
     try:
         _migrate_airports_iata_unique(conn)
         _migrate_aircraft_shortname_unique(conn)
+        ensure_route_aircraft_baseline_prices(conn)
         _migrate_route_aircraft_unique(conn)
         _recreate_dashboard_views(conn)
         conn.commit()

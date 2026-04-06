@@ -53,6 +53,8 @@ def _base_route_row(**overrides: Any) -> dict[str, Any]:
         "warnings": "[]",
         "is_valid": 1,
         "game_mode": "easy",
+        "fuel_price": 700.0,
+        "co2_price": 120.0,
     }
     r.update(overrides)
     return r

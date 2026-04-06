@@ -15,6 +15,7 @@
     "/hub-explorer": 1,
     "/aircraft": 1,
     "/route-analyzer": 1,
+    "/scenarios": 1,
     "/fleet-planner": 1,
     "/buy-next": 1,
     "/my-fleet": 1,

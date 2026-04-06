@@ -199,6 +199,8 @@ def extract_routes_for_hub(
                     "warnings": json.dumps([w.to_str() for w in acr.warnings]),
                     "is_valid": 1 if acr.valid else 0,
                     "game_mode": game_mode_label,
+                    "fuel_price": float(cfg.fuel_price),
+                    "co2_price": float(cfg.co2_price),
                 }
             )
 
@@ -215,7 +217,8 @@ INSERT INTO route_aircraft (
     profit_per_ac_day, income_per_ac_day,
     contribution,
     needs_stopover, stopover_iata, total_distance,
-    ci, warnings, is_valid, game_mode
+    ci, warnings, is_valid, game_mode,
+    fuel_price, co2_price
 ) VALUES (
     :origin_id, :dest_id, :aircraft_id, :distance_km,
     :config_y, :config_j, :config_f, :config_algorithm,
@@ -225,7 +228,8 @@ INSERT INTO route_aircraft (
     :profit_per_ac_day, :income_per_ac_day,
     :contribution,
     :needs_stopover, :stopover_iata, :total_distance,
-    :ci, :warnings, :is_valid, :game_mode
+    :ci, :warnings, :is_valid, :game_mode,
+    :fuel_price, :co2_price
 )
 ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
     distance_km = excluded.distance_km,
@@ -255,6 +259,8 @@ ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
     warnings = excluded.warnings,
     is_valid = excluded.is_valid,
     game_mode = excluded.game_mode,
+    fuel_price = excluded.fuel_price,
+    co2_price = excluded.co2_price,
     extracted_at = CURRENT_TIMESTAMP
 """
 

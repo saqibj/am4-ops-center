@@ -1,0 +1,56 @@
+{% if total_before_filter == 0 %}
+<p class="am4-text-secondary">No <strong>My Routes</strong> rows joined to demand data. Add assignments under <a href="/my-routes" class="am4-accent underline underline-offset-2">My Routes</a> and ensure routes are extracted with demands.</p>
+{% elif not rows %}
+<p class="am4-text-secondary">No routes match the current filters ({{ total_before_filter }} route(s) before filters).</p>
+{% else %}
+<p class="text-sm am4-text-muted mb-4">Showing <strong class="am4-text-secondary">{{ rows|length }}</strong> of {{ total_before_filter }} route(s).</p>
+<div class="space-y-4">
+    {% for r in rows %}
+    <div class="rounded-lg am4-bordered p-4 am4-sunken">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <div>
+                <span class="font-mono font-semibold am4-accent">{{ r.hub }}</span>
+                <span class="am4-text-muted">→</span>
+                <span class="font-mono font-semibold">{{ r.dest }}</span>
+                <span class="text-sm am4-text-muted ml-2">{{ r.ac }}</span>
+                <span class="text-xs am4-text-muted">({{ r.ac_type }})</span>
+            </div>
+            <div class="text-xs font-mono am4-text-muted">
+                Y/J/F config {{ r.config_y }}/{{ r.config_j }}/{{ r.config_f }} ·
+                {{ r.trips_per_day }} trips/day × {{ r.num_assigned }} assigned
+            </div>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-3">
+            {% for cabin, dem, off, un, cls, p_dem, p_off in [
+                ('Y', r.demand_y, r.y_offered, r.y_unmet, r.y_class, r.y_pct_dem, r.y_pct_off),
+                ('J', r.demand_j, r.j_offered, r.j_unmet, r.j_class, r.j_pct_dem, r.j_pct_off),
+                ('F', r.demand_f, r.f_offered, r.f_unmet, r.f_class, r.f_pct_dem, r.f_pct_off),
+            ] %}
+            <div class="rounded-md border border-[var(--border-subtle)] p-3 bg-[var(--surface-elevated)]">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-sm font-semibold font-mono">{{ cabin }}</span>
+                    {% if cls == 'underserved' %}
+                    <span class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">Underserved</span>
+                    {% elif cls == 'wasted' %}
+                    <span class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-950/60 text-rose-300 border border-rose-800/50">Wasted</span>
+                    {% else %}
+                    <span class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-600/50">Saturated</span>
+                    {% endif %}
+                </div>
+                <div class="relative h-3 rounded overflow-hidden bg-slate-900/80 mb-2">
+                    <div class="absolute left-0 top-0 bottom-0 bg-slate-600/45" style="width: {{ p_dem|round(3) }}%;"></div>
+                    <div class="absolute top-0 bottom-0 w-0.5 z-10 -translate-x-1/2 {% if cls == 'underserved' %}bg-emerald-400{% elif cls == 'wasted' %}bg-rose-400{% else %}bg-slate-300{% endif %}"
+                         style="left: {{ p_off|round(3) }}%;"></div>
+                </div>
+                <div class="text-[11px] font-mono am4-text-muted space-y-0.5">
+                    <div>Demand <span class="am4-text-secondary">{{ dem }}</span> · Offered <span class="am4-text-secondary">{{ off }}</span></div>
+                    <div>Unmet <span class="{% if un > 0 %}text-emerald-400{% elif un < 0 %}text-rose-400{% else %}am4-text-secondary{% endif %}">{{ un }}</span></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

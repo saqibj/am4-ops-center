@@ -265,6 +265,13 @@ def page_fleet_health(request: Request):
     return templates.TemplateResponse(request, "fleet_health.html", ctx)
 
 
+@router.get("/demand-utilization", response_class=HTMLResponse)
+def page_demand_utilization(request: Request):
+    ctx = base_context(request)
+    ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    return templates.TemplateResponse(request, "demand_utilization.html", ctx)
+
+
 _HUB_ROI_SQL = """
 SELECT ho.iata AS hub,
        COUNT(DISTINCT mr.id) AS routes,

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Demand utilization{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Demand utilization</h2>
+<p class="am4-text-secondary mb-3">
+    For each route in <strong class="am4-text-secondary">My Routes</strong>, compare daily seats you offer (configuration × trips × aircraft assigned) to extracted <strong class="am4-text-secondary">demand</strong> (Y/J/F).
+    Each cabin is classified as <strong>Underserved</strong> (unmet demand), <strong>Saturated</strong> (roughly balanced, within −10% of demand), or <strong>Wasted</strong> (capacity above demand by more than 10%).
+</p>
+<p class="text-sm am4-text-muted mb-6 border-l-2 border-amber-600/50 pl-3 py-1">
+    <strong class="text-amber-200/90">Note:</strong> AM4 demand replenishes in cycles, so persistent unmet demand on routes you fly is a stronger signal than a single snapshot. Use this view as a guide, not ground truth for revenue left behind.
+</p>
+
+<form id="demand-util-filters" class="flex flex-wrap gap-4 mb-6 items-end">
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Hub</label>
+        <select name="hub"
+                hx-get="/api/demand-utilization"
+                hx-target="#demand-util-results"
+                hx-include="#demand-util-filters"
+                hx-indicator="#demand-util-spinner"
+                class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono">
+            <option value="">All hubs</option>
+            {% for h in hubs %}
+            <option value="{{ h }}">{{ h }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Aircraft type</label>
+        <select name="type"
+                hx-get="/api/demand-utilization"
+                hx-target="#demand-util-results"
+                hx-include="#demand-util-filters"
+                hx-indicator="#demand-util-spinner"
+                class="am4-input rounded-md px-3 py-2">
+            <option value="">All</option>
+            <option value="pax">PAX</option>
+            <option value="cargo">Cargo</option>
+            <option value="vip">VIP</option>
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Classification</label>
+        <select name="classification"
+                hx-get="/api/demand-utilization"
+                hx-target="#demand-util-results"
+                hx-include="#demand-util-filters"
+                hx-indicator="#demand-util-spinner"
+                class="am4-input rounded-md px-3 py-2 min-w-[12rem]">
+            <option value="all">Any cabin (all)</option>
+            <option value="underserved">At least one Underserved</option>
+            <option value="saturated">At least one Saturated</option>
+            <option value="wasted">At least one Wasted</option>
+        </select>
+    </div>
+    <span id="demand-util-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
+</form>
+
+<div id="demand-util-results"
+     hx-get="/api/demand-utilization"
+     hx-trigger="load"
+     hx-include="#demand-util-filters"
+     hx-indicator="#demand-util-spinner">
+    <p class="am4-text-secondary">Loading…</p>
+</div>
+{% endblock %}

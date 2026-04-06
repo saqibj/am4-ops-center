@@ -173,6 +173,26 @@ def cmd_recommend(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_migrate(args: argparse.Namespace) -> None:
+    from database.schema import migrate_add_unique_constraints
+
+    conn = get_connection(args.db)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='aircraft' LIMIT 1"
+        ).fetchone()
+        if not row:
+            print(
+                "Error: no RouteMine schema in this database; run extract first or use a valid --db path.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        migrate_add_unique_constraints(conn)
+    finally:
+        conn.close()
+    print("Migration complete: unique constraints applied (safe to re-run).")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="AM4 RouteMine — bulk route data extractor")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -292,6 +312,13 @@ def main() -> None:
         help="Exclude aircraft types already in my_fleet (quantity > 0)",
     )
     rec.set_defaults(func=cmd_recommend)
+
+    mig = sub.add_parser(
+        "migrate",
+        help="One-shot: dedupe data and add route_aircraft / aircraft / airports unique constraints",
+    )
+    mig.add_argument("--db", type=str, default="am4_data.db")
+    mig.set_defaults(func=cmd_migrate)
 
     args = parser.parse_args()
     args.func(args)

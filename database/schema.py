@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 
@@ -10,7 +11,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS aircraft (
     id              INTEGER PRIMARY KEY,
-    shortname       TEXT NOT NULL,
+    shortname       TEXT NOT NULL UNIQUE,
     name            TEXT NOT NULL,
     manufacturer    TEXT,
     type            TEXT NOT NULL,
@@ -50,6 +51,9 @@ CREATE TABLE IF NOT EXISTS airports (
     market          INTEGER,
     hub_cost        INTEGER
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_airports_iata_unique
+    ON airports(iata) WHERE iata IS NOT NULL AND TRIM(iata) != '';
 
 CREATE TABLE IF NOT EXISTS route_demands (
     origin_id       INTEGER NOT NULL,
@@ -108,7 +112,8 @@ CREATE TABLE IF NOT EXISTS route_aircraft (
 
     FOREIGN KEY (origin_id)   REFERENCES airports(id),
     FOREIGN KEY (dest_id)     REFERENCES airports(id),
-    FOREIGN KEY (aircraft_id) REFERENCES aircraft(id)
+    FOREIGN KEY (aircraft_id) REFERENCES aircraft(id),
+    UNIQUE(origin_id, dest_id, aircraft_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_ra_origin ON route_aircraft(origin_id);
@@ -259,6 +264,104 @@ JOIN aircraft ac ON ra.aircraft_id = ac.id
 WHERE ra.is_valid = 1;
 """
 
+# Recreate after migrations that DROP/rename master tables (views can become invalid).
+DASHBOARD_VIEWS_SQL = """
+DROP VIEW IF EXISTS v_my_fleet;
+CREATE VIEW v_my_fleet AS
+SELECT
+    mf.id,
+    mf.aircraft_id,
+    mf.quantity,
+    mf.notes,
+    mf.created_at,
+    mf.updated_at,
+    ac.shortname,
+    ac.name AS ac_name,
+    ac.type AS ac_type,
+    ac.cost
+FROM my_fleet mf
+JOIN aircraft ac ON mf.aircraft_id = ac.id;
+
+DROP VIEW IF EXISTS v_my_hubs;
+CREATE VIEW v_my_hubs AS
+SELECT
+    mh.id,
+    mh.airport_id,
+    a.iata,
+    a.icao,
+    a.name,
+    a.fullname,
+    a.country,
+    a.continent,
+    a.market,
+    a.hub_cost,
+    mh.notes,
+    mh.is_active,
+    mh.last_extracted_at,
+    mh.last_extract_status,
+    mh.last_extract_error
+FROM my_hubs mh
+JOIN airports a ON mh.airport_id = a.id;
+
+DROP VIEW IF EXISTS v_my_routes;
+CREATE VIEW v_my_routes AS
+SELECT
+    mr.id,
+    mr.origin_id,
+    mr.dest_id,
+    mr.aircraft_id,
+    mr.num_assigned,
+    mr.notes,
+    mr.created_at,
+    mr.updated_at,
+    ho.iata AS hub,
+    hd.iata AS destination,
+    ac.shortname AS aircraft,
+    ac.name AS ac_name,
+    ho.name AS hub_name,
+    ho.country AS hub_country,
+    hd.name AS dest_name,
+    hd.fullname AS dest_fullname,
+    hd.country AS dest_country
+FROM my_routes mr
+JOIN airports ho ON mr.origin_id = ho.id
+JOIN airports hd ON mr.dest_id = hd.id
+JOIN aircraft ac ON mr.aircraft_id = ac.id;
+
+DROP VIEW IF EXISTS v_best_routes;
+CREATE VIEW v_best_routes AS
+SELECT
+    a_orig.iata AS hub,
+    a_dest.iata AS destination,
+    a_dest.country AS dest_country,
+    ac.shortname AS aircraft,
+    ac.type AS ac_type,
+    ra.distance_km,
+    ra.config_y, ra.config_j, ra.config_f,
+    ra.profit_per_trip,
+    ra.trips_per_day,
+    ra.profit_per_ac_day,
+    ra.income_per_ac_day,
+    ra.contribution,
+    ra.flight_time_hrs,
+    ra.needs_stopover,
+    ra.stopover_iata,
+    ra.warnings,
+    a_orig.name AS hub_name,
+    a_orig.country AS hub_country,
+    a_dest.name AS dest_name,
+    a_dest.fullname AS dest_fullname
+FROM route_aircraft ra
+JOIN airports a_orig ON ra.origin_id = a_orig.id
+JOIN airports a_dest ON ra.dest_id = a_dest.id
+JOIN aircraft ac ON ra.aircraft_id = ac.id
+WHERE ra.is_valid = 1;
+"""
+
+
+def _recreate_dashboard_views(conn: sqlite3.Connection) -> None:
+    conn.executescript(DASHBOARD_VIEWS_SQL)
+
 
 def get_connection(db_path: str | Path) -> sqlite3.Connection:
     path = Path(db_path)
@@ -287,3 +390,255 @@ def replace_master_tables(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM airports")
     conn.commit()
     conn.execute("PRAGMA foreign_keys = ON")
+
+
+def _reassign_airport_id(conn: sqlite3.Connection, old_id: int, new_id: int) -> None:
+    if old_id == new_id:
+        return
+    conn.execute("UPDATE route_aircraft SET origin_id = ? WHERE origin_id = ?", (new_id, old_id))
+    conn.execute("UPDATE route_aircraft SET dest_id = ? WHERE dest_id = ?", (new_id, old_id))
+    conn.execute("UPDATE my_routes SET origin_id = ? WHERE origin_id = ?", (new_id, old_id))
+    conn.execute("UPDATE my_routes SET dest_id = ? WHERE dest_id = ?", (new_id, old_id))
+    old_hub = conn.execute("SELECT id FROM my_hubs WHERE airport_id = ?", (old_id,)).fetchone()
+    new_hub = conn.execute("SELECT id FROM my_hubs WHERE airport_id = ?", (new_id,)).fetchone()
+    if old_hub and new_hub:
+        conn.execute("DELETE FROM my_hubs WHERE airport_id = ?", (old_id,))
+    elif old_hub:
+        conn.execute("UPDATE my_hubs SET airport_id = ? WHERE airport_id = ?", (new_id, old_id))
+
+
+def _dedupe_airports_for_iata_index(conn: sqlite3.Connection) -> None:
+    while True:
+        row = conn.execute(
+            """
+            SELECT UPPER(TRIM(iata)) FROM airports
+            WHERE iata IS NOT NULL AND TRIM(iata) != ''
+            GROUP BY UPPER(TRIM(iata))
+            HAVING COUNT(*) > 1
+            LIMIT 1
+            """
+        ).fetchone()
+        if not row:
+            break
+        u = row[0]
+        ids = [
+            int(r[0])
+            for r in conn.execute(
+                """
+                SELECT id FROM airports
+                WHERE iata IS NOT NULL AND TRIM(iata) != ''
+                  AND UPPER(TRIM(iata)) = ?
+                ORDER BY id
+                """,
+                (u,),
+            ).fetchall()
+        ]
+        keep = ids[0]
+        for oid in ids[1:]:
+            _reassign_airport_id(conn, oid, keep)
+            conn.execute("DELETE FROM airports WHERE id = ?", (oid,))
+
+
+def _migrate_airports_iata_unique(conn: sqlite3.Connection) -> None:
+    has_idx = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_airports_iata_unique'"
+    ).fetchone()
+    if has_idx:
+        return
+    _dedupe_airports_for_iata_index(conn)
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX idx_airports_iata_unique
+            ON airports(iata) WHERE iata IS NOT NULL AND TRIM(iata) != ''
+        """
+    )
+
+
+def _reassign_aircraft_id(conn: sqlite3.Connection, old_id: int, new_id: int) -> None:
+    if old_id == new_id:
+        return
+    conn.execute("UPDATE route_aircraft SET aircraft_id = ? WHERE aircraft_id = ?", (new_id, old_id))
+    conn.execute("UPDATE my_routes SET aircraft_id = ? WHERE aircraft_id = ?", (new_id, old_id))
+    row_old = conn.execute("SELECT quantity FROM my_fleet WHERE aircraft_id = ?", (old_id,)).fetchone()
+    row_new = conn.execute("SELECT quantity FROM my_fleet WHERE aircraft_id = ?", (new_id,)).fetchone()
+    if row_old and row_new:
+        q = min(999, int(row_new[0]) + int(row_old[0]))
+        conn.execute("UPDATE my_fleet SET quantity = ? WHERE aircraft_id = ?", (q, new_id))
+        conn.execute("DELETE FROM my_fleet WHERE aircraft_id = ?", (old_id,))
+    elif row_old:
+        conn.execute("UPDATE my_fleet SET aircraft_id = ? WHERE aircraft_id = ?", (new_id, old_id))
+
+
+def _dedupe_aircraft_by_shortname(conn: sqlite3.Connection) -> None:
+    while True:
+        row = conn.execute(
+            """
+            SELECT LOWER(shortname) FROM aircraft
+            GROUP BY LOWER(shortname)
+            HAVING COUNT(*) > 1
+            LIMIT 1
+            """
+        ).fetchone()
+        if not row:
+            break
+        sn = row[0]
+        ids = [
+            int(r[0])
+            for r in conn.execute(
+                "SELECT id FROM aircraft WHERE LOWER(shortname) = ? ORDER BY id",
+                (sn,),
+            ).fetchall()
+        ]
+        keep = ids[0]
+        for rid in ids[1:]:
+            _reassign_aircraft_id(conn, rid, keep)
+            conn.execute("DELETE FROM aircraft WHERE id = ?", (rid,))
+
+
+ROUTE_AIRCRAFT_NEW_TABLE_SQL = """
+CREATE TABLE route_aircraft__m (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    origin_id           INTEGER NOT NULL,
+    dest_id             INTEGER NOT NULL,
+    aircraft_id         INTEGER NOT NULL,
+    distance_km         REAL,
+    config_y            INTEGER,
+    config_j            INTEGER,
+    config_f            INTEGER,
+    config_algorithm    TEXT,
+    ticket_y            REAL,
+    ticket_j            REAL,
+    ticket_f            REAL,
+    income              REAL,
+    fuel_cost           REAL,
+    co2_cost            REAL,
+    repair_cost         REAL,
+    acheck_cost         REAL,
+    profit_per_trip     REAL,
+    flight_time_hrs     REAL,
+    trips_per_day       INTEGER,
+    num_aircraft        INTEGER,
+    profit_per_ac_day   REAL,
+    income_per_ac_day   REAL,
+    contribution        REAL,
+    needs_stopover      INTEGER,
+    stopover_iata       TEXT,
+    total_distance      REAL,
+    ci                  INTEGER,
+    warnings            TEXT,
+    is_valid            INTEGER,
+    game_mode           TEXT,
+    extracted_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (origin_id)   REFERENCES airports(id),
+    FOREIGN KEY (dest_id)     REFERENCES airports(id),
+    FOREIGN KEY (aircraft_id) REFERENCES aircraft(id),
+    UNIQUE(origin_id, dest_id, aircraft_id)
+);
+"""
+
+ROUTE_AIRCRAFT_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_ra_origin ON route_aircraft(origin_id);
+CREATE INDEX IF NOT EXISTS idx_ra_dest ON route_aircraft(dest_id);
+CREATE INDEX IF NOT EXISTS idx_ra_aircraft ON route_aircraft(aircraft_id);
+CREATE INDEX IF NOT EXISTS idx_ra_profit ON route_aircraft(profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_origin_ac ON route_aircraft(origin_id, aircraft_id);
+CREATE INDEX IF NOT EXISTS idx_ra_valid_profit ON route_aircraft(is_valid, profit_per_ac_day DESC);
+"""
+
+AIRCRAFT_NEW_TABLE_SQL = """
+CREATE TABLE aircraft__m (
+    id              INTEGER PRIMARY KEY,
+    shortname       TEXT NOT NULL UNIQUE,
+    name            TEXT NOT NULL,
+    manufacturer    TEXT,
+    type            TEXT NOT NULL,
+    speed           REAL,
+    fuel            REAL,
+    co2             REAL,
+    cost            INTEGER,
+    capacity        INTEGER,
+    range_km        INTEGER,
+    rwy             INTEGER,
+    check_cost      INTEGER,
+    maint           INTEGER,
+    speed_mod       INTEGER,
+    fuel_mod        INTEGER,
+    co2_mod         INTEGER,
+    fourx_mod       INTEGER,
+    pilots          INTEGER,
+    crew            INTEGER,
+    engineers       INTEGER,
+    technicians     INTEGER,
+    wingspan        INTEGER,
+    length          INTEGER
+);
+"""
+
+
+def _aircraft_table_has_shortname_unique(conn: sqlite3.Connection) -> bool:
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='aircraft'"
+    ).fetchone()
+    if not row or not row[0]:
+        return False
+    return bool(re.search(r"shortname\s+TEXT\s+NOT\s+NULL\s+UNIQUE", row[0], re.IGNORECASE))
+
+
+def _migrate_aircraft_shortname_unique(conn: sqlite3.Connection) -> None:
+    if _aircraft_table_has_shortname_unique(conn):
+        return
+    _dedupe_aircraft_by_shortname(conn)
+    conn.executescript(
+        "DROP TABLE IF EXISTS aircraft__m;\n"
+        + AIRCRAFT_NEW_TABLE_SQL
+        + "INSERT INTO aircraft__m SELECT * FROM aircraft;\n"
+        "DROP TABLE aircraft;\n"
+        "ALTER TABLE aircraft__m RENAME TO aircraft;\n"
+    )
+
+
+def _route_aircraft_table_has_unique(conn: sqlite3.Connection) -> bool:
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='route_aircraft'"
+    ).fetchone()
+    if not row or not row[0]:
+        return False
+    return "UNIQUE(origin_id, dest_id, aircraft_id)" in row[0]
+
+
+def _migrate_route_aircraft_unique(conn: sqlite3.Connection) -> None:
+    if _route_aircraft_table_has_unique(conn):
+        return
+    conn.execute(
+        """
+        DELETE FROM route_aircraft
+        WHERE id NOT IN (
+            SELECT MAX(id) FROM route_aircraft
+            GROUP BY origin_id, dest_id, aircraft_id
+        )
+        """
+    )
+    conn.executescript(
+        "DROP TABLE IF EXISTS route_aircraft__m;\n"
+        + ROUTE_AIRCRAFT_NEW_TABLE_SQL
+        + "INSERT INTO route_aircraft__m SELECT * FROM route_aircraft;\n"
+        "DROP TABLE route_aircraft;\n"
+        "ALTER TABLE route_aircraft__m RENAME TO route_aircraft;\n"
+    )
+    conn.executescript(ROUTE_AIRCRAFT_INDEX_SQL)
+
+
+def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
+    """Apply unique constraints to DBs created before the schema update. Safe to run multiple times."""
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        _migrate_airports_iata_unique(conn)
+        _migrate_aircraft_shortname_unique(conn)
+        _migrate_route_aircraft_unique(conn)
+        _recreate_dashboard_views(conn)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")

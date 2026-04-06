@@ -210,6 +210,35 @@ INSERT INTO route_aircraft (
     :needs_stopover, :stopover_iata, :total_distance,
     :ci, :warnings, :is_valid, :game_mode
 )
+ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
+    distance_km = excluded.distance_km,
+    config_y = excluded.config_y,
+    config_j = excluded.config_j,
+    config_f = excluded.config_f,
+    config_algorithm = excluded.config_algorithm,
+    ticket_y = excluded.ticket_y,
+    ticket_j = excluded.ticket_j,
+    ticket_f = excluded.ticket_f,
+    income = excluded.income,
+    fuel_cost = excluded.fuel_cost,
+    co2_cost = excluded.co2_cost,
+    repair_cost = excluded.repair_cost,
+    acheck_cost = excluded.acheck_cost,
+    profit_per_trip = excluded.profit_per_trip,
+    flight_time_hrs = excluded.flight_time_hrs,
+    trips_per_day = excluded.trips_per_day,
+    num_aircraft = excluded.num_aircraft,
+    profit_per_ac_day = excluded.profit_per_ac_day,
+    income_per_ac_day = excluded.income_per_ac_day,
+    contribution = excluded.contribution,
+    needs_stopover = excluded.needs_stopover,
+    stopover_iata = excluded.stopover_iata,
+    total_distance = excluded.total_distance,
+    ci = excluded.ci,
+    warnings = excluded.warnings,
+    is_valid = excluded.is_valid,
+    game_mode = excluded.game_mode,
+    extracted_at = CURRENT_TIMESTAMP
 """
 
 DEMAND_UPSERT_SQL = """

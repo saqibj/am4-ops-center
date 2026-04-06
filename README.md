@@ -44,8 +44,8 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 - [Installation](#installation)
   - [Quick Start](#quick-start-5-commands)
   - [Detailed Installation](#detailed-installation)
-  - [WSL Setup (Windows Users)](#wsl-setup-windows-users)
-  - [Why WSL?](#why-wsl)
+  - [Windows (native with MSVC)](#windows-native-with-msvc)
+  - [WSL (optional)](#wsl-optional)
   - [Opening in Cursor/VS Code](#opening-in-cursorvs-code)
 - [Usage](#usage)
   - [Extract Route Data](#extract-route-data)
@@ -71,13 +71,15 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 
 ## 🔧 Prerequisites
 
-- **OS:** WSL Ubuntu 24.04 (recommended for Windows), native Linux, or macOS
+- **OS:** Windows 10/11 (native), WSL Ubuntu, native Linux, or macOS
 - **Python:** 3.10–3.12 (3.12.x recommended; 3.13+ not supported)
-- **Build tools:** `build-essential`, `cmake`, `python3-dev` (for compiling the am4 C++ core)
+- **Build tools (compile am4 C++ / pybind11):**
+  - **Linux / WSL:** `build-essential`, `cmake`, `python3-dev`
+  - **Windows (native):** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the **Desktop development with C++** workload (MSVC, Windows SDK). **CMake** is included in that workload; **Git for Windows** for cloning.
+  - **macOS:** Xcode Command Line Tools (`xcode-select --install`); **CMake** via Homebrew if needed
 - **Git**
 
-> ⚠️ **Windows users:** The am4 package contains C++ code that does not compile under MSVC.
-> Use WSL (Windows Subsystem for Linux) with Ubuntu. See [Why WSL?](#why-wsl) below for details.
+> **Windows:** Native installs are supported. This project pins **[saqibj/am4](https://github.com/saqibj/am4)** (fork with MSVC fixes) at a **commit hash** in `requirements.in`. Install the C++ build tools above, then follow [Windows (native with MSVC)](#windows-native-with-msvc). [WSL](#wsl-optional) remains optional if you prefer a Linux environment.
 
 ---
 
@@ -85,12 +87,25 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 
 ### Quick Start (5 commands)
 
+**Linux / macOS / WSL:**
+
 ```bash
 git clone https://github.com/saqibj/am4-routemine.git && cd am4-routemine
 python3 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 python3 -c "from am4.utils.db import init; init(); print('✅ am4 OK')"
+```
+
+**Windows (PowerShell, after [MSVC build tools](#windows-native-with-msvc) are installed):**
+
+```powershell
+git clone https://github.com/saqibj/am4-routemine.git; cd am4-routemine
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python -c "from am4.utils.db import init; init(); print('am4 OK')"
 ```
 
 ### Detailed Installation
@@ -113,7 +128,7 @@ python3 -c "from am4.utils.db import init; init(); print('✅ am4 OK')"
    pip install --upgrade pip
    ```
 
-4. **Install Python dependencies** (includes **`am4`** from Git — compiles C++ core with GCC, ~2 minutes)
+4. **Install Python dependencies** (includes **`am4`** from Git — compiles C++ via pybind11, typically 1–3 minutes)
    ```bash
    pip install -r requirements.txt
    ```
@@ -124,27 +139,51 @@ python3 -c "from am4.utils.db import init; init(); print('✅ am4 OK')"
    # Expected: B737-800
    ```
 
-### WSL Setup (Windows Users)
+### Windows (native with MSVC)
+
+1. **Install build prerequisites**
+   - [Python 3.12](https://www.python.org/downloads/) (64-bit). During setup, enable **Add python.exe to PATH** (or use `py -3.12` from the [Python launcher](https://docs.python.org/3/using/windows.html#python-launcher-for-windows)).
+   - [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) → **Desktop development with C++** (includes MSVC, Windows SDK, and CMake).
+   - [Git for Windows](https://git-scm.com/download/win).
+
+2. **Open a shell where MSVC is on PATH** (needed so `pip` can compile extensions):
+   - **Recommended:** Start **“x64 Native Tools Command Prompt for VS 2022”** or **“Developer PowerShell for VS 2022”** from the Start menu, then `cd` to your project folder; *or*
+   - From a normal PowerShell, builds often still succeed if Build Tools are installed—if `pip install` fails with “cannot find cl.exe” or similar, use the Native Tools prompt above.
+
+3. **Create a venv and install**
+
+   ```powershell
+   cd C:\path\to\am4-routemine
+   py -3.12 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+4. **Verify**
+
+   ```powershell
+   python -c "from am4.utils.db import init; init(); from am4.utils.aircraft import Aircraft; print(Aircraft.search('b738').ac.name)"
+   ```
+
+   You should see `B737-800`. Use the same venv for `python main.py extract …`, `python main.py dashboard …`, etc.
+
+### WSL (optional)
+
+If you prefer Ubuntu on Windows (same GCC-based flow as Linux):
 
 ```powershell
 # From PowerShell (admin)
 wsl --install -d Ubuntu
 ```
 
-Then open the Ubuntu terminal and follow the Linux installation steps above.
-
-### Why WSL?
-
-The am4 pip package compiles C++ source via `pybind11` on every install. The code uses a lambda ternary pattern (`route.cpp`) that GCC handles appropriately, but MSVC rejects with compilation error C2446. WSL provides a native Linux environment where GCC compiles it cleanly.
+Then open the Ubuntu terminal and follow [Detailed Installation](#detailed-installation) (Linux steps). Older upstream **am4** builds failed MSVC with error **C2446**; this repo’s pinned fork includes fixes, so **native Windows and WSL are both valid**—choose whichever you prefer.
 
 ### Opening in Cursor/VS Code
 
-From the WSL terminal:
-```bash
-cursor .   # or: code .
-```
+**Windows (native):** Open the project folder in Cursor/VS Code as usual; select the interpreter **`.venv\Scripts\python.exe`**.
 
-Alternatively, you can use Cursor's "WSL: Connect to WSL" command (`Ctrl`+`Shift`+`P`).
+**WSL:** From the Ubuntu terminal: `cursor .` or `code .`, or use **WSL: Connect to WSL** (`Ctrl`+`Shift`+`P`).
 
 For **Taskmaster MCP** (optional), copy `.mcp.json.example` to `.mcp.json` and add your API keys. The real `.mcp.json` is gitignored so secrets are not committed.
 
@@ -227,6 +266,8 @@ python3 main.py dashboard --db custom.db  # custom database
 python3 main.py dashboard --host 0.0.0.0  # LAN access
 python3 main.py dashboard --reload  # dev: auto-reload on file changes
 ```
+
+On **Windows** with an activated venv, `python` is usually correct if `python3` is not on your PATH.
 
 **Mutating API authentication:** Every **`POST /api/*`** action (fleet, routes, hubs) requires header **`Authorization: Bearer <token>`**. The HTML shell sets **`hx-headers`** on `<body>` so HTMX picks up the token automatically. If **`AM4_ROUTEMINE_TOKEN`** is not set, a random token is generated once at startup and printed to the console; set that variable in your environment to keep the same token across restarts. For scripts or `curl`, pass the header explicitly, for example: `curl -X POST -H "Authorization: Bearer YOUR_TOKEN" -d 'fleet_id=1' http://127.0.0.1:8000/api/fleet/delete`.
 
@@ -364,8 +405,9 @@ Covers UI settings parsing/sanitization, HTTP smoke checks for static assets, **
 ## 🔼 Upgrading
 
 ```bash
-# Update the am4 package (same URL as requirements.txt / pyproject.toml)
-pip install --upgrade "am4 @ git+https://github.com/saqibj/am4.git@msvc-fix"
+# Update the am4 package (match requirements.in / pyproject.toml commit or branch)
+pip install --upgrade "am4 @ git+https://github.com/saqibj/am4.git@af2ddf7cd433b0e61c1732fbdd4780136d46aa29"
+# Or move to a newer commit after updating requirements.in and pyproject.toml
 
 # Re-extract routes with updated data
 python3 main.py extract --hubs KHI,DXB,LHR,JFK,HKG,MJD --mode easy --workers 4
@@ -430,7 +472,7 @@ am4-routemine/
 
 | Issue | Fix |
 |-------|-----|
-| `am4` build fails on Windows/MSVC | Use WSL Ubuntu — GCC compiles it cleanly |
+| `am4` build fails on Windows (MSVC / `cl.exe` not found) | Install **Visual Studio Build Tools** with **Desktop development with C++**, then run `pip install` from **x64 Native Tools Command Prompt for VS** (see [Windows (native with MSVC)](#windows-native-with-msvc)). If it still fails, try WSL or compare your pinned **am4** commit with `requirements.in`. |
 | `am4` build fails on Python 3.13+ | Use Python 3.10–3.12 |
 | `ModuleNotFoundError: am4` or Hub Manager flash **“The am4 package is not available…”** | Use **Python 3.10–3.12**, create/activate a venv (`python3 -m venv .venv` then `source .venv/bin/activate`, or on Windows `py -3.12 -m venv .venv` then `.\.venv\Scripts\Activate.ps1`), run `pip install -r requirements.txt`, and start the dashboard with **that** interpreter (`python main.py dashboard …`). The UI loads without `am4`, but **add hub** and **refresh** need it. |
 | Segfault on import | Must call `init()` before any am4 module usage |

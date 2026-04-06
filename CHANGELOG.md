@@ -31,7 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **`convert_csv.py`:** **`AIRCRAFT_MAP`** shortnames aligned with am4 **`Aircraft.search`** canonical ids.
 - **Airport bulk extract:** stores **every** valid am4 airport; **`min_runway`** applies only when adding a hub through **`upsert_airport_from_am4`**, not during full **`extract_all_airports`**.
 - **Dashboard default bind:** **`python main.py dashboard`** uses **`127.0.0.1`** unless **`--host 0.0.0.0`** (see README).
-- **README:** Docker section, auth / token documentation, extract option table (id max, runway note), breakeven and troubleshooting updates.
+- **README:** Docker section, auth / token documentation, extract option table (id max, runway note), breakeven and troubleshooting updates; **Windows (native)** install with **Visual Studio Build Tools** / MSVC (pinned **saqibj/am4** fork), PowerShell quick start, and **WSL** as optional.
 
 ### Fixed
 

@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Hub ROI (`/hub-roi`):** per-hub cards for hubs you operate (**My Routes**), with capital deployed, daily profit, payback days, route and copy counts, and average profit per assigned copy; hubs sorted by lowest avg $/copy first with the worst hub highlighted; totals row with blended payback; footnote on capital accounting.
 - **Fleet Health (`/fleet-health`):** compares each **My Routes** assignment to the best **`route_aircraft`** alternative on the same origin–destination (by profit per aircraft per day), with hub / minimum gap / “hide optimal” / reconfig-only filters; HTMX loads **`/api/fleet-health`** and shows swap vs reconfigure suggestions plus a summary of estimated daily profit left on the table.
 - **Buy Next page (`/buy-next`):** recommends aircraft to purchase next by payback period (cost ÷ average daily profit), with optional budget, hub, aircraft type, Top N, and “exclude owned” filters; HTMX loads **`/api/buy-next`** and shows top three routes with Y/J/F configuration per result.
 - **CLI `backup`:** **`python main.py backup --db …`** copies the SQLite file via the online backup API to **`./backups/<stem>_UTCtimestamp.db`** ( **`--output`** / **`-o`** for another directory) (SEC-15).

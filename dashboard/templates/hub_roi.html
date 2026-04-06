@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Hub ROI{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Hub ROI</h2>
+<p class="am4-text-secondary mb-6">Capital deployed and daily profit by hub for routes in <strong class="am4-text-secondary">My Routes</strong>, using matched <code class="text-xs am4-text-muted">route_aircraft</code> rows. Hubs are sorted by <strong class="am4-text-secondary">average profit per assigned copy</strong> (lowest first).</p>
+
+{% if not hub_roi_rows %}
+<p class="am4-text-secondary rounded-lg am4-bordered p-6">No hub data yet. Add routes under <a href="/my-routes" class="am4-accent underline underline-offset-2">My Routes</a> after extracting.</p>
+{% else %}
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-8">
+    {% for r in hub_roi_rows %}
+    <div class="rounded-lg am4-bordered p-4 flex flex-col gap-2 {% if r.is_worst %}border-amber-600/70 bg-amber-950/25 ring-1 ring-amber-700/40{% else %}am4-sunken{% endif %}">
+        <div class="flex items-center justify-between gap-2">
+            <span class="text-lg font-mono font-bold am4-accent">{{ r.hub }}</span>
+            {% if r.is_worst %}
+            <span class="text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-amber-900/50 text-amber-200 border border-amber-700/60">Lowest avg $/copy</span>
+            {% endif %}
+        </div>
+        <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+            <dt class="am4-text-muted">Routes</dt>
+            <dd class="font-mono text-right">{{ r.routes }}</dd>
+            <dt class="am4-text-muted">Copies assigned</dt>
+            <dd class="font-mono text-right">{{ r.aircraft_deployed }}</dd>
+            <dt class="am4-text-muted">Capital</dt>
+            <dd class="font-mono text-right">${{ "{:,.0f}".format(r.capital_deployed) }}</dd>
+            <dt class="am4-text-muted">Daily profit</dt>
+            <dd class="font-mono text-right text-emerald-300">${{ "{:,.0f}".format(r.daily_profit) }}</dd>
+            <dt class="am4-text-muted">Avg $/copy / day</dt>
+            <dd class="font-mono text-right am4-accent">${{ "{:,.0f}".format(r.avg_profit_per_ac) }}</dd>
+            <dt class="am4-text-muted">Payback (days)</dt>
+            <dd class="font-mono text-right">
+                {% if r.payback_days is not none %}
+                {{ "{:,.1f}".format(r.payback_days) }}
+                {% else %}
+                <span class="am4-text-muted">—</span>
+                {% endif %}
+            </dd>
+        </dl>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="rounded-lg am4-bordered p-4 mb-6 bg-gradient-to-br from-gray-900/80 to-gray-900/40">
+    <h3 class="text-sm font-semibold am4-text-muted uppercase tracking-wider mb-3">All hubs (totals)</h3>
+    <dl class="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4 text-sm">
+        <div>
+            <dt class="am4-text-muted">Routes</dt>
+            <dd class="font-mono text-lg">{{ hub_roi_totals.routes }}</dd>
+        </div>
+        <div>
+            <dt class="am4-text-muted">Copies assigned</dt>
+            <dd class="font-mono text-lg">{{ hub_roi_totals.aircraft_deployed }}</dd>
+        </div>
+        <div>
+            <dt class="am4-text-muted">Capital</dt>
+            <dd class="font-mono text-lg">${{ "{:,.0f}".format(hub_roi_totals.capital) }}</dd>
+        </div>
+        <div>
+            <dt class="am4-text-muted">Daily profit</dt>
+            <dd class="font-mono text-lg text-emerald-300">${{ "{:,.0f}".format(hub_roi_totals.daily) }}</dd>
+        </div>
+        <div class="col-span-2 sm:col-span-4">
+            <dt class="am4-text-muted">Blended payback (Σ capital ÷ Σ daily profit)</dt>
+            <dd class="font-mono text-xl am4-accent">
+                {% if hub_roi_totals.payback_days is not none %}
+                {{ "{:,.1f}".format(hub_roi_totals.payback_days) }} days
+                {% else %}
+                <span class="am4-text-muted">—</span>
+                {% endif %}
+            </dd>
+        </div>
+    </dl>
+</div>
+{% endif %}
+
+<p class="am4-text-muted text-xs max-w-3xl leading-relaxed">
+    <strong class="am4-text-secondary">Note:</strong> Capital deployed sums <code class="text-[0.7rem]">aircraft.cost × num_assigned</code> per route. If the same aircraft type serves multiple routes from one hub, the same aircraft cost is counted for each assignment — that matches capital tied up per route assignment, not distinct aircraft in the fleet.
+</p>
+{% endblock %}

@@ -263,6 +263,91 @@ def page_fleet_health(request: Request):
     return templates.TemplateResponse(request, "fleet_health.html", ctx)
 
 
+_HUB_ROI_SQL = """
+SELECT ho.iata AS hub,
+       COUNT(DISTINCT mr.id) AS routes,
+       SUM(mr.num_assigned) AS aircraft_deployed,
+       SUM(ac.cost * mr.num_assigned) AS capital_deployed,
+       SUM(COALESCE(ra.profit_per_ac_day, 0) * mr.num_assigned) AS daily_profit
+FROM my_routes mr
+JOIN route_aircraft ra
+     ON ra.origin_id = mr.origin_id
+    AND ra.dest_id = mr.dest_id
+    AND ra.aircraft_id = mr.aircraft_id
+    AND ra.is_valid = 1
+JOIN aircraft ac ON mr.aircraft_id = ac.id
+JOIN airports ho ON mr.origin_id = ho.id
+GROUP BY ho.id, ho.iata
+"""
+
+
+def _hub_roi_summary() -> dict:
+    """Per-hub capital, daily profit, payback — from my_routes × route_aircraft."""
+    try:
+        conn = get_db()
+        try:
+            raw = fetch_all(conn, _HUB_ROI_SQL)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return {
+            "hub_roi_rows": [],
+            "hub_roi_totals": {
+                "capital": 0.0,
+                "daily": 0.0,
+                "routes": 0,
+                "aircraft_deployed": 0,
+                "payback_days": None,
+            },
+        }
+
+    rows: list[dict] = []
+    for r in raw:
+        routes = int(r["routes"] or 0)
+        deployed = int(r["aircraft_deployed"] or 0)
+        cap = float(r["capital_deployed"] or 0)
+        daily = float(r["daily_profit"] or 0)
+        avg_pa = daily / deployed if deployed else 0.0
+        payback = cap / daily if daily > 1e-9 else None
+        rows.append(
+            {
+                "hub": r["hub"],
+                "routes": routes,
+                "aircraft_deployed": deployed,
+                "capital_deployed": cap,
+                "daily_profit": daily,
+                "avg_profit_per_ac": avg_pa,
+                "payback_days": payback,
+                "is_worst": False,
+            }
+        )
+
+    if rows:
+        min_avg = min(x["avg_profit_per_ac"] for x in rows)
+        for x in rows:
+            x["is_worst"] = abs(x["avg_profit_per_ac"] - min_avg) < 1e-9
+        rows.sort(key=lambda x: x["avg_profit_per_ac"])
+
+    totals = {
+        "capital": sum(x["capital_deployed"] for x in rows),
+        "daily": sum(x["daily_profit"] for x in rows),
+        "routes": sum(x["routes"] for x in rows),
+        "aircraft_deployed": sum(x["aircraft_deployed"] for x in rows),
+    }
+    totals["payback_days"] = (
+        totals["capital"] / totals["daily"] if totals["daily"] > 1e-9 else None
+    )
+
+    return {"hub_roi_rows": rows, "hub_roi_totals": totals}
+
+
+@router.get("/hub-roi", response_class=HTMLResponse)
+def page_hub_roi(request: Request):
+    ctx = base_context(request)
+    ctx.update(_hub_roi_summary())
+    return templates.TemplateResponse(request, "hub_roi.html", ctx)
+
+
 @router.get("/my-routes", response_class=HTMLResponse)
 def page_my_routes(request: Request):
     try:

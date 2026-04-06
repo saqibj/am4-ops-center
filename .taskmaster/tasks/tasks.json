@@ -355,7 +355,7 @@
         "id": "27",
         "title": "Split api_routes.py into per-domain modules",
         "description": "Refactor the 2,122-line api_routes.py into focused modules. This is a low-risk refactor that improves maintainability.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "5",
           "8",

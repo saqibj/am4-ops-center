@@ -403,7 +403,8 @@ am4-routemine/
 │   ├── hub_freshness.py     # Hub extract stale threshold / display status
 │   ├── routes/
 │   │   ├── pages.py         # Page routes
-│   │   └── api_routes.py    # HTMX + JSON API routes
+│   │   ├── api_routes.py    # re-exports /api router (compat)
+│   │   └── api/             # HTMX + JSON under /api (meta, analytics, fleet, …)
 │   ├── templates/           # Jinja2 HTML templates
 │   └── static/              # favicon; css/ (theme, settings); js/ (theme, settings store, branding, shell)
 ├── docs/                    # Design notes (e.g. UIPRO brief / visual spec)

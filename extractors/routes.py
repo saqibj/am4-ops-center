@@ -8,7 +8,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any
 
 from config import GameMode, UserConfig
-from database.schema import clear_route_tables, create_schema, get_connection, replace_master_tables
+from database.schema import (
+    clear_route_tables,
+    create_schema,
+    get_connection,
+    replace_master_tables,
+    save_extract_config,
+)
 from extractors.aircraft import extract_all_aircraft
 from extractors.airports import extract_all_airports
 
@@ -438,6 +444,7 @@ def refresh_single_hub_conn(conn: sqlite3.Connection, cfg: UserConfig, hub_iata:
             iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label
         )
         _insert_batches(conn, rr, _demands_to_map(dd))
+        save_extract_config(conn, cfg)
         _my_hubs_mark_ok(conn, ap_id)
     except Exception as exc:
         err_txt = str(exc)[:1024] if str(exc) else type(exc).__name__
@@ -544,5 +551,6 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
                 merge_demands(dd)
 
     _insert_batches(conn, all_routes, demand_map)
+    save_extract_config(conn, cfg)
     print(f"    → {len(all_routes)} route rows, {len(demand_map)} origin–destination demand rows")
     conn.close()

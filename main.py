@@ -12,6 +12,7 @@ Usage:
     python main.py fleet import --replace --file fleet.csv
     python main.py routes import --file my_routes.csv
     python main.py recommend --hub KHI --budget 500000000
+    python main.py extract-info --db am4_data.db
 """
 
 from __future__ import annotations
@@ -32,6 +33,22 @@ def _config_from_extract_args(args: argparse.Namespace) -> UserConfig:
         reputation=float(args.reputation),
         max_workers=int(args.workers),
     )
+    if getattr(args, "planes_owned", None) is not None:
+        cfg.total_planes_owned = int(args.planes_owned)
+    else:
+        from database.schema import derived_total_planes
+
+        try:
+            conn = get_connection(args.db)
+            try:
+                derived = derived_total_planes(conn)
+                if derived is not None:
+                    cfg.total_planes_owned = derived
+                    print(f"Using total_planes_owned={derived} derived from my_fleet.")
+            finally:
+                conn.close()
+        except Exception:
+            pass
     if args.all_hubs:
         cfg.hubs = []
     elif args.hubs:
@@ -173,6 +190,34 @@ def cmd_recommend(args: argparse.Namespace) -> None:
     )
 
 
+def cmd_extract_info(args: argparse.Namespace) -> None:
+    from dataclasses import asdict
+    from pprint import pprint
+
+    from database.schema import load_extract_config
+
+    conn = get_connection(args.db)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='extract_metadata' LIMIT 1"
+        ).fetchone()
+        if not row:
+            print(
+                "No extract_metadata table; run extract once to initialize the database.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        cfg = load_extract_config(conn)
+        if cfg is None:
+            print("No saved extract configuration (extract_metadata is empty).")
+            return
+        d = asdict(cfg)
+        d["game_mode"] = cfg.game_mode.value
+        pprint(d, sort_dicts=True)
+    finally:
+        conn.close()
+
+
 def cmd_migrate(args: argparse.Namespace) -> None:
     from database.schema import migrate_add_unique_constraints
 
@@ -214,6 +259,12 @@ def main() -> None:
     ex.add_argument("--aircraft", type=str, help="Limit to aircraft shortnames, e.g. b738,a388")
     ex.add_argument("--db", type=str, default="am4_data.db")
     ex.add_argument("--workers", type=int, default=4)
+    ex.add_argument(
+        "--planes-owned",
+        type=int,
+        default=None,
+        help="Override total_planes_owned (AM4 discount). Default: sum of my_fleet quantities, else 50.",
+    )
     ex.set_defaults(func=cmd_extract)
 
     exp = sub.add_parser("export", help="Export DB to CSV or Excel")
@@ -312,6 +363,13 @@ def main() -> None:
         help="Exclude aircraft types already in my_fleet (quantity > 0)",
     )
     rec.set_defaults(func=cmd_recommend)
+
+    info = sub.add_parser(
+        "extract-info",
+        help="Print saved extract UserConfig from extract_metadata (after an extract or hub refresh)",
+    )
+    info.add_argument("--db", type=str, default="am4_data.db")
+    info.set_defaults(func=cmd_extract_info)
 
     mig = sub.add_parser(
         "migrate",

@@ -1,4 +1,9 @@
-"""Shared hub + budget aircraft recommendation rows (CLI + dashboard)."""
+"""Shared hub + budget aircraft recommendation rows (CLI + dashboard).
+
+Recommendations use route data from SQLite; AM4 pricing/discount assumptions follow the
+same UserConfig as extraction. ``total_planes_owned`` is driven by my_fleet when set
+from dashboard refresh or CLI extract (see extract metadata / ``--planes-owned``).
+"""
 
 from __future__ import annotations
 

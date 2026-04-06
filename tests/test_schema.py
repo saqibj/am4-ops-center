@@ -7,12 +7,16 @@ from typing import Any
 
 import pytest
 
+from config import UserConfig
 from database.schema import (
     clear_route_tables,
     create_schema,
+    derived_total_planes,
     get_connection,
+    load_extract_config,
     migrate_add_unique_constraints,
     replace_master_tables,
+    save_extract_config,
 )
 from extractors.routes import ROUTE_INSERT_SQL
 
@@ -189,4 +193,34 @@ def test_clear_route_tables_resets_route_aircraft_sequence(tmp_path) -> None:
     max_after = conn.execute("SELECT MAX(id) FROM route_aircraft").fetchone()[0]
     assert max_after is not None
     assert int(max_after) <= int(max_before)
+    conn.close()
+
+
+def test_save_load_extract_config_roundtrip(tmp_path) -> None:
+    db = tmp_path / "meta.db"
+    conn = get_connection(db)
+    create_schema(conn)
+    cfg = UserConfig(reputation=95.0, cost_index=180, total_planes_owned=42)
+    save_extract_config(conn, cfg)
+    conn.close()
+    c2 = get_connection(db)
+    got = load_extract_config(c2)
+    c2.close()
+    assert got is not None
+    assert got.reputation == 95.0
+    assert got.cost_index == 180
+    assert got.total_planes_owned == 42
+
+
+def test_derived_total_planes_none_when_fleet_empty(tmp_path) -> None:
+    db = tmp_path / "fleet.db"
+    conn = get_connection(db)
+    create_schema(conn)
+    assert derived_total_planes(conn) is None
+    conn.execute(
+        "INSERT INTO aircraft (id, shortname, name, type) VALUES (1, 'b738', 'B737-800', 'PAX')"
+    )
+    conn.execute("INSERT INTO my_fleet (aircraft_id, quantity) VALUES (1, 10)")
+    conn.commit()
+    assert derived_total_planes(conn) == 10
     conn.close()

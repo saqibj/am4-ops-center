@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
+from dataclasses import asdict, fields
 from pathlib import Path
+
+from config import GameMode, UserConfig
 
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
@@ -171,6 +175,12 @@ CREATE TABLE IF NOT EXISTS my_hubs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_my_hubs_airport ON my_hubs(airport_id);
+
+CREATE TABLE IF NOT EXISTS extract_metadata (
+    key         TEXT PRIMARY KEY,
+    value       TEXT,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 DROP VIEW IF EXISTS v_my_fleet;
 CREATE VIEW v_my_fleet AS
@@ -376,6 +386,47 @@ def get_connection(db_path: str | Path) -> sqlite3.Connection:
 def create_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
     conn.commit()
+
+
+def save_extract_config(conn: sqlite3.Connection, cfg: UserConfig) -> None:
+    """Persist the UserConfig used for an extraction or hub refresh."""
+    payload = asdict(cfg)
+    payload["game_mode"] = cfg.game_mode.value
+    for k, v in payload.items():
+        conn.execute(
+            """
+            INSERT INTO extract_metadata (key, value, updated_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = datetime('now')
+            """,
+            (k, json.dumps(v)),
+        )
+    conn.commit()
+
+
+def load_extract_config(conn: sqlite3.Connection) -> UserConfig | None:
+    """Load UserConfig from the last save. Returns None if no rows."""
+    rows = conn.execute("SELECT key, value FROM extract_metadata").fetchall()
+    if not rows:
+        return None
+    data: dict = {r[0]: json.loads(r[1]) for r in rows}
+    if "game_mode" in data:
+        data["game_mode"] = GameMode(data["game_mode"])
+    known = {f.name for f in fields(UserConfig)}
+    data = {k: v for k, v in data.items() if k in known}
+    return UserConfig(**data)
+
+
+def derived_total_planes(conn: sqlite3.Connection) -> int | None:
+    """Return SUM(quantity) from my_fleet, or None if empty or table missing."""
+    try:
+        row = conn.execute("SELECT COALESCE(SUM(quantity), 0) FROM my_fleet").fetchone()
+    except sqlite3.OperationalError:
+        return None
+    n = int(row[0] or 0) if row else 0
+    return n if n > 0 else None
 
 
 def clear_route_tables(conn: sqlite3.Connection) -> None:

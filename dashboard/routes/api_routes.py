@@ -1811,7 +1811,24 @@ def api_routes_json() -> list[dict]:
 
 
 def _dashboard_extract_config() -> UserConfig:
-    return UserConfig()
+    """Load last saved extract UserConfig; merge my_fleet-derived plane count when present."""
+    from database.schema import derived_total_planes, load_extract_config
+
+    cfg = UserConfig()
+    try:
+        conn = get_db()
+        try:
+            loaded = load_extract_config(conn)
+            if loaded is not None:
+                cfg = loaded
+            derived = derived_total_planes(conn)
+            if derived is not None:
+                cfg.total_planes_owned = derived
+        finally:
+            conn.close()
+    except (FileNotFoundError, sqlite3.OperationalError):
+        pass
+    return cfg
 
 
 _HUBS_AM4_UNAVAILABLE_MSG = (

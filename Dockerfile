@@ -7,10 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python dependencies first (cached layer)
+# Install Python dependencies first (cached layer); am4 comes only from requirements.txt
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir "am4 @ git+https://github.com/abc8747/am4.git@master" \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy project code (changes more often, so this layer rebuilds)

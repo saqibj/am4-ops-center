@@ -211,7 +211,7 @@
         "id": "16",
         "title": "Concurrency lock on hub refresh endpoints (DoS mitigation)",
         "description": "Fix SEC-10 - hub refresh triggers unbounded CPU and blocks all other requests. Prevent concurrent refreshes.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "1"
         ],

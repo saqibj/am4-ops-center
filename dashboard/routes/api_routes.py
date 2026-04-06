@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 from datetime import datetime, timedelta, timezone
 from html import escape as html_escape
 
@@ -25,6 +26,25 @@ def _stale_cutoff_iso(days: int = STALE_AFTER_DAYS) -> str:
 
 
 router = APIRouter(prefix="/api", tags=["api"])
+
+_EXTRACTION_LOCK = threading.Lock()
+
+_EXTRACTION_BUSY_MSG = (
+    "Another extraction is already in progress. Wait for it to finish."
+)
+
+
+def _try_acquire_extraction_lock() -> bool:
+    """Return True if the lock was acquired (non-blocking). False if an extraction is already running."""
+    return _EXTRACTION_LOCK.acquire(blocking=False)
+
+
+def _release_extraction_lock() -> None:
+    try:
+        _EXTRACTION_LOCK.release()
+    except RuntimeError:
+        pass
+
 
 HUB_SORT_COLUMNS = {
     "profit_per_ac_day",
@@ -2031,102 +2051,112 @@ def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form(
 
 @router.post("/hubs/refresh", response_class=HTMLResponse)
 def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
-    iata: str | None = None
+    if not _try_acquire_extraction_lock():
+        return _hub_inventory_response(request, flash_err=_EXTRACTION_BUSY_MSG)
     try:
-        conn = get_db()
+        iata: str | None = None
         try:
-            _hubs_ensure_schema(conn)
-            row = fetch_one(
-                conn,
-                "SELECT iata FROM v_my_hubs WHERE id = ? LIMIT 1",
-                [int(hub_id)],
-            )
-            if not row or not row.get("iata"):
-                return _hub_inventory_response(request, flash_err="Hub not found.")
-            iata = str(row["iata"]).strip()
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        return _hub_inventory_response(request, flash_err="Database not found.")
+            conn = get_db()
+            try:
+                _hubs_ensure_schema(conn)
+                row = fetch_one(
+                    conn,
+                    "SELECT iata FROM v_my_hubs WHERE id = ? LIMIT 1",
+                    [int(hub_id)],
+                )
+                if not row or not row.get("iata"):
+                    return _hub_inventory_response(request, flash_err="Hub not found.")
+                iata = str(row["iata"]).strip()
+            finally:
+                conn.close()
+        except FileNotFoundError:
+            return _hub_inventory_response(request, flash_err="Database not found.")
 
-    try:
-        _am4_init()
-        from extractors.routes import refresh_single_hub
+        try:
+            _am4_init()
+            from extractors.routes import refresh_single_hub
 
-        refresh_single_hub(DB_PATH, _dashboard_extract_config(), iata)
-    except ImportError:
-        return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
-    except RuntimeError as exc:
-        return _hub_inventory_response(request, flash_err=str(exc))
-    except ValueError as exc:
-        return _hub_inventory_response(request, flash_err=str(exc))
-    except Exception as exc:
-        return _hub_inventory_response(request, flash_err=str(exc)[:800])
+            refresh_single_hub(DB_PATH, _dashboard_extract_config(), iata)
+        except ImportError:
+            return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
+        except RuntimeError as exc:
+            return _hub_inventory_response(request, flash_err=str(exc))
+        except ValueError as exc:
+            return _hub_inventory_response(request, flash_err=str(exc))
+        except Exception as exc:
+            return _hub_inventory_response(request, flash_err=str(exc)[:800])
 
-    return _hub_inventory_response(request, flash=f"Refreshed routes for {iata}.")
+        return _hub_inventory_response(request, flash=f"Refreshed routes for {iata}.")
+    finally:
+        _release_extraction_lock()
 
 
 @router.post("/hubs/refresh-stale", response_class=HTMLResponse)
 def api_hubs_refresh_stale(request: Request):
-    stale: list[dict] = []
-    d = STALE_AFTER_DAYS
-    cutoff = _stale_cutoff_iso()
+    if not _try_acquire_extraction_lock():
+        return _hub_inventory_response(request, flash_err=_EXTRACTION_BUSY_MSG)
     try:
-        conn = get_db()
+        stale: list[dict] = []
+        d = STALE_AFTER_DAYS
+        cutoff = _stale_cutoff_iso()
         try:
-            _hubs_ensure_schema(conn)
-            stale = fetch_all(
-                conn,
-                """
-                SELECT id, iata FROM v_my_hubs
-                WHERE last_extract_status = 'ok'
-                  AND last_extracted_at IS NOT NULL
-                  AND TRIM(last_extracted_at) != ''
-                  AND datetime(last_extracted_at) IS NOT NULL
-                  AND datetime(last_extracted_at) < datetime(?)
-                ORDER BY iata COLLATE NOCASE
-                """,
-                [cutoff],
+            conn = get_db()
+            try:
+                _hubs_ensure_schema(conn)
+                stale = fetch_all(
+                    conn,
+                    """
+                    SELECT id, iata FROM v_my_hubs
+                    WHERE last_extract_status = 'ok'
+                      AND last_extracted_at IS NOT NULL
+                      AND TRIM(last_extracted_at) != ''
+                      AND datetime(last_extracted_at) IS NOT NULL
+                      AND datetime(last_extracted_at) < datetime(?)
+                    ORDER BY iata COLLATE NOCASE
+                    """,
+                    [cutoff],
+                )
+            finally:
+                conn.close()
+        except FileNotFoundError:
+            return _hub_inventory_response(request, flash_err="Database not found.")
+        except sqlite3.OperationalError as exc:
+            return _hub_inventory_response(request, flash_err=str(exc))
+
+        if not stale:
+            return _hub_inventory_response(
+                request,
+                flash=f"No stale hubs (all OK extracts within {d} days, or use per-hub Refresh for errors).",
             )
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        return _hub_inventory_response(request, flash_err="Database not found.")
-    except sqlite3.OperationalError as exc:
-        return _hub_inventory_response(request, flash_err=str(exc))
 
-    if not stale:
-        return _hub_inventory_response(
-            request,
-            flash=f"No stale hubs (all OK extracts within {d} days, or use per-hub Refresh for errors).",
-        )
-
-    try:
-        _am4_init()
-        from extractors.routes import refresh_single_hub
-    except ImportError:
-        return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
-
-    cfg = _dashboard_extract_config()
-    errors: list[str] = []
-    ok_n = 0
-    for row in stale:
-        code = (row.get("iata") or "").strip()
-        if not code:
-            continue
         try:
-            refresh_single_hub(DB_PATH, cfg, code)
-            ok_n += 1
-        except (RuntimeError, ValueError) as exc:
-            errors.append(f"{code}: {exc}")
-        except Exception as exc:
-            errors.append(f"{code}: {str(exc)[:200]}")
+            _am4_init()
+            from extractors.routes import refresh_single_hub
+        except ImportError:
+            return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
 
-    msg = f"Refreshed {ok_n} stale hub(s) (extract older than {d} days)."
-    if errors:
-        msg += "\n" + "\n".join(errors)
-        return _hub_inventory_response(request, flash_err=msg)
-    return _hub_inventory_response(request, flash=msg)
+        cfg = _dashboard_extract_config()
+        errors: list[str] = []
+        ok_n = 0
+        for row in stale:
+            code = (row.get("iata") or "").strip()
+            if not code:
+                continue
+            try:
+                refresh_single_hub(DB_PATH, cfg, code)
+                ok_n += 1
+            except (RuntimeError, ValueError) as exc:
+                errors.append(f"{code}: {exc}")
+            except Exception as exc:
+                errors.append(f"{code}: {str(exc)[:200]}")
+
+        msg = f"Refreshed {ok_n} stale hub(s) (extract older than {d} days)."
+        if errors:
+            msg += "\n" + "\n".join(errors)
+            return _hub_inventory_response(request, flash_err=msg)
+        return _hub_inventory_response(request, flash=msg)
+    finally:
+        _release_extraction_lock()
 
 
 @router.post("/hubs/delete", response_class=HTMLResponse)

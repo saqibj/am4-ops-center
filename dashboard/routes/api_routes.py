@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from html import escape as html_escape
 
 from fastapi import APIRouter, Form, Query, Request
@@ -15,6 +16,13 @@ from config import UserConfig
 from dashboard.db import DB_PATH, fetch_all, fetch_one, get_db
 from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
 from dashboard.server import templates
+
+
+def _stale_cutoff_iso(days: int = STALE_AFTER_DAYS) -> str:
+    """ISO timestamp for 'now minus N days' in UTC, for SQL bound parameters."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    return cutoff.strftime("%Y-%m-%d %H:%M:%S")
+
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -1883,10 +1891,10 @@ def api_hubs_summary(request: Request):
         conn = get_db()
         try:
             _hubs_ensure_schema(conn)
-            d = STALE_AFTER_DAYS
+            cutoff = _stale_cutoff_iso()
             row = fetch_one(
                 conn,
-                f"""
+                """
                 SELECT COUNT(*) AS total,
                        SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active,
                        SUM(CASE
@@ -1894,7 +1902,7 @@ def api_hubs_summary(request: Request):
                            last_extracted_at IS NOT NULL
                            AND TRIM(last_extracted_at) != ''
                            AND datetime(last_extracted_at) IS NOT NULL
-                           AND datetime(last_extracted_at) < datetime('now', '-{d} days')
+                           AND datetime(last_extracted_at) < datetime(?)
                          ) THEN 1 ELSE 0
                        END) AS fresh_ok,
                        SUM(CASE
@@ -1902,7 +1910,7 @@ def api_hubs_summary(request: Request):
                           AND last_extracted_at IS NOT NULL
                           AND TRIM(last_extracted_at) != ''
                           AND datetime(last_extracted_at) IS NOT NULL
-                          AND datetime(last_extracted_at) < datetime('now', '-{d} days')
+                          AND datetime(last_extracted_at) < datetime(?)
                          THEN 1 ELSE 0
                        END) AS stale_n,
                        SUM(CASE
@@ -1915,6 +1923,7 @@ def api_hubs_summary(request: Request):
                        END) AS other_n
                 FROM my_hubs
                 """,
+                [cutoff, cutoff],
             )
         finally:
             conn.close()
@@ -2046,21 +2055,23 @@ def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
 def api_hubs_refresh_stale(request: Request):
     stale: list[dict] = []
     d = STALE_AFTER_DAYS
+    cutoff = _stale_cutoff_iso()
     try:
         conn = get_db()
         try:
             _hubs_ensure_schema(conn)
             stale = fetch_all(
                 conn,
-                f"""
+                """
                 SELECT id, iata FROM v_my_hubs
                 WHERE last_extract_status = 'ok'
                   AND last_extracted_at IS NOT NULL
                   AND TRIM(last_extracted_at) != ''
                   AND datetime(last_extracted_at) IS NOT NULL
-                  AND datetime(last_extracted_at) < datetime('now', '-{d} days')
+                  AND datetime(last_extracted_at) < datetime(?)
                 ORDER BY iata COLLATE NOCASE
                 """,
+                [cutoff],
             )
         finally:
             conn.close()

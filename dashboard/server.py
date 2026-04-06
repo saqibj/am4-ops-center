@@ -2,18 +2,39 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 BASE_DIR = Path(__file__).resolve().parent
 
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-app = FastAPI(title="AM4 Ops Center Dashboard")
+def _auth_template_context(request: Request) -> dict[str, Any]:
+    from dashboard.auth import get_dashboard_auth_token
+
+    return {"auth_token": get_dashboard_auth_token()}
+
+
+templates = Jinja2Templates(
+    directory=str(BASE_DIR / "templates"),
+    context_processors=[_auth_template_context],
+)
+
+
+@asynccontextmanager
+async def _app_lifespan(_app: FastAPI):
+    from dashboard.auth import get_dashboard_auth_token
+
+    get_dashboard_auth_token()
+    yield
+
+
+app = FastAPI(title="AM4 Ops Center Dashboard", lifespan=_app_lifespan)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 

@@ -237,7 +237,7 @@
         "id": "18",
         "title": "CSRF protection on POST endpoints via token middleware",
         "description": "Fix SEC-06 - no CSRF protection on any POST endpoint. Add a bearer-token auth middleware that doubles as CSRF protection.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "5"
         ],

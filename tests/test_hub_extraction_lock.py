@@ -42,7 +42,7 @@ def test_extraction_lock_second_acquire_fails() -> None:
         api_routes._release_extraction_lock()
 
 
-def test_concurrent_hub_refresh_second_gets_busy_message(hub_refresh_db) -> None:
+def test_concurrent_hub_refresh_second_gets_busy_message(hub_refresh_db, auth_headers) -> None:
     hub_id = hub_refresh_db
     entered = threading.Event()
 
@@ -56,14 +56,22 @@ def test_concurrent_hub_refresh_second_gets_busy_message(hub_refresh_db) -> None
 
         def run_refresh() -> None:
             try:
-                client.post("/api/hubs/refresh", data={"hub_id": str(hub_id)})
+                client.post(
+                    "/api/hubs/refresh",
+                    data={"hub_id": str(hub_id)},
+                    headers=auth_headers,
+                )
             except BaseException as exc:
                 errors.append(exc)
 
         th = threading.Thread(target=run_refresh)
         th.start()
         assert entered.wait(timeout=5)
-        r2 = client.post("/api/hubs/refresh", data={"hub_id": str(hub_id)})
+        r2 = client.post(
+            "/api/hubs/refresh",
+            data={"hub_id": str(hub_id)},
+            headers=auth_headers,
+        )
         assert r2.status_code == 200
         assert "Another extraction is already in progress" in r2.text
         th.join(timeout=15)
@@ -71,7 +79,7 @@ def test_concurrent_hub_refresh_second_gets_busy_message(hub_refresh_db) -> None
     assert not errors
 
 
-def test_refresh_stale_busy_while_single_hub_refresh_runs(hub_refresh_db) -> None:
+def test_refresh_stale_busy_while_single_hub_refresh_runs(hub_refresh_db, auth_headers) -> None:
     hub_id = hub_refresh_db
     entered = threading.Event()
 
@@ -82,11 +90,15 @@ def test_refresh_stale_busy_while_single_hub_refresh_runs(hub_refresh_db) -> Non
     with patch("extractors.routes.refresh_single_hub", side_effect=slow_refresh):
         client = TestClient(app)
         th = threading.Thread(
-            target=lambda: client.post("/api/hubs/refresh", data={"hub_id": str(hub_id)})
+            target=lambda: client.post(
+                "/api/hubs/refresh",
+                data={"hub_id": str(hub_id)},
+                headers=auth_headers,
+            )
         )
         th.start()
         assert entered.wait(timeout=5)
-        r2 = client.post("/api/hubs/refresh-stale")
+        r2 = client.post("/api/hubs/refresh-stale", headers=auth_headers)
         assert r2.status_code == 200
         assert "Another extraction is already in progress" in r2.text
         th.join(timeout=15)

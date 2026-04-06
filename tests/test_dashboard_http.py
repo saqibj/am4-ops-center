@@ -36,6 +36,9 @@ def test_index_renders(client: TestClient) -> None:
     r = client.get("/")
     assert r.status_code == 200
     assert "AM4 Ops Center" in r.text or "Overview" in r.text
+    assert "hx-headers" in r.text
+    assert "Authorization" in r.text
+    assert "Bearer " in r.text
 
 
 # HTMX bubbles afterRequest to ancestors; without this guard, child requests (e.g. search)

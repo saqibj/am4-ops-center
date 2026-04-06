@@ -35,15 +35,19 @@ def _fleet_id(client: TestClient) -> int:
     return int(data[0]["id"])
 
 
-def test_fleet_buy_atomic_updates_quantity(fleet_test_db) -> None:
+def test_fleet_buy_atomic_updates_quantity(fleet_test_db, auth_headers) -> None:
     client = TestClient(app)
     fid = _fleet_id(client)
-    r = client.post(f"/api/fleet/{fid}/buy", data={"add_count": 5})
+    r = client.post(
+        f"/api/fleet/{fid}/buy",
+        data={"add_count": 5},
+        headers=auth_headers,
+    )
     assert r.status_code == 200
     assert client.get("/api/fleet/json").json()[0]["quantity"] == 15
 
 
-def test_fleet_concurrent_buys_no_lost_updates(fleet_test_db) -> None:
+def test_fleet_concurrent_buys_no_lost_updates(fleet_test_db, auth_headers) -> None:
     client = TestClient(app)
     fid = _fleet_id(client)
     errors: list[str] = []
@@ -51,7 +55,11 @@ def test_fleet_concurrent_buys_no_lost_updates(fleet_test_db) -> None:
 
     def buy() -> None:
         try:
-            resp = client.post(f"/api/fleet/{fid}/buy", data={"add_count": 5})
+            resp = client.post(
+                f"/api/fleet/{fid}/buy",
+                data={"add_count": 5},
+                headers=auth_headers,
+            )
             if resp.status_code != 200:
                 with lock:
                     errors.append(f"status {resp.status_code}")
@@ -68,7 +76,7 @@ def test_fleet_concurrent_buys_no_lost_updates(fleet_test_db) -> None:
     assert client.get("/api/fleet/json").json()[0]["quantity"] == 30
 
 
-def test_fleet_sell_respects_assigned_under_transaction(fleet_test_db) -> None:
+def test_fleet_sell_respects_assigned_under_transaction(fleet_test_db, auth_headers) -> None:
     conn = get_connection(fleet_test_db)
     conn.execute("INSERT INTO airports (id, iata) VALUES (1, 'KHI'), (2, 'DXB')")
     conn.execute(
@@ -80,11 +88,19 @@ def test_fleet_sell_respects_assigned_under_transaction(fleet_test_db) -> None:
 
     client = TestClient(app)
     fid = _fleet_id(client)
-    r = client.post(f"/api/fleet/{fid}/sell", data={"sell_count": 8})
+    r = client.post(
+        f"/api/fleet/{fid}/sell",
+        data={"sell_count": 8},
+        headers=auth_headers,
+    )
     assert r.status_code == 200
     assert "Only 7 unassigned" in r.text
     assert client.get("/api/fleet/json").json()[0]["quantity"] == 10
 
-    r2 = client.post(f"/api/fleet/{fid}/sell", data={"sell_count": 7})
+    r2 = client.post(
+        f"/api/fleet/{fid}/sell",
+        data={"sell_count": 7},
+        headers=auth_headers,
+    )
     assert r2.status_code == 200
     assert client.get("/api/fleet/json").json()[0]["quantity"] == 3

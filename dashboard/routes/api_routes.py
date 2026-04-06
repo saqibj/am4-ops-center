@@ -9,11 +9,12 @@ import threading
 from datetime import datetime, timedelta, timezone
 from html import escape as html_escape
 
-from fastapi import APIRouter, Form, Query, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
 from commands.fleet_recommend import fleet_recommend_rows
 from config import UserConfig
+from dashboard.auth import check_auth_token
 from dashboard.db import DB_PATH, fetch_all, fetch_one, get_db
 from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
 from dashboard.server import templates
@@ -1186,7 +1187,11 @@ def api_fleet_summary(request: Request):
     )
 
 
-@router.post("/fleet/add", response_class=HTMLResponse)
+@router.post(
+    "/fleet/add",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_fleet_add(
     request: Request,
     aircraft: str = Form(""),
@@ -1263,7 +1268,11 @@ def api_fleet_add(
     return templates.TemplateResponse(request, "partials/fleet_inventory.html", ctx)
 
 
-@router.post("/fleet/delete", response_class=HTMLResponse)
+@router.post(
+    "/fleet/delete",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_fleet_delete(request: Request, fleet_id: int = Form(...)):
     try:
         conn = get_db()
@@ -1294,7 +1303,11 @@ def api_fleet_delete(request: Request, fleet_id: int = Form(...)):
     )
 
 
-@router.post("/fleet/{fleet_id}/buy", response_class=HTMLResponse)
+@router.post(
+    "/fleet/{fleet_id}/buy",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_fleet_buy(request: Request, fleet_id: int, add_count: int = Form(1)):
     flash: str | None = None
     flash_err: str | None = None
@@ -1344,7 +1357,11 @@ def api_fleet_buy(request: Request, fleet_id: int, add_count: int = Form(1)):
     return templates.TemplateResponse(request, "partials/fleet_inventory.html", ctx)
 
 
-@router.post("/fleet/{fleet_id}/sell", response_class=HTMLResponse)
+@router.post(
+    "/fleet/{fleet_id}/sell",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_fleet_sell(request: Request, fleet_id: int, sell_count: int = Form(1)):
     flash: str | None = None
     flash_err: str | None = None
@@ -1669,7 +1686,11 @@ def api_routes_summary(request: Request):
     )
 
 
-@router.post("/routes/add", response_class=HTMLResponse)
+@router.post(
+    "/routes/add",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_routes_add(
     request: Request,
     hub_iata: str = Form(""),
@@ -1780,7 +1801,11 @@ def api_routes_add(
     return templates.TemplateResponse(request, "partials/my_routes_inventory.html", ctx)
 
 
-@router.post("/routes/delete", response_class=HTMLResponse)
+@router.post(
+    "/routes/delete",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_routes_delete(request: Request, my_route_id: int = Form(...)):
     try:
         conn = get_db()
@@ -2000,7 +2025,11 @@ def api_hubs_summary(request: Request):
     return templates.TemplateResponse(request, "partials/hub_summary.html", {"stats": stats})
 
 
-@router.post("/hubs/add", response_class=HTMLResponse)
+@router.post(
+    "/hubs/add",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form("")):
     parts = [p.strip().upper() for p in (iata_list or "").replace(";", ",").split(",") if p.strip()]
     if not parts:
@@ -2060,7 +2089,11 @@ def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form(
     return _hub_inventory_response(request, flash=msg)
 
 
-@router.post("/hubs/refresh", response_class=HTMLResponse)
+@router.post(
+    "/hubs/refresh",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
     if not _try_acquire_extraction_lock():
         return _hub_inventory_response(request, flash_err=_EXTRACTION_BUSY_MSG)
@@ -2102,7 +2135,11 @@ def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
         _release_extraction_lock()
 
 
-@router.post("/hubs/refresh-stale", response_class=HTMLResponse)
+@router.post(
+    "/hubs/refresh-stale",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_hubs_refresh_stale(request: Request):
     if not _try_acquire_extraction_lock():
         return _hub_inventory_response(request, flash_err=_EXTRACTION_BUSY_MSG)
@@ -2170,7 +2207,11 @@ def api_hubs_refresh_stale(request: Request):
         _release_extraction_lock()
 
 
-@router.post("/hubs/delete", response_class=HTMLResponse)
+@router.post(
+    "/hubs/delete",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
 def api_hubs_delete(request: Request, hub_id: int = Form(...)):
     try:
         conn = get_db()

@@ -23,7 +23,8 @@
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="am4-body min-h-screen flex">
+<body class="am4-body min-h-screen flex"
+      hx-headers='{"Authorization": "Bearer {{ auth_token }}"}'>
     <input type="checkbox" id="nav-toggle" class="peer sr-only" aria-label="Toggle menu">
     <label for="nav-toggle" class="am4-mobile-menu-btn fixed top-4 left-4 z-50 lg:hidden flex items-center justify-center w-10 h-10 rounded-md cursor-pointer">
         ☰

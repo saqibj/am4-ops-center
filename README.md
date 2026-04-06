@@ -207,7 +207,7 @@ python3 main.py export --format excel --output ./exports/
 
 ### Launch Dashboard
 
-By default the dashboard binds to **127.0.0.1** only (localhost). To open it from another device on your LAN, run `python3 main.py dashboard --host 0.0.0.0` — **there is no authentication**; use that only on trusted networks. Add `--reload` for development auto-reload.
+By default the dashboard binds to **127.0.0.1** only (localhost). To open it from another device on your LAN, run `python3 main.py dashboard --host 0.0.0.0` — use that only on trusted networks; set a strong **`AM4_ROUTEMINE_TOKEN`** (see below) before exposing the app. Add `--reload` for development auto-reload.
 
 ```bash
 python3 main.py dashboard
@@ -215,9 +215,11 @@ python3 main.py dashboard
 
 python3 main.py dashboard --port 3000  # custom port
 python3 main.py dashboard --db custom.db  # custom database
-python3 main.py dashboard --host 0.0.0.0  # LAN access (no auth)
+python3 main.py dashboard --host 0.0.0.0  # LAN access
 python3 main.py dashboard --reload  # dev: auto-reload on file changes
 ```
+
+**Mutating API authentication:** Every **`POST /api/*`** action (fleet, routes, hubs) requires header **`Authorization: Bearer <token>`**. The HTML shell sets **`hx-headers`** on `<body>` so HTMX picks up the token automatically. If **`AM4_ROUTEMINE_TOKEN`** is not set, a random token is generated once at startup and printed to the console; set that variable in your environment to keep the same token across restarts. For scripts or `curl`, pass the header explicitly, for example: `curl -X POST -H "Authorization: Bearer YOUR_TOKEN" -d 'fleet_id=1' http://127.0.0.1:8000/api/fleet/delete`.
 
 ### Fleet Management
 
@@ -318,7 +320,7 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 
 ### Tech Stack
 
-- **Backend:** FastAPI + Jinja2 templates
+- **Backend:** FastAPI + Jinja2 templates; bearer token on **`POST /api/*`** (see [Launch Dashboard](#launch-dashboard))
 - **Frontend:** Tailwind CSS (CDN) + HTMX (no page reloads); **`theme.css`** semantic tokens and **`am4-*`** components; client-side theme boot (`data-theme` on `<html>`)
 - **Settings:** `dashboard/static/js/settings-store.js` (persistence) and `dashboard/ui_settings.py` (shared schema / allowlists for server use)
 - **Charts:** Chart.js
@@ -373,6 +375,7 @@ am4-routemine/
 │   └── excel_export.py      # Excel export
 ├── dashboard/
 │   ├── server.py            # FastAPI app
+│   ├── auth.py              # Bearer token for POST /api/*
 │   ├── db.py                # SQLite helpers
 │   ├── ui_settings.py       # UI settings schema / allowlists (mirrors client store)
 │   ├── hub_freshness.py     # Hub extract stale threshold / display status
@@ -407,7 +410,7 @@ am4-routemine/
 | Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |
 | SQLite locked | Close other DB connections, enable WAL mode |
 | Dashboard blank page | Check `AM4_ROUTEMINE_DB` path points to an existing `.db` file |
-| Can’t reach the dashboard from another device | Expected with the default bind address — use `--host 0.0.0.0` only on trusted networks (see [Launch Dashboard](#launch-dashboard)) |
+| Can’t reach the dashboard from another device | Expected with the default bind address — use `--host 0.0.0.0` only on trusted networks; set **`AM4_ROUTEMINE_TOKEN`** and use HTTPS or a reverse proxy if exposing beyond localhost (see [Launch Dashboard](#launch-dashboard)) |
 | Settings / theme seem “stuck” | Preferences live in **`localStorage`** for this origin; try a hard refresh or clear site data for localhost if corrupted |
 | Aircraft shortname not found | Use am4 shortnames (e.g., `a342` not `A340-200`) |
 | WSL venv broken after move | Delete `.venv` and recreate — pip paths are hardcoded |

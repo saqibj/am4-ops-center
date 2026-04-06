@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 
 from config import UserConfig
+
+log = logging.getLogger(__name__)
 
 
 def extract_all_airports(conn: sqlite3.Connection, config: UserConfig) -> list[dict]:
@@ -12,6 +15,7 @@ def extract_all_airports(conn: sqlite3.Connection, config: UserConfig) -> list[d
     from am4.utils.airport import Airport
 
     rows: list[dict] = []
+    n_skipped = 0
     sql = """
     INSERT INTO airports (
         id, iata, icao, name, fullname, country, continent, lat, lng, rwy, rwy_codes,
@@ -55,7 +59,11 @@ def extract_all_airports(conn: sqlite3.Connection, config: UserConfig) -> list[d
                         "rwy": int(ap.rwy),
                     }
                 )
-        except Exception:
+        except Exception as exc:
+            n_skipped += 1
+            log.warning("skipped airport id=%d: %s", ap_id, exc)
             continue
     conn.commit()
+    if n_skipped:
+        print(f"    ! skipped {n_skipped} airport ID lookups due to am4 errors")
     return rows

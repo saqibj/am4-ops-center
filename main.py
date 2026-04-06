@@ -59,6 +59,12 @@ def _config_from_extract_args(args: argparse.Namespace) -> UserConfig:
 
 
 def cmd_extract(args: argparse.Namespace) -> None:
+    import logging
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     from am4.utils.db import init
 
     init()
@@ -71,6 +77,12 @@ def cmd_extract(args: argparse.Namespace) -> None:
         if not args.hubs or not str(args.hubs).strip():
             print("Error: --refresh-hubs requires --hubs IATA1,IATA2", file=sys.stderr)
             sys.exit(2)
+        if int(args.workers) > 1:
+            print(
+                f"Note: --workers {args.workers} is ignored in --refresh-hubs mode "
+                "(hubs are refreshed sequentially to avoid SQLite write contention).",
+                file=sys.stderr,
+            )
         from extractors.routes import refresh_hubs
 
         hub_list = [x.strip() for x in args.hubs.split(",") if x.strip()]

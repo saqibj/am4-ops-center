@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
+
+log = logging.getLogger(__name__)
 
 
 def extract_all_aircraft(conn: sqlite3.Connection) -> list[dict]:
@@ -10,6 +13,7 @@ def extract_all_aircraft(conn: sqlite3.Connection) -> list[dict]:
     from am4.utils.aircraft import Aircraft
 
     rows: list[dict] = []
+    n_skipped = 0
     sql = """
     INSERT INTO aircraft (
         id, shortname, name, manufacturer, type, speed, fuel, co2, cost, capacity,
@@ -58,7 +62,11 @@ def extract_all_aircraft(conn: sqlite3.Connection) -> list[dict]:
                     "type": ac.type.name,
                 }
             )
-        except Exception:
+        except Exception as exc:
+            n_skipped += 1
+            log.warning("skipped aircraft id=%d: %s", ac_id, exc)
             continue
     conn.commit()
+    if n_skipped:
+        print(f"    ! skipped {n_skipped} aircraft ID lookups due to am4 errors")
     return rows

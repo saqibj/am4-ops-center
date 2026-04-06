@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any
+
+log = logging.getLogger(__name__)
 
 from config import GameMode, UserConfig
 from database.schema import (
@@ -86,7 +89,8 @@ def extract_routes_for_hub(
     try:
         hub_res = Airport.search(hub_iata.strip())
         hub = hub_res.ap
-    except Exception:
+    except Exception as exc:
+        log.warning("hub lookup failed for %s: %s", hub_iata, exc)
         return route_rows, demand_rows
 
     if not hub.valid:
@@ -102,7 +106,8 @@ def extract_routes_for_hub(
             continue
         try:
             ac = Aircraft.search(sn).ac
-        except Exception:
+        except Exception as exc:
+            log.warning("aircraft lookup failed for %s at hub %s: %s", sn, hub_iata, exc)
             continue
         if not ac.valid:
             continue
@@ -112,7 +117,13 @@ def extract_routes_for_hub(
         try:
             search = RoutesSearch(ap0=[hub], ac=ac, options=options, user=user)
             destinations = search.get()
-        except Exception:
+        except Exception as exc:
+            log.warning(
+                "RoutesSearch failed for hub=%s aircraft=%s: %s",
+                hub_iata,
+                sn,
+                exc,
+            )
             continue
 
         for dest in destinations:
@@ -502,55 +513,49 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
         allow = {h.strip().upper() for h in cfg.hub_filter if h.strip()}
         hubs = [h for h in hubs if h in allow]
 
-    user = build_am4_user(cfg)
-    options = _aircraft_route_options(cfg)
     game_mode_label = cfg.game_mode.value
+
+    def _build_user_and_options() -> tuple[Any, Any]:
+        """Fresh User + options per call so worker threads do not share mutable am4 state."""
+        return build_am4_user(cfg), _aircraft_route_options(cfg)
 
     print(f"[3/3] Computing routes for {len(hubs)} hubs × {len(aircraft_rows)} aircraft (workers={cfg.max_workers})…")
 
-    all_routes: list[dict] = []
-    demand_map: dict[tuple[int, int], tuple] = {}
-
-    def merge_demands(demands: list[dict]) -> None:
-        for d in demands:
-            key = (int(d["origin_id"]), int(d["dest_id"]))
-            if key not in demand_map:
-                demand_map[key] = (
-                    key[0],
-                    key[1],
-                    float(d["distance_km"]),
-                    int(d["demand_y"]),
-                    int(d["demand_j"]),
-                    int(d["demand_f"]),
-                )
+    total_routes = 0
+    total_demand_rows = 0
 
     workers = max(1, int(cfg.max_workers))
 
     if workers == 1:
+        user, options = _build_user_and_options()
         for hub in tqdm(hubs):
             rr, dd = extract_routes_for_hub(hub, aircraft_rows, cfg, user, options, game_mode_label)
-            all_routes.extend(rr)
-            merge_demands(dd)
+            _insert_batches(conn, rr, _demands_to_map(dd))
+            total_routes += len(rr)
+            total_demand_rows += len(dd)
     else:
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            futs = {
-                ex.submit(
-                    extract_routes_for_hub,
-                    hub,
-                    aircraft_rows,
-                    cfg,
-                    user,
-                    options,
-                    game_mode_label,
-                ): hub
-                for hub in hubs
-            }
-            for fut in tqdm(as_completed(futs), total=len(futs), desc="Hubs"):
-                rr, dd = fut.result()
-                all_routes.extend(rr)
-                merge_demands(dd)
+            futs: dict[Any, str] = {}
+            for hub in hubs:
 
-    _insert_batches(conn, all_routes, demand_map)
+                def _task(h: str = hub) -> tuple[list[dict], list[dict]]:
+                    user, options = _build_user_and_options()
+                    return extract_routes_for_hub(
+                        h, aircraft_rows, cfg, user, options, game_mode_label
+                    )
+
+                futs[ex.submit(_task)] = hub
+            for fut in tqdm(as_completed(futs), total=len(futs), desc="Hubs"):
+                hub = futs[fut]
+                try:
+                    rr, dd = fut.result()
+                except Exception as exc:
+                    log.warning("hub extraction failed for %s: %s", hub, exc)
+                    continue
+                _insert_batches(conn, rr, _demands_to_map(dd))
+                total_routes += len(rr)
+                total_demand_rows += len(dd)
+
     save_extract_config(conn, cfg)
-    print(f"    → {len(all_routes)} route rows, {len(demand_map)} origin–destination demand rows")
+    print(f"    → {total_routes} route rows, {total_demand_rows} origin–destination demand rows")
     conn.close()

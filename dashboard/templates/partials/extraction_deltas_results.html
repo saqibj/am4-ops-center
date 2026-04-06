@@ -1,0 +1,114 @@
+{% macro route_table(title, rows, profit_key) %}
+<div class="mb-8">
+    <h3 class="text-sm font-semibold am4-text-muted uppercase tracking-wider mb-2">{{ title }} <span class="font-mono text-emerald-300">({{ rows|length }} shown)</span></h3>
+    {% if not rows %}
+    <p class="text-sm am4-text-secondary">None.</p>
+    {% else %}
+    <div class="overflow-x-auto rounded-lg am4-bordered">
+        <table class="am4-table w-full text-xs font-mono">
+            <thead class="am4-table-head">
+                <tr>
+                    <th class="text-left py-1 px-2">Hub</th>
+                    <th class="text-left py-1 px-2">Dest</th>
+                    <th class="text-left py-1 px-2">AC</th>
+                    <th class="text-right py-1 px-2">Profit/d</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr class="border-t am4-border">
+                    <td class="py-1 px-2">{{ r.hub_iata }}</td>
+                    <td class="py-1 px-2">{{ r.dest_iata }}</td>
+                    <td class="py-1 px-2">{{ r.ac_short }}</td>
+                    <td class="py-1 px-2 text-right text-emerald-300">${{ "{:,.0f}".format(r[profit_key] or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% if need_more_runs %}
+<p class="am4-text-secondary mb-4">You need at least <strong>two completed extractions</strong> (full or hub refresh) to compare snapshots. Each successful extract records a run and copies route rows into <code class="text-xs am4-text-muted">route_aircraft_snapshot</code>.</p>
+{% if runs %}
+<p class="text-sm am4-text-muted">Completed runs so far: <strong class="am4-text-secondary">{{ runs|length }}</strong>.</p>
+<ul class="text-xs font-mono am4-text-muted mt-2 space-y-1">
+    {% for r in runs %}
+    <li>#{{ r.id }} · {{ r.started_at or '—' }} · {{ r.scope }} · {{ r.hubs or '—' }} · {{ r.route_count or 0 }} routes</li>
+    {% endfor %}
+</ul>
+{% endif %}
+<p class="text-sm am4-text-muted mt-4">Run another <code class="text-xs">extract</code> or refresh a hub, then return here.</p>
+{% else %}
+
+<div class="rounded-lg am4-bordered p-4 mb-6 am4-sunken">
+    <p class="text-xs am4-text-muted uppercase tracking-wider mb-2">Summary (older run {{ run_a }} vs newer {{ run_b }})</p>
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm font-mono">
+        <div>
+            <span class="am4-text-muted">New routes</span>
+            <div class="text-lg text-emerald-300">{{ n_appeared }}</div>
+        </div>
+        <div>
+            <span class="am4-text-muted">Removed routes</span>
+            <div class="text-lg text-rose-300">{{ n_disappeared }}</div>
+        </div>
+        <div>
+            <span class="am4-text-muted">Large movers (≥{{ min_pct }}%)</span>
+            <div class="text-lg am4-accent">{{ n_movers }}</div>
+        </div>
+        <div>
+            <span class="am4-text-muted">Valid flips</span>
+            <div class="text-xs">→ profitable: <span class="text-emerald-300">{{ flip_to_profit }}</span> · → invalid: <span class="text-rose-300">{{ flip_to_loss }}</span></div>
+        </div>
+    </div>
+    {% if hub_avg %}
+    <p class="text-xs am4-text-muted mt-4 mb-1">Avg profit/day change by hub (paired routes)</p>
+    <div class="flex flex-wrap gap-2 text-xs font-mono">
+        {% for h in hub_avg[:12] %}
+        <span class="am4-bordered rounded px-2 py-0.5">{{ h.hub }} <span class="{% if h.avg_delta >= 0 %}text-emerald-300{% else %}text-rose-300{% endif %}">${{ "{:+,.0f}".format(h.avg_delta) }}</span> <span class="am4-text-muted">({{ h.n }})</span></span>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+{{ route_table("New in newer run", appeared, "profit_per_ac_day") }}
+{{ route_table("Removed (older run only)", disappeared, "profit_per_ac_day") }}
+
+<div class="mb-8">
+    <h3 class="text-sm font-semibold am4-text-muted uppercase tracking-wider mb-2">Profit movers (|Δ%| ≥ {{ min_pct }}%)</h3>
+    {% if not movers %}
+    <p class="text-sm am4-text-secondary">None at this threshold.</p>
+    {% else %}
+    <div class="overflow-x-auto rounded-lg am4-bordered">
+        <table class="am4-table w-full text-xs font-mono">
+            <thead class="am4-table-head">
+                <tr>
+                    <th class="text-left py-1 px-2">Hub</th>
+                    <th class="text-left py-1 px-2">Dest</th>
+                    <th class="text-left py-1 px-2">AC</th>
+                    <th class="text-right py-1 px-2">Older</th>
+                    <th class="text-right py-1 px-2">Newer</th>
+                    <th class="text-right py-1 px-2">Δ%</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in movers %}
+                <tr class="border-t am4-border">
+                    <td class="py-1 px-2">{{ r.hub }}</td>
+                    <td class="py-1 px-2">{{ r.dest }}</td>
+                    <td class="py-1 px-2">{{ r.ac }}</td>
+                    <td class="py-1 px-2 text-right">${{ "{:,.0f}".format(r.profit_a) }}</td>
+                    <td class="py-1 px-2 text-right text-emerald-300">${{ "{:,.0f}".format(r.profit_b) }}</td>
+                    <td class="py-1 px-2 text-right {% if r.pct > 0 %}text-emerald-300{% elif r.pct < 0 %}text-rose-300{% endif %}">{{ r.pct_display }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<p class="text-xs am4-text-muted">Rows capped per section for performance. Narrow with hub IATA or raise min %.</p>
+{% endif %}

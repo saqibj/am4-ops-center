@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from config import UserConfig
 from dashboard.db import base_context, fetch_all, fetch_one, get_db
+from database.extraction_runs import list_completed_runs
 from database.schema import load_extract_config
 from dashboard.hub_freshness import STALE_AFTER_DAYS
 from dashboard.server import templates
@@ -270,6 +271,21 @@ def page_demand_utilization(request: Request):
     ctx = base_context(request)
     ctx.update({"hubs": _hub_iatas_from_my_routes()})
     return templates.TemplateResponse(request, "demand_utilization.html", ctx)
+
+
+@router.get("/extraction-deltas", response_class=HTMLResponse)
+def page_extraction_deltas(request: Request):
+    ctx = base_context(request)
+    ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    try:
+        conn = get_db()
+        try:
+            ctx["extraction_runs"] = list_completed_runs(conn, limit=100)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        ctx["extraction_runs"] = []
+    return templates.TemplateResponse(request, "extraction_deltas.html", ctx)
 
 
 _HUB_ROI_SQL = """

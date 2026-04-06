@@ -37,6 +37,7 @@ ALLOWED_LANDING_PATHS: frozenset[str] = frozenset(
         "/my-routes",
         "/fleet-health",
         "/demand-utilization",
+        "/extraction-deltas",
         "/hub-roi",
         "/contributions",
         "/heatmap",

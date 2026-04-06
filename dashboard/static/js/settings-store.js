@@ -23,6 +23,7 @@
     "/my-routes": 1,
     "/fleet-health": 1,
     "/demand-utilization": 1,
+    "/extraction-deltas": 1,
     "/hub-roi": 1,
     "/contributions": 1,
     "/heatmap": 1,

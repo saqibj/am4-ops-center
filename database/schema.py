@@ -71,6 +71,21 @@ CREATE TABLE IF NOT EXISTS route_demands (
     FOREIGN KEY (dest_id)   REFERENCES airports(id)
 );
 
+CREATE TABLE IF NOT EXISTS extraction_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMP,
+    scope TEXT NOT NULL DEFAULT 'hubs',
+    hubs TEXT,
+    aircraft_count INTEGER,
+    route_count INTEGER,
+    snapshot_count INTEGER,
+    fuel_price REAL,
+    co2_price REAL,
+    status TEXT NOT NULL DEFAULT 'ok',
+    notes TEXT
+);
+
 CREATE TABLE IF NOT EXISTS route_aircraft (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     origin_id           INTEGER NOT NULL,
@@ -115,12 +130,28 @@ CREATE TABLE IF NOT EXISTS route_aircraft (
     fuel_price          REAL,
     co2_price           REAL,
     extracted_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    run_id              INTEGER,
 
     FOREIGN KEY (origin_id)   REFERENCES airports(id),
     FOREIGN KEY (dest_id)     REFERENCES airports(id),
     FOREIGN KEY (aircraft_id) REFERENCES aircraft(id),
+    FOREIGN KEY (run_id)      REFERENCES extraction_runs(id),
     UNIQUE(origin_id, dest_id, aircraft_id)
 );
+
+CREATE TABLE IF NOT EXISTS route_aircraft_snapshot (
+    run_id INTEGER NOT NULL REFERENCES extraction_runs(id) ON DELETE CASCADE,
+    origin_id INTEGER NOT NULL,
+    dest_id INTEGER NOT NULL,
+    aircraft_id INTEGER NOT NULL,
+    profit_per_ac_day REAL,
+    is_valid INTEGER,
+    income REAL,
+    PRIMARY KEY (run_id, origin_id, dest_id, aircraft_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ras_run ON route_aircraft_snapshot(run_id);
+CREATE INDEX IF NOT EXISTS idx_ras_origin ON route_aircraft_snapshot(origin_id);
 
 CREATE INDEX IF NOT EXISTS idx_ra_origin ON route_aircraft(origin_id);
 CREATE INDEX IF NOT EXISTS idx_ra_dest ON route_aircraft(dest_id);
@@ -606,9 +637,11 @@ CREATE TABLE route_aircraft__m (
     fuel_price          REAL,
     co2_price           REAL,
     extracted_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    run_id              INTEGER,
     FOREIGN KEY (origin_id)   REFERENCES airports(id),
     FOREIGN KEY (dest_id)     REFERENCES airports(id),
     FOREIGN KEY (aircraft_id) REFERENCES aircraft(id),
+    FOREIGN KEY (run_id)      REFERENCES extraction_runs(id),
     UNIQUE(origin_id, dest_id, aircraft_id)
 );
 """
@@ -729,11 +762,14 @@ def ensure_route_aircraft_baseline_prices(conn: sqlite3.Connection) -> None:
 
 def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
     """Apply unique constraints to DBs created before the schema update. Safe to run multiple times."""
+    from database.extraction_runs import ensure_extraction_runs_schema
+
     conn.execute("PRAGMA foreign_keys = OFF")
     try:
         _migrate_airports_iata_unique(conn)
         _migrate_aircraft_shortname_unique(conn)
         ensure_route_aircraft_baseline_prices(conn)
+        ensure_extraction_runs_schema(conn)
         _migrate_route_aircraft_unique(conn)
         _recreate_dashboard_views(conn)
         conn.commit()

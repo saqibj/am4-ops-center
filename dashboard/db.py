@@ -20,9 +20,11 @@ def get_db() -> sqlite3.Connection:
         raise FileNotFoundError(f"Database not found: {p}")
     conn = sqlite3.connect(str(p), check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    from database.extraction_runs import ensure_extraction_runs_schema
     from database.schema import ensure_route_aircraft_baseline_prices
 
     ensure_route_aircraft_baseline_prices(conn)
+    ensure_extraction_runs_schema(conn)
     return conn
 
 

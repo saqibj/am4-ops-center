@@ -514,3 +514,139 @@ def api_aircraft_chart(
             "label": "Avg profit/day by hub ($)",
         },
     )
+
+
+_COST_BREAKDOWN_SORT = frozenset({"margin_pct", "fuel_pct", "name"})
+_COST_TYPE_FILTER = frozenset({"PAX", "CARGO", "VIP"})
+
+
+@router.get("/aircraft-cost-breakdown", response_class=HTMLResponse)
+def api_aircraft_cost_breakdown(
+    request: Request,
+    sort: str = Query("margin_pct"),
+    ac_type: str = Query(""),
+):
+    """Per-aircraft average cost stack as % of trip revenue (valid route rows only)."""
+    sort_key = sort if sort in _COST_BREAKDOWN_SORT else "margin_pct"
+    tf = ac_type.strip().upper()
+    type_clause = ""
+    params: list[str] = []
+    if tf and tf in _COST_TYPE_FILTER:
+        type_clause = " AND UPPER(TRIM(ac.type)) = ?"
+        params.append(tf)
+
+    sql = f"""
+        SELECT ac.id, ac.shortname, ac.name, ac.type,
+               AVG(ra.income) AS avg_income,
+               AVG(ra.fuel_cost) AS avg_fuel,
+               AVG(ra.co2_cost) AS avg_co2,
+               AVG(ra.acheck_cost) AS avg_acheck,
+               AVG(ra.repair_cost) AS avg_repair,
+               AVG(ra.profit_per_trip) AS avg_profit,
+               AVG(ra.income - ra.profit_per_trip - ra.fuel_cost - ra.co2_cost
+                   - ra.acheck_cost - ra.repair_cost) AS avg_other
+        FROM route_aircraft ra
+        JOIN aircraft ac ON ra.aircraft_id = ac.id
+        WHERE ra.is_valid = 1{type_clause}
+        GROUP BY ac.id, ac.shortname, ac.name, ac.type
+        HAVING AVG(ra.income) > 0
+    """
+
+    try:
+        conn = get_db()
+    except FileNotFoundError:
+        return HTMLResponse(
+            "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
+        )
+
+    try:
+        rows = fetch_all(conn, sql, params)
+    finally:
+        conn.close()
+
+    processed: list[dict] = []
+    for r in rows:
+        inc = float(r["avg_income"] or 0)
+        if inc <= 0:
+            continue
+        fuel = float(r["avg_fuel"] or 0)
+        co2 = float(r["avg_co2"] or 0)
+        acheck = float(r["avg_acheck"] or 0)
+        repair = float(r["avg_repair"] or 0)
+        other = float(r["avg_other"] or 0)
+        profit = float(r["avg_profit"] or 0)
+        processed.append(
+            {
+                "shortname": str(r["shortname"] or ""),
+                "name": str(r["name"] or ""),
+                "type": str(r["type"] or ""),
+                "fuel_pct": fuel / inc * 100.0,
+                "co2_pct": co2 / inc * 100.0,
+                "acheck_pct": acheck / inc * 100.0,
+                "repair_pct": repair / inc * 100.0,
+                "other_pct": other / inc * 100.0,
+                "profit_pct": profit / inc * 100.0,
+                "margin_pct": profit / inc * 100.0,
+                "fuel_usd": fuel,
+                "co2_usd": co2,
+                "acheck_usd": acheck,
+                "repair_usd": repair,
+                "other_usd": other,
+                "profit_usd": profit,
+                "income_usd": inc,
+            }
+        )
+
+    if sort_key == "name":
+        processed.sort(key=lambda x: (x["shortname"] or "").upper())
+    elif sort_key == "fuel_pct":
+        processed.sort(key=lambda x: x["fuel_pct"], reverse=True)
+    else:
+        processed.sort(key=lambda x: x["margin_pct"], reverse=True)
+
+    max_rows = 50
+    processed = processed[:max_rows]
+
+    if not processed:
+        return HTMLResponse(
+            "<p class='am4-text-secondary text-sm'>No valid route rows with positive average income.</p>"
+        )
+
+    labels = [p["shortname"] for p in processed]
+    keys = ("fuel_pct", "co2_pct", "acheck_pct", "repair_pct", "other_pct", "profit_pct")
+    dollar_keys = ("fuel_usd", "co2_usd", "acheck_usd", "repair_usd", "other_usd", "profit_usd")
+    datasets_meta = [
+        {"label": "Fuel", "pct_key": "fuel_pct", "dollar_key": "fuel_usd", "color": "#ef4444"},
+        {"label": "CO₂", "pct_key": "co2_pct", "dollar_key": "co2_usd", "color": "#22c55e"},
+        {"label": "A-check", "pct_key": "acheck_pct", "dollar_key": "acheck_usd", "color": "#3b82f6"},
+        {"label": "Repair", "pct_key": "repair_pct", "dollar_key": "repair_usd", "color": "#a855f7"},
+        {"label": "Other", "pct_key": "other_pct", "dollar_key": "other_usd", "color": "#6b7280"},
+        {"label": "Profit", "pct_key": "profit_pct", "dollar_key": "profit_usd", "color": "#10b981"},
+    ]
+    datasets = [
+        {
+            "label": m["label"],
+            "data": [float(p[m["pct_key"]]) for p in processed],
+            "backgroundColor": m["color"],
+            "dollarKey": m["dollar_key"],
+        }
+        for m in datasets_meta
+    ]
+    dollar_rows = []
+    for p in processed:
+        row = {dk: round(float(p[dk]), 2) for dk in dollar_keys}
+        row["income_usd"] = round(float(p["income_usd"]), 2)
+        dollar_rows.append(row)
+    chart_height_px = max(280, len(labels) * 32)
+
+    return templates.TemplateResponse(
+        request,
+        "partials/aircraft_cost_breakdown.html",
+        {
+            "chart_id": "aircraftCostBreakdownChart",
+            "labels": labels,
+            "datasets": datasets,
+            "dollar_rows": dollar_rows,
+            "chart_height_px": chart_height_px,
+        },
+    )

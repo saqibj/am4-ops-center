@@ -1,0 +1,79 @@
+<div class="relative w-full" style="height: {{ chart_height_px }}px;">
+    <canvas id="{{ chart_id }}" class="w-full"></canvas>
+</div>
+<script>
+    (function() {
+        const id = {{ chart_id | tojson }};
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        const prev = canvas.chartInstance;
+        if (prev) prev.destroy();
+        const ctx = canvas.getContext('2d');
+        const cs = getComputedStyle(document.documentElement);
+        const tick = (cs.getPropertyValue('--text-muted').trim() || '#9ca3af');
+        const grid = (cs.getPropertyValue('--border-subtle').trim() || '#374151');
+        const labels = {{ labels | tojson }};
+        const datasets = {{ datasets | tojson }};
+        const dollarRows = {{ dollar_rows | tojson }};
+        const fmtUsd = (n) => '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+        canvas.chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: datasets,
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: tick, boxWidth: 12 },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (ctx) => {
+                                const i = ctx.dataIndex;
+                                const pct = (ctx.parsed && ctx.parsed.x != null)
+                                    ? ctx.parsed.x
+                                    : ctx.parsed;
+                                const row = dollarRows[i];
+                                const dk = ctx.dataset.dollarKey;
+                                const usd = row && dk ? row[dk] : null;
+                                const pctStr = pct != null && !isNaN(pct) ? pct.toFixed(1) + '%' : '';
+                                if (usd != null && !isNaN(usd)) {
+                                    return ctx.dataset.label + ': ' + pctStr + ' (' + fmtUsd(usd) + ')';
+                                }
+                                return ctx.dataset.label + ': ' + pctStr;
+                            },
+                            afterBody: (items) => {
+                                if (!items.length) return [];
+                                const i = items[0].dataIndex;
+                                const row = dollarRows[i];
+                                if (!row || row.income_usd == null) return [];
+                                return ['Avg trip revenue: ' + fmtUsd(row.income_usd)];
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        max: 100,
+                        ticks: {
+                            color: tick,
+                            callback: (v) => v + '%',
+                        },
+                        grid: { color: grid },
+                    },
+                    y: {
+                        stacked: true,
+                        ticks: { color: tick },
+                        grid: { display: false },
+                    },
+                },
+            },
+        });
+    })();
+</script>

@@ -353,7 +353,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-Covers UI settings parsing/sanitization, HTTP smoke checks for static assets, `/`, and `/settings`, and a regression test that **`/my-routes`**, **`/my-hubs`**, and **`/my-fleet`** include the HTMX **`after-request`** guard (`event.detail.elt !== event.currentTarget`) on add forms so bubbled child requests do not trigger **`form.reset()`**.
+Covers UI settings parsing/sanitization, HTTP smoke checks for static assets, **`/`** and **`/settings`**, HTMX **`after-request`** elt guards on **`/my-routes`**, **`/my-hubs`**, and **`/my-fleet`**, **`POST /api/*`** bearer-token auth, schema/migrations, fleet recommend breakeven, and related regressions (see **`tests/`**).
 
 ---
 
@@ -428,6 +428,7 @@ am4-routemine/
 | Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |
 | SQLite locked | Close other DB connections, enable WAL mode |
 | Dashboard blank page | Check `AM4_ROUTEMINE_DB` path points to an existing `.db` file |
+| **`401`** on **`POST /api/*`** (curl, custom clients, or broken HTMX) | Send **`Authorization: Bearer <token>`** matching **`AM4_ROUTEMINE_TOKEN`** or the token printed at server startup; the HTML UI sets **`hx-headers`** on **`<body>`** automatically |
 | Can’t reach the dashboard from another device | Expected with the default bind address — use `--host 0.0.0.0` only on trusted networks; set **`AM4_ROUTEMINE_TOKEN`** and use HTTPS or a reverse proxy if exposing beyond localhost (see [Launch Dashboard](#launch-dashboard)) |
 | Settings / theme seem “stuck” | Preferences live in **`localStorage`** for this origin; try a hard refresh or clear site data for localhost if corrupted |
 | Aircraft shortname not found | Use am4 shortnames (e.g., `a342` not `A340-200`) |

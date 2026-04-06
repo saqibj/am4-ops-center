@@ -6,14 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Security
+
+- **Dashboard mutating API:** all **`POST /api/*`** endpoints require **`Authorization: Bearer <token>`**; set **`AM4_ROUTEMINE_TOKEN`** or use the token printed at startup; **`hx-headers`** on **`base.html`** supplies HTMX requests (SEC-01 / SEC-06).
+- **My Fleet buy/sell:** atomic SQLite **`UPDATE`** / **`BEGIN IMMEDIATE`** sell transaction to prevent concurrent quantity races (SEC-14).
+- **Hub refresh:** non-blocking process lock so a second **`/api/hubs/refresh`** or **`/api/hubs/refresh-stale`** while extraction runs returns an **in progress** flash instead of stacking work (SEC-10).
+- **Heatmap:** Leaflet marker popups built with DOM **`textContent`** instead of HTML string interpolation (SEC-04).
+- **Docker:** multi-stage build (compilers only in builder); runtime image runs as **`appuser`** (uid **1000**); **`docker-compose.yml`** publishes **`127.0.0.1:8000:8000`** by default (SEC-12 / SEC-13).
+
+### Added
+
+- **Recommend / Fleet Planner / Buy Next:** **`days_to_breakeven_avg`** and **`days_to_breakeven_best`** (CLI columns **`days_be_avg`**, **`days_be_best`**); primary **`days_to_breakeven`** follows the **best-route** case.
+- **Extract:** **`--aircraft-id-max`** and **`--airport-id-max`** (**`UserConfig`**, persisted via **`extract_metadata`**).
+- **`scripts/verify_aircraft_map.py`** — validate **`convert_csv`** **`AIRCRAFT_MAP`** entries against am4.
+- **Tests:** `test_my_inventory_pages_form_after_request_elt_guard` in **`tests/test_dashboard_http.py`** (HTMX elt guard on **`/my-routes`**, **`/my-hubs`**, **`/my-fleet`** add forms); plus dashboard auth, fleet buy/sell concurrency, hub extraction lock, heatmap popup script shape, fleet recommend breakeven, airport extract vs **`min_runway`**, and related coverage.
+
+### Changed
+
+- **`convert_csv.py`:** **`AIRCRAFT_MAP`** shortnames aligned with am4 **`Aircraft.search`** canonical ids.
+- **Airport bulk extract:** stores **every** valid am4 airport; **`min_runway`** applies only when adding a hub through **`upsert_airport_from_am4`**, not during full **`extract_all_airports`**.
+- **Dashboard default bind:** **`python main.py dashboard`** uses **`127.0.0.1`** unless **`--host 0.0.0.0`** (see README).
+- **README:** Docker section, auth / token documentation, extract option table (id max, runway note), breakeven and troubleshooting updates.
+
 ### Fixed
 
 - **My Routes** (`/my-routes`): HTMX **`after-request`** on the add-route form was listening to **bubbled** events from child requests (airport/aircraft search), so successful search responses triggered **`form.reset()`** and cleared the hub; shared **`hx-indicator`** also showed **“Saving…”** for those searches. **Guard** `event.detail.elt !== event.currentTarget` on the form handler; **`hx-indicator="false"`** on search inputs; separate **“Loading routes…”** indicator for the inventory panel vs save.
 - **Hub Manager** (`/my-hubs`) and **My Fleet** (`/my-fleet`): same **`after-request`** guard on add forms (and on **Refresh stale hubs**) so bubbled child HTMX cannot run the wrong handler.
-
-### Added
-
-- **Tests:** `test_my_inventory_pages_form_after_request_elt_guard` in **`tests/test_dashboard_http.py`** — regression check that **`/my-routes`**, **`/my-hubs`**, and **`/my-fleet`** render the elt guard on their add forms.
 
 ---
 
@@ -71,12 +89,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## Git tags
 
 - **`v0.1.0`** — annotated tag on the last commit before the Settings / theme bundle on branch **`ui-update`** (FastAPI dashboard + Hub Manager + fleet/routes + Buy Next baseline).
-- **`v0.1.1`** — create on the commit that contains this file and the 0.1.1 code:
-  ```bash
-  git tag -a v0.1.1 -m "Release 0.1.1: Settings, themes, tests, docs"
-  ```
-  Then set the **`[Unreleased]`** footer link in this file to `compare/v0.1.1...HEAD` (until then it uses `v0.1.0...HEAD`).
+- **`v0.1.1`** — annotated tag for Settings / theme release (**`git tag -a v0.1.1 -m "Release 0.1.1: Settings, themes, tests, docs"`**). **`[Unreleased]`** compares **`v0.1.1...HEAD`**.
 
-[Unreleased]: https://github.com/saqibj/am4-ops-center/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/saqibj/am4-ops-center/compare/v0.1.1...HEAD
 [0.1.1]: https://github.com/saqibj/am4-ops-center/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/saqibj/am4-ops-center/releases/tag/v0.1.0

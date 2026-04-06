@@ -302,7 +302,7 @@
         "id": "23",
         "title": "CHANGELOG reconciliation and README consistency pass",
         "description": "Fix the Buy Next contradiction in CHANGELOG Unreleased section and ensure README, CHANGELOG, and code all agree.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "5",
           "19"

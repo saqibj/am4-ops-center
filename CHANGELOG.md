@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Hub refresh:** non-blocking process lock so a second **`/api/hubs/refresh`** or **`/api/hubs/refresh-stale`** while extraction runs returns an **in progress** flash instead of stacking work (SEC-10).
 - **Heatmap:** Leaflet marker popups built with DOM **`textContent`** instead of HTML string interpolation (SEC-04).
 - **Dashboard API flash errors:** SQLite and other exception text shown in HTMX fragments is path-scrubbed and length-capped via **`dashboard/errors.py`** (SEC-18).
+- **Dependencies:** **`requirements.in`** as the source of truth; **`requirements.lock`** with pip **`--require-hashes`** for Docker installs ( **`am4`** Git install remains a documented exception — commit pin); **`scripts/update_deps.sh`** and **`scripts/strip_vcs_from_lock.py`** (SEC-17).
 - **Docker:** multi-stage build (compilers only in builder); runtime image runs as **`appuser`** (uid **1000**); **`docker-compose.yml`** publishes **`127.0.0.1:8000:8000`** by default (SEC-12 / SEC-13).
 
 ### Added

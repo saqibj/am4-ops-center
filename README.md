@@ -148,9 +148,13 @@ Alternatively, you can use Cursor's "WSL: Connect to WSL" command (`Ctrl`+`Shift
 
 For **Taskmaster MCP** (optional), copy `.mcp.json.example` to `.mcp.json` and add your API keys. The real `.mcp.json` is gitignored so secrets are not committed.
 
-### `requirements.txt` and `pyproject.toml`
+### Dependency files (`requirements.in`, locks, `pyproject.toml`)
 
-Both list the same direct dependencies. **`requirements.txt`** is the recommended install path (`pip install -r requirements.txt`). **`pyproject.toml`** matches it (including the same **`am4`** Git install from **`github.com/saqibj/am4`**, pinned to a **commit hash** on branch **`msvc-fix`**) so `pip install -e .` stays consistent. If you upgrade `am4`, update **both** files (see the comment above the `am4` line in `requirements.txt`).
+- **`requirements.in`** — edit this for **direct** dependencies (version ranges). The **`am4`** line is a Git URL **pinned to a commit hash** (integrity for that package is the hash, not a pip wheel hash).
+- **`requirements.txt`** — generated (**no** hashes): `pip install -r requirements.txt` for local/dev installs.
+- **`requirements.lock`** — generated **with** `--hash=sha256:…` for every PyPI package; used by **Docker** after stripping the VCS line (see **`scripts/strip_vcs_from_lock.py`**). **`am4`** is installed separately in the image from the same line as in **`requirements.in`**.
+- Regenerate both files after changing **`requirements.in`**: `bash scripts/update_deps.sh` (needs **`pip-tools`**; use **Python 3.12** to match the **`Dockerfile`** base image).
+- **`pyproject.toml`** mirrors the same direct deps so `pip install -e .` stays consistent. If you upgrade **`am4`**, update **`requirements.in`**, **`pyproject.toml`**, and rerun **`scripts/update_deps.sh`**.
 
 ---
 
@@ -409,7 +413,12 @@ am4-routemine/
 ├── fleet.csv                # Fleet import data
 ├── my_routes.csv            # Routes import data
 ├── convert_csv.py           # AM4 CSV → import format converter
-├── requirements.txt
+├── requirements.in          # direct deps (edit)
+├── requirements.txt         # pinned, no hashes (generated)
+├── requirements.lock        # pinned + hashes for Docker (generated)
+├── scripts/
+│   ├── strip_vcs_from_lock.py  # strip VCS lines before pip --require-hashes
+│   └── update_deps.sh          # pip-compile requirements.txt + requirements.lock
 ├── pyproject.toml
 └── README.md
 ```

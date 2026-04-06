@@ -1,0 +1,12 @@
+# am4: pinned to commit hash (not branch) for reproducible builds.
+# To upgrade: git ls-remote https://github.com/saqibj/am4.git refs/heads/msvc-fix
+# and update both requirements.in and pyproject.toml.
+am4 @ git+https://github.com/saqibj/am4.git@af2ddf7cd433b0e61c1732fbdd4780136d46aa29
+fastapi>=0.115.0
+uvicorn>=0.30.0
+jinja2>=3.1.0
+python-multipart>=0.0.9
+pandas>=2.0.0
+openpyxl>=3.1.0
+tqdm>=4.65.0
+rich>=13.0.0

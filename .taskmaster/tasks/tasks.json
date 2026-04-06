@@ -329,7 +329,7 @@
         "id": "25",
         "title": "Generate pip-compile requirements.lock with hashes",
         "description": "Fix SEC-17 - no dependency hash verification.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "4"
         ],

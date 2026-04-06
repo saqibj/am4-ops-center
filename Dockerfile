@@ -12,9 +12,14 @@ WORKDIR /build
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY requirements.txt .
+COPY requirements.in requirements.lock ./
+COPY scripts/strip_vcs_from_lock.py ./scripts/
+# am4 is a VCS direct dep: pip cannot hash it; install from requirements.in first, then hashed PyPI pins.
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && AM4_LINE=$(python3 -c "import pathlib,re; t=pathlib.Path('requirements.in').read_text(encoding='utf-8'); m=re.search(r'^am4 @.+$', t, re.M); assert m, 'am4 line not in requirements.in'; print(m.group(0).strip())") \
+    && pip install --no-cache-dir "$AM4_LINE" \
+    && python3 scripts/strip_vcs_from_lock.py requirements.lock /tmp/requirements-hashed.lock \
+    && pip install --no-cache-dir --require-hashes -r /tmp/requirements-hashed.lock
 
 # ── Stage 2: runtime (no compilers) ──────────────────────────────────────────
 FROM python:3.12-slim AS runtime

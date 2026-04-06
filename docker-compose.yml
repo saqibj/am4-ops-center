@@ -3,14 +3,17 @@ services:
     build: .
     container_name: am4-routemine
     ports:
-      - "8000:8000"
+      # Localhost-only on the host; inside the container the app still listens on 0.0.0.0:8000
+      - "127.0.0.1:8000:8000"
     volumes:
-      # Mount project code so edits in Cursor appear instantly
+      # Mount project code so edits appear in the container (dev)
       - .:/app
-      # Persist the SQLite database and CSV data between restarts
+      # Persist SQLite (and exports) — owned by appuser after first write
       - routemine-data:/app/data
     environment:
       - AM4_ROUTEMINE_DB=/app/data/am4_data.db
+      # Optional: set a stable secret for POST /api/* (see README)
+      # - AM4_ROUTEMINE_TOKEN=your-long-random-secret
     command: python main.py dashboard --host 0.0.0.0 --db /app/data/am4_data.db
     # Override CMD for different tasks:
     #   docker compose run routemine python main.py extract --hubs KHI,DXB

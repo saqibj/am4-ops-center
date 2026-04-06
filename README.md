@@ -53,6 +53,7 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
   - [Export Data](#export-data)
   - [Launch Dashboard](#launch-dashboard)
   - [Fleet Management](#fleet-management)
+  - [Docker](#docker)
   - [Direct SQLite Queries](#direct-sqlite-queries)
 - [Dashboard](#dashboard)
   - [Pages](#pages)
@@ -266,6 +267,17 @@ KHI,BCN,a342,2,Premium route
 DXB,CAI,a319neo,1,High frequency
 HKG,IAD,a342,2,Trans-Pacific
 ```
+
+### Docker
+
+Multi-stage **`Dockerfile`**: build tools and **`pip install`** run in a builder stage; the runtime image copies only the virtualenv and runs as **`appuser`** (uid **1000**), without **`gcc`/`cmake`/`git`**. The dashboard defaults to **`--db /app/data/am4_data.db`**.
+
+```bash
+docker build -t am4-ops-center .
+docker compose up --build
+```
+
+**`docker-compose.yml`** publishes **`127.0.0.1:8000:8000`** so the dashboard is not bound on your LAN interface by default. Set **`AM4_ROUTEMINE_TOKEN`** under **`environment`** if you change the publish address or need a fixed API secret.
 
 ### Direct SQLite Queries
 

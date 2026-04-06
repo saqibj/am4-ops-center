@@ -263,7 +263,7 @@
         "id": "20",
         "title": "Dockerfile: non-root user and multi-stage build",
         "description": "Fix SEC-12 (container runs as root) and SEC-13 (build tools in runtime image). Rewrite as multi-stage.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "4"
         ],

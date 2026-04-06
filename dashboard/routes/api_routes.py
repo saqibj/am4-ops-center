@@ -1270,28 +1270,26 @@ def api_fleet_buy(request: Request, fleet_id: int, add_count: int = Form(1)):
     try:
         conn = get_db()
         try:
-            row = fetch_one(
-                conn,
-                "SELECT id, quantity FROM my_fleet WHERE id = ?",
-                (int(fleet_id),),
+            add = max(1, min(999, int(add_count) if add_count else 1))
+            cur = conn.execute(
+                """
+                UPDATE my_fleet
+                SET quantity = MIN(999, quantity + ?), updated_at = datetime('now')
+                WHERE id = ?
+                """,
+                (add, int(fleet_id)),
             )
-            if not row:
+            if cur.rowcount == 0:
                 flash_err = "Fleet row not found."
             else:
-                add = max(1, min(999, int(add_count) if add_count else 1))
-                cur_q = int(row["quantity"] or 0)
-                new_q = min(999, cur_q + add)
-                added = new_q - cur_q
-                conn.execute(
-                    """
-                    UPDATE my_fleet
-                    SET quantity = ?, updated_at = datetime('now')
-                    WHERE id = ?
-                    """,
-                    (new_q, int(fleet_id)),
+                row = fetch_one(
+                    conn,
+                    "SELECT quantity FROM my_fleet WHERE id = ?",
+                    (int(fleet_id),),
                 )
+                new_q = int(row["quantity"]) if row else 0
                 conn.commit()
-                flash = f"+{added} bought (now {new_q} owned)."
+                flash = f"Bought (now {new_q} owned)."
         finally:
             conn.close()
     except FileNotFoundError:
@@ -1322,32 +1320,32 @@ def api_fleet_sell(request: Request, fleet_id: int, sell_count: int = Form(1)):
     try:
         conn = get_db()
         try:
+            conn.execute("BEGIN IMMEDIATE")
             row = fetch_one(
                 conn,
                 """
-                SELECT mf.id, mf.quantity, mf.aircraft_id
+                SELECT mf.id, mf.quantity, mf.aircraft_id,
+                       (SELECT COALESCE(SUM(num_assigned), 0)
+                        FROM my_routes WHERE aircraft_id = mf.aircraft_id) AS assigned_sum
                 FROM my_fleet mf
                 WHERE mf.id = ?
                 """,
                 (int(fleet_id),),
             )
             if not row:
+                conn.rollback()
                 flash_err = "Fleet row not found."
             else:
                 qty = int(row["quantity"] or 0)
-                aid = int(row["aircraft_id"])
-                ag = fetch_one(
-                    conn,
-                    "SELECT COALESCE(SUM(num_assigned), 0) AS s FROM my_routes WHERE aircraft_id = ?",
-                    [aid],
-                )
-                assigned = int(ag["s"] or 0) if ag else 0
+                assigned = int(row["assigned_sum"] or 0)
                 free = max(0, qty - assigned)
                 want = max(1, int(sell_count) if sell_count else 1)
                 sell_n = min(want, free)
                 if free <= 0:
+                    conn.rollback()
                     flash_err = "No unassigned aircraft to sell (reduce My Routes assignments first)."
                 elif sell_n < want:
+                    conn.rollback()
                     flash_err = f"Only {free} unassigned; cannot sell {want}."
                 else:
                     new_q = qty - sell_n

@@ -21,45 +21,45 @@ from pathlib import Path
 # CSV Aircraft_Type  →  am4 shortname
 # Verify these against: python -c "from am4.utils.db import init; init(); from am4.utils.aircraft import Aircraft; r=Aircraft.search('a342'); print(r.ac.shortname, r.ac.name)"
 AIRCRAFT_MAP = {
-    # Airbus narrowbody
-    "A220-100":     "a220-100",
+    # Airbus narrowbody (shortnames match am4.utils.aircraft.Aircraft.search)
+    "A220-100":     "a221",
     "A220-300":     "a220-300",
-    "A318-100":     "a318",
-    "A319-200":     "a319",
+    "A318-100":     "a3181",
+    "A319-200":     "a3192",
     "A319NEO":      "a319neo",
-    "A320-200":     "a320",
-    "A320-NEO":     "a320neo",
-    "A320-VIP":     "a320",      # VIP variant — verify shortname
-    "A321-200":     "a321",
+    "A320-200":     "a322",
+    "A320-NEO":     "a32neo",
+    "A320-VIP":     "a32vip",
+    "A321-200":     "a3212",
     "A321-NEO":     "a321neo",
-    "A321-XLR":     "a321xlr",
+    "A321-XLR":     "a321x1r",
 
     # Airbus widebody
-    "A310-300F":    "a313f",     # cargo variant — verify
+    "A310-300F":    "a313f",
     "A340-200":     "a342",
-    "A350F":        "a35f",      # verify shortname
+    "A350F":        "a350f",
     "A400M":        "a400m",
 
     # Boeing
-    "B737 MAX 9":   "b39m",
-    "B737-700C":    "b73c",      # convertible — verify
+    "B737 MAX 9":   "b73max9",
+    "B737-700C":    "b737c",
 
     # Bombardier / Cessna (VIP)
-    "Bombardier Challenger 605-VIP": "cl60",
-    "Cessna Citation X-VIP":        "c750",
+    "Bombardier Challenger 605-VIP": "ch605",
+    "Cessna Citation X-VIP":        "ccx",
 
     # Douglas
-    "DC-9-10":      "dc91",
+    "DC-9-10":      "dc910",
 
     # Embraer
-    "ERJ 135ER":    "e135",
-    "ERJ 145ER":    "e145",
-    "ERJ 145XR":    "e45x",
-    "ERJ 170-200":  "e175",      # E-Jet E1
-    "ERJ 190-200":  "e195",      # E-Jet E1
+    "ERJ 135ER":    "erj135er",
+    "ERJ 145ER":    "erj145er",
+    "ERJ 145XR":    "erj145xr",
+    "ERJ 170-200":  "erj172",
+    "ERJ 190-200":  "erj192",
 
     # ATR
-    "ATR 42-320":   "at43",      # verify — could be at42
+    "ATR 42-320":   "atr4232",
 }
 
 # Route type mapping

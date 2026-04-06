@@ -8,12 +8,176 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
 from commands.fleet_recommend import fleet_recommend_rows
-from dashboard.db import fetch_all, get_db
+from dashboard.db import fetch_all, fetch_one, get_db
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import CONTRIB_SORT, _contrib_order, _query_flag_on
 
 router = APIRouter()
+
+
+def _parse_buy_next_budget(budget: str | None) -> int | None:
+    if budget is None or str(budget).strip() == "":
+        return None
+    try:
+        return max(0, int(float(budget)))
+    except ValueError:
+        return None
+
+
+def _buy_next_ac_type_filter(ac_type: str) -> str | None:
+    m = {"pax": "PAX", "cargo": "CARGO", "vip": "VIP"}
+    return m.get((ac_type or "").strip().lower())
+
+
+def _exclude_owned_from_request(request: Request) -> bool:
+    vals = request.query_params.getlist("exclude_owned")
+    if not vals:
+        return True
+    return "1" in vals
+
+
+def _buy_next_phase_a(
+    conn,
+    *,
+    origin_id: int | None,
+    budget_val: int | None,
+    type_filter: str | None,
+    exclude_owned: bool,
+    top_n: int,
+) -> list[dict]:
+    sql = """
+    SELECT ac.id AS aircraft_id,
+           ac.shortname, ac.name, ac.type, ac.cost, ac.capacity, ac.range_km,
+           COUNT(*) AS route_count,
+           AVG(ra.profit_per_ac_day) AS avg_daily_profit,
+           MAX(ra.profit_per_ac_day) AS best_daily_profit
+    FROM route_aircraft ra
+    JOIN aircraft ac ON ra.aircraft_id = ac.id
+    WHERE ra.is_valid = 1
+    """
+    params: list = []
+    if origin_id is not None:
+        sql += " AND ra.origin_id = ?"
+        params.append(origin_id)
+    if budget_val is not None:
+        sql += " AND ac.cost <= ?"
+        params.append(budget_val)
+    if type_filter:
+        sql += " AND UPPER(TRIM(ac.type)) = UPPER(TRIM(?))"
+        params.append(type_filter)
+    if exclude_owned:
+        sql += """
+        AND NOT EXISTS (
+            SELECT 1 FROM my_fleet mf
+            WHERE mf.aircraft_id = ac.id AND COALESCE(mf.quantity, 0) > 0
+        )
+        """
+    sql += """
+    GROUP BY ac.id, ac.shortname, ac.name, ac.type, ac.cost, ac.capacity, ac.range_km
+    HAVING AVG(ra.profit_per_ac_day) > 0
+    ORDER BY (ac.cost * 1.0 / AVG(ra.profit_per_ac_day)) ASC
+    LIMIT ?
+    """
+    params.append(top_n)
+    return fetch_all(conn, sql, params)
+
+
+def _buy_next_top_routes(
+    conn,
+    aircraft_id: int,
+    origin_id: int | None,
+) -> list[dict]:
+    sql = """
+    SELECT a_dest.iata AS destination, a_dest.country AS dest_country,
+           a_orig.iata AS hub,
+           ra.distance_km,
+           ra.config_y, ra.config_j, ra.config_f,
+           ra.profit_per_trip, ra.trips_per_day, ra.profit_per_ac_day,
+           ra.flight_time_hrs, ra.needs_stopover
+    FROM route_aircraft ra
+    JOIN airports a_orig ON ra.origin_id = a_orig.id
+    JOIN airports a_dest ON ra.dest_id = a_dest.id
+    WHERE ra.is_valid = 1 AND ra.aircraft_id = ?
+    """
+    params: list = [aircraft_id]
+    if origin_id is not None:
+        sql += " AND ra.origin_id = ?"
+        params.append(origin_id)
+    sql += " ORDER BY ra.profit_per_ac_day DESC LIMIT 3"
+    return fetch_all(conn, sql, params)
+
+
+@router.get("/buy-next", response_class=HTMLResponse)
+def api_buy_next(
+    request: Request,
+    hub: str = Query(""),
+    budget: str | None = Query(None),
+    ac_type: str = Query(""),
+    top_n: int = Query(5, ge=1, le=20),
+):
+    budget_val = _parse_buy_next_budget(budget)
+    exclude_owned = _exclude_owned_from_request(request)
+    type_filter = _buy_next_ac_type_filter(ac_type)
+
+    try:
+        conn = get_db()
+    except FileNotFoundError:
+        return HTMLResponse(
+            "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
+        )
+
+    try:
+        origin_id: int | None = None
+        if hub.strip():
+            hub_row = fetch_one(
+                conn,
+                "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+                [hub.strip()],
+            )
+            if not hub_row:
+                return HTMLResponse("<p class='text-amber-400'>Unknown hub.</p>")
+            origin_id = int(hub_row["id"])
+
+        candidates = _buy_next_phase_a(
+            conn,
+            origin_id=origin_id,
+            budget_val=budget_val,
+            type_filter=type_filter,
+            exclude_owned=exclude_owned,
+            top_n=top_n,
+        )
+
+        recommendations: list[dict] = []
+        for row in candidates:
+            avg = float(row["avg_daily_profit"] or 0)
+            cost = int(row["cost"] or 0)
+            payback_days = round(cost / avg, 1) if avg > 0 else 0.0
+            aid = int(row["aircraft_id"])
+            top_routes = _buy_next_top_routes(conn, aid, origin_id)
+            recommendations.append(
+                {
+                    "shortname": row["shortname"],
+                    "name": row["name"],
+                    "type": row["type"],
+                    "cost": cost,
+                    "capacity": row["capacity"],
+                    "range_km": row["range_km"],
+                    "route_count": int(row["route_count"] or 0),
+                    "avg_daily_profit": avg,
+                    "best_daily_profit": float(row["best_daily_profit"] or 0),
+                    "payback_days": payback_days,
+                    "top_routes": top_routes,
+                }
+            )
+
+        return templates.TemplateResponse(
+            request,
+            "partials/buy_next_results.html",
+            {"recommendations": recommendations},
+        )
+    finally:
+        conn.close()
 
 
 @router.get("/fleet-plan", response_class=HTMLResponse)

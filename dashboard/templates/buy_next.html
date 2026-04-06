@@ -2,61 +2,77 @@
 {% block title %}Buy Next{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Buy next</h2>
-<p class="am4-text-secondary mb-4">Aircraft you can afford at this hub, ranked by <strong class="am4-text-secondary">average daily profit</strong> across extracted routes. The table shows <strong class="am4-text-secondary">days to break-even</strong> for both the <strong class="am4-text-secondary">best</strong> single route and the <strong class="am4-text-secondary">average</strong> across routes. Same engine as <a href="/fleet-planner" class="am4-accent hover:text-emerald-300 underline underline-offset-2">Fleet Planner</a> and <code class="am4-text-muted">python main.py recommend</code>.</p>
-<p class="am4-text-muted text-sm mb-6">Uses saved <code class="am4-text-muted">route_aircraft</code> data only. Refresh hubs or re-extract if numbers feel stale. The <strong class="am4-text-secondary">Owned</strong> column is from <code class="am4-text-muted">my_fleet</code>; check <strong class="am4-text-secondary">Hide types I already own</strong> to exclude those aircraft from the ranked list.</p>
+<p class="am4-text-secondary mb-6">Recommends aircraft to purchase next by shortest payback (cost ÷ average daily profit across valid routes), with optional budget, hub, type, and owned-exclusion filters. Top routes show the seat configuration used on each leg.</p>
 
-<form id="buy-next-filters" class="flex flex-wrap gap-4 mb-6 items-end">
+<form id="buynext-filters" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
-        <label class="block text-xs am4-text-secondary mb-1">Hub</label>
+        <label class="block text-xs am4-text-secondary mb-1">Hub (optional)</label>
         <select name="hub"
-                hx-get="/api/fleet-plan"
-                hx-target="#buy-next-results"
-                hx-include="#buy-next-filters"
-                hx-indicator="#buy-next-spinner"
-                class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono">
-            <option value="">Select…</option>
+                hx-get="/api/buy-next"
+                hx-target="#buynext-results"
+                hx-include="#buynext-filters"
+                hx-indicator="#buynext-spinner"
+                class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono">
+            <option value="">All hubs</option>
             {% for h in hubs %}
             <option value="{{ h }}">{{ h }}</option>
             {% endfor %}
         </select>
     </div>
     <div>
-        <label class="block text-xs am4-text-secondary mb-1">Budget ($)</label>
-        <input type="number" name="budget" value="200000000" step="1000000" min="0"
-               hx-get="/api/fleet-plan"
-               hx-target="#buy-next-results"
-               hx-trigger="change delay:400ms"
-               hx-include="#buy-next-filters"
-               hx-indicator="#buy-next-spinner"
+        <label class="block text-xs am4-text-secondary mb-1">Budget $ (optional)</label>
+        <input type="number" name="budget" value="" step="1000000" min="0"
+               placeholder="No limit"
+               hx-get="/api/buy-next"
+               hx-target="#buynext-results"
+               hx-trigger="change delay:400ms, keyup changed delay:600ms"
+               hx-include="#buynext-filters"
+               hx-indicator="#buynext-spinner"
                class="am4-input rounded-md px-3 py-2 w-44 font-mono">
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Type</label>
+        <select name="ac_type"
+                hx-get="/api/buy-next"
+                hx-target="#buynext-results"
+                hx-include="#buynext-filters"
+                hx-indicator="#buynext-spinner"
+                class="am4-input rounded-md px-3 py-2">
+            <option value="">All</option>
+            <option value="pax">Passenger</option>
+            <option value="cargo">Cargo</option>
+            <option value="vip">VIP</option>
+        </select>
     </div>
     <div>
         <label class="block text-xs am4-text-secondary mb-1">Top N</label>
         <select name="top_n"
-                hx-get="/api/fleet-plan"
-                hx-target="#buy-next-results"
-                hx-include="#buy-next-filters"
-                hx-indicator="#buy-next-spinner"
+                hx-get="/api/buy-next"
+                hx-target="#buynext-results"
+                hx-include="#buynext-filters"
+                hx-indicator="#buynext-spinner"
                 class="am4-input rounded-md px-3 py-2">
-            {% for n in [5, 10, 15, 25, 50] %}
-            <option value="{{ n }}" {% if n == 15 %}selected{% endif %}>{{ n }}</option>
+            {% for n in [3, 5, 10, 15] %}
+            <option value="{{ n }}" {% if n == 5 %}selected{% endif %}>{{ n }}</option>
             {% endfor %}
         </select>
     </div>
-    <label class="flex items-center gap-2 text-sm am4-text-secondary cursor-pointer pb-2">
-        <input type="checkbox" name="hide_owned" value="1"
-               hx-get="/api/fleet-plan"
-               hx-target="#buy-next-results"
-               hx-trigger="change"
-               hx-include="#buy-next-filters"
-               hx-indicator="#buy-next-spinner"
-               class="h-4 w-4 rounded border am4-border accent-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
-        <span>Hide types I already own</span>
-    </label>
-    <span id="buy-next-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
+    <div>
+        <input type="hidden" name="exclude_owned" value="0" />
+        <label class="inline-flex items-center gap-2 text-xs am4-text-secondary cursor-pointer">
+            <input type="checkbox" name="exclude_owned" value="1" checked
+                   hx-get="/api/buy-next"
+                   hx-target="#buynext-results"
+                   hx-include="#buynext-filters"
+                   hx-indicator="#buynext-spinner"
+                   class="h-4 w-4 rounded border am4-border accent-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
+            Exclude aircraft I already own
+        </label>
+    </div>
+    <span id="buynext-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
 </form>
 
-<div id="buy-next-results">
-    <p class="am4-text-secondary">Select a hub to see candidates within budget.</p>
+<div id="buynext-results" hx-get="/api/buy-next" hx-trigger="load" hx-include="#buynext-filters" hx-indicator="#buynext-spinner">
+    <p class="am4-text-secondary">Loading recommendations…</p>
 </div>
 {% endblock %}

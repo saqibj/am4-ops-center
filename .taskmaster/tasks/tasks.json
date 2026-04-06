@@ -9,9 +9,9 @@
         "testStrategy": "Manual: `git branch --show-current` prints exactly `feature/buy-next-page`.",
         "priority": "high",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-04-06T19:49:13.748Z"
+        "updatedAt": "2026-04-06T19:55:27.623Z"
       },
       {
         "id": "2",
@@ -23,8 +23,9 @@
         "dependencies": [
           "1"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-06T20:02:28.437Z"
       },
       {
         "id": "3",
@@ -36,8 +37,9 @@
         "dependencies": [
           "2"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-06T20:09:41.387Z"
       },
       {
         "id": "4",
@@ -49,8 +51,9 @@
         "dependencies": [
           "3"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-06T20:09:41.396Z"
       },
       {
         "id": "5",
@@ -62,8 +65,9 @@
         "dependencies": [
           "4"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-06T20:09:41.402Z"
       },
       {
         "id": "6",
@@ -75,8 +79,9 @@
         "dependencies": [
           "5"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-06T20:09:41.411Z"
       },
       {
         "id": "7",
@@ -88,8 +93,9 @@
         "dependencies": [
           "5"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-06T20:09:41.418Z"
       },
       {
         "id": "8",
@@ -102,8 +108,9 @@
           "6",
           "7"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-06T20:29:36.090Z"
       },
       {
         "id": "9",
@@ -115,8 +122,9 @@
         "dependencies": [
           "8"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-06T20:29:36.100Z"
       },
       {
         "id": "10",
@@ -253,9 +261,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-06T19:49:13.749Z",
+      "lastModified": "2026-04-06T20:29:36.101Z",
       "taskCount": 19,
-      "completedCount": 0,
+      "completedCount": 9,
       "tags": [
         "master"
       ]

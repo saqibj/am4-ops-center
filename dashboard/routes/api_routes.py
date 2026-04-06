@@ -16,6 +16,7 @@ from commands.fleet_recommend import fleet_recommend_rows
 from config import UserConfig
 from dashboard.auth import check_auth_token
 from dashboard.db import DB_PATH, fetch_all, fetch_one, get_db
+from dashboard.errors import safe_error_message
 from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
 from dashboard.server import templates
 
@@ -1339,7 +1340,7 @@ def api_fleet_buy(request: Request, fleet_id: int, add_count: int = Form(1)):
     except FileNotFoundError:
         flash_err = "Database not found."
     except sqlite3.OperationalError as exc:
-        flash_err = str(exc)
+        flash_err = safe_error_message(exc)
 
     try:
         conn = get_db()
@@ -1416,7 +1417,7 @@ def api_fleet_sell(request: Request, fleet_id: int, sell_count: int = Form(1)):
     except FileNotFoundError:
         flash_err = "Database not found."
     except sqlite3.OperationalError as exc:
-        flash_err = str(exc)
+        flash_err = safe_error_message(exc)
 
     try:
         conn = get_db()
@@ -1938,7 +1939,7 @@ def _hub_inventory_response(
         flash_err = flash_err or "Database not found."
     except sqlite3.OperationalError as exc:
         hubs = []
-        flash_err = flash_err or f"Database or view missing: {exc}"
+        flash_err = flash_err or f"Database or view missing: {safe_error_message(exc)}"
     for h in hubs:
         h["display_status"] = hub_display_status(
             h.get("last_extract_status"), h.get("last_extracted_at")
@@ -2075,7 +2076,7 @@ def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form(
     except FileNotFoundError:
         return _hub_inventory_response(request, flash_err="Database not found.")
     except sqlite3.OperationalError as exc:
-        return _hub_inventory_response(request, flash_err=str(exc))
+        return _hub_inventory_response(request, flash_err=safe_error_message(exc))
 
     if n_ok == 0:
         return _hub_inventory_response(
@@ -2124,11 +2125,11 @@ def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
         except ImportError:
             return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
         except RuntimeError as exc:
-            return _hub_inventory_response(request, flash_err=str(exc))
+            return _hub_inventory_response(request, flash_err=safe_error_message(exc))
         except ValueError as exc:
-            return _hub_inventory_response(request, flash_err=str(exc))
+            return _hub_inventory_response(request, flash_err=safe_error_message(exc))
         except Exception as exc:
-            return _hub_inventory_response(request, flash_err=str(exc)[:800])
+            return _hub_inventory_response(request, flash_err=safe_error_message(exc))
 
         return _hub_inventory_response(request, flash=f"Refreshed routes for {iata}.")
     finally:
@@ -2169,7 +2170,7 @@ def api_hubs_refresh_stale(request: Request):
         except FileNotFoundError:
             return _hub_inventory_response(request, flash_err="Database not found.")
         except sqlite3.OperationalError as exc:
-            return _hub_inventory_response(request, flash_err=str(exc))
+            return _hub_inventory_response(request, flash_err=safe_error_message(exc))
 
         if not stale:
             return _hub_inventory_response(
@@ -2194,9 +2195,9 @@ def api_hubs_refresh_stale(request: Request):
                 refresh_single_hub(DB_PATH, cfg, code)
                 ok_n += 1
             except (RuntimeError, ValueError) as exc:
-                errors.append(f"{code}: {exc}")
+                errors.append(f"{code}: {safe_error_message(exc)}")
             except Exception as exc:
-                errors.append(f"{code}: {str(exc)[:200]}")
+                errors.append(f"{code}: {safe_error_message(exc)}")
 
         msg = f"Refreshed {ok_n} stale hub(s) (extract older than {d} days)."
         if errors:
@@ -2224,6 +2225,6 @@ def api_hubs_delete(request: Request, hub_id: int = Form(...)):
     except FileNotFoundError:
         return _hub_inventory_response(request, flash_err="Database not found.")
     except sqlite3.OperationalError as exc:
-        return _hub_inventory_response(request, flash_err=str(exc))
+        return _hub_inventory_response(request, flash_err=safe_error_message(exc))
 
     return _hub_inventory_response(request, flash="Removed hub from manager.")

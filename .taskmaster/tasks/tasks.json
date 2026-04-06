@@ -316,7 +316,7 @@
         "id": "24",
         "title": "Sanitize SQLite error messages before rendering",
         "description": "Fix SEC-18 - sqlite3.OperationalError messages are rendered directly into dashboard HTML and leak schema/path details.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "1"
         ],

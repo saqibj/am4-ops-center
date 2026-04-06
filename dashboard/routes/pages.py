@@ -235,6 +235,34 @@ def page_my_hubs(request: Request):
     return templates.TemplateResponse(request, "my_hubs.html", ctx)
 
 
+def _hub_iatas_from_my_routes() -> list[str]:
+    try:
+        conn = get_db()
+        try:
+            rows = fetch_all(
+                conn,
+                """
+                SELECT DISTINCT a.iata AS iata
+                FROM my_routes mr
+                JOIN airports a ON mr.origin_id = a.id
+                WHERE a.iata IS NOT NULL AND TRIM(a.iata) != ''
+                ORDER BY a.iata
+                """,
+            )
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return []
+    return [r["iata"] for r in rows]
+
+
+@router.get("/fleet-health", response_class=HTMLResponse)
+def page_fleet_health(request: Request):
+    ctx = base_context(request)
+    ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    return templates.TemplateResponse(request, "fleet_health.html", ctx)
+
+
 @router.get("/my-routes", response_class=HTMLResponse)
 def page_my_routes(request: Request):
     try:

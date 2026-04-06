@@ -20,6 +20,7 @@
     "/my-fleet": 1,
     "/my-hubs": 1,
     "/my-routes": 1,
+    "/fleet-health": 1,
     "/contributions": 1,
     "/heatmap": 1,
   };

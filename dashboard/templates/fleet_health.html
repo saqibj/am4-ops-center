@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Fleet Health{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Fleet health</h2>
+<p class="am4-text-secondary mb-6">Compare each route in <strong class="am4-text-secondary">My Routes</strong> to the best aircraft and configuration on that origin–destination in extracted data. Rows are ranked by total daily profit left on the table (gap × copies assigned).</p>
+
+<form id="fleet-health-filters" class="flex flex-wrap gap-4 mb-6 items-end">
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Hub</label>
+        <select name="hub"
+                hx-get="/api/fleet-health"
+                hx-target="#fleet-health-results"
+                hx-include="#fleet-health-filters"
+                hx-indicator="#fleet-health-spinner"
+                class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono">
+            <option value="">All hubs</option>
+            {% for h in hubs %}
+            <option value="{{ h }}">{{ h }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Min. gap ($/day total)</label>
+        <input type="number" name="min_gap" value="0" step="1000" min="0"
+               hx-get="/api/fleet-health"
+               hx-target="#fleet-health-results"
+               hx-trigger="change delay:300ms, keyup changed delay:500ms"
+               hx-include="#fleet-health-filters"
+               hx-indicator="#fleet-health-spinner"
+               class="am4-input rounded-md px-3 py-2 w-40 font-mono">
+    </div>
+    <div>
+        <input type="hidden" name="hide_optimal" value="0" />
+        <label class="inline-flex items-center gap-2 text-xs am4-text-secondary cursor-pointer">
+            <input type="checkbox" name="hide_optimal" value="1" checked
+                   hx-get="/api/fleet-health"
+                   hx-target="#fleet-health-results"
+                   hx-include="#fleet-health-filters"
+                   hx-indicator="#fleet-health-spinner"
+                   class="h-4 w-4 rounded border am4-border accent-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
+            Hide already-optimal (same aircraft + config as best)
+        </label>
+    </div>
+    <div>
+        <input type="hidden" name="reconfig_only" value="0" />
+        <label class="inline-flex items-center gap-2 text-xs am4-text-secondary cursor-pointer">
+            <input type="checkbox" name="reconfig_only" value="1"
+                   hx-get="/api/fleet-health"
+                   hx-target="#fleet-health-results"
+                   hx-include="#fleet-health-filters"
+                   hx-indicator="#fleet-health-spinner"
+                   class="h-4 w-4 rounded border am4-border accent-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
+            Reconfig suggestions only
+        </label>
+    </div>
+    <span id="fleet-health-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
+</form>
+
+<div id="fleet-health-results" hx-get="/api/fleet-health" hx-trigger="load" hx-include="#fleet-health-filters" hx-indicator="#fleet-health-spinner">
+    <p class="am4-text-secondary">Loading…</p>
+</div>
+{% endblock %}

@@ -34,6 +34,7 @@ ALLOWED_LANDING_PATHS: frozenset[str] = frozenset(
         "/my-fleet",
         "/my-hubs",
         "/my-routes",
+        "/fleet-health",
         "/contributions",
         "/heatmap",
     }

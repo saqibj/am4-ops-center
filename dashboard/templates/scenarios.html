@@ -53,7 +53,8 @@
                     hx-indicator="#scenario-spinner">
                 <option value="">All</option>
                 {% for h in hubs %}
-                <option value="{{ h }}">{{ h }}</option>
+                {% set fhb = hub_freshness_by_iata.get(h|upper, {}) %}
+                <option value="{{ h }}">{{ h }}{{ fhb.get('option_suffix', '') }}</option>
                 {% endfor %}
             </select>
         </div>

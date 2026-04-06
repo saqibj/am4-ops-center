@@ -15,7 +15,8 @@
                 class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono">
             <option value="">All hubs</option>
             {% for h in hubs %}
-            <option value="{{ h }}">{{ h }}</option>
+            {% set fhb = hub_freshness_by_iata.get(h|upper, {}) %}
+            <option value="{{ h }}">{{ h }}{{ fhb.get('option_suffix', '') }}</option>
             {% endfor %}
         </select>
     </div>

@@ -68,6 +68,15 @@
     <label for="nav-toggle" class="am4-overlay-scrim fixed inset-0 z-30 hidden peer-checked:block lg:hidden"></label>
 
     <main class="flex-1 overflow-auto w-full min-w-0 am4-main">
+        {% if stale_hub_banner %}
+        <div class="mx-4 mt-4 mb-2 rounded-md border border-rose-800/50 bg-rose-950/30 px-3 py-2 text-sm text-rose-100/95">
+            Data for <span class="font-mono font-semibold">{{ stale_hub_banner.hub }}</span> are
+            <strong>{{ stale_hub_banner.days }}</strong> days old.
+            Refresh with
+            <code class="text-xs font-mono bg-black/30 px-1 rounded">python main.py extract --refresh-hubs --hubs {{ stale_hub_banner.hub }}</code>
+            or use <a href="/my-hubs" class="underline font-medium">Hub Manager</a>.
+        </div>
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 </body>

@@ -780,12 +780,23 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
       weight: 1,
       fillOpacity: 0.85,
     }}).addTo(map);
-    const profit = Math.round(m.profit).toLocaleString();
-    mk.bindPopup(
-      `<strong>${{m.iata}}</strong> ${{m.name ? '(' + m.name + ')' : ''}}<br/>` +
-      `Profit/day: $${{profit}}<br/>` +
-      `<span class="am4-text-muted text-xs">${{(m.aircraft || '').slice(0,120)}}</span>`
+    const popupEl = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = m.iata;
+    popupEl.appendChild(title);
+    if (m.name) {{
+      popupEl.appendChild(document.createTextNode(' (' + m.name + ')'));
+    }}
+    popupEl.appendChild(document.createElement('br'));
+    popupEl.appendChild(
+      document.createTextNode('Profit/day: $' + Math.round(m.profit).toLocaleString())
     );
+    popupEl.appendChild(document.createElement('br'));
+    const small = document.createElement('span');
+    small.className = 'am4-text-muted text-xs';
+    small.textContent = (m.aircraft || '').slice(0, 120);
+    popupEl.appendChild(small);
+    mk.bindPopup(popupEl);
     bounds.push([m.lat, m.lng]);
   }});
   if (bounds.length) map.fitBounds(bounds, {{ padding: [40, 40], maxZoom: 8 }});

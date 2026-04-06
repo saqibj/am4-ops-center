@@ -224,7 +224,7 @@
         "id": "17",
         "title": "HTML-escape airport names in heatmap Leaflet popup",
         "description": "Fix SEC-04 - airport name and IATA are interpolated into a JavaScript template literal that goes into innerHTML via Leaflet bindPopup.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "1"
         ],

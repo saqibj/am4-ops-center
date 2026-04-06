@@ -268,15 +268,17 @@ def recommend(
         return
     print(
         "shortname\tname\ttype\tcost\towned\troutes\tavg_profit_day\tbest_profit_day\t"
-        "days_breakeven"
+        "days_be_avg\tdays_be_best"
     )
     for r in rows:
         avg = float(r.get("avg_daily_profit") or 0)
-        cost = int(r.get("cost") or 0)
-        be = r.get("days_to_breakeven")
-        be_out = "" if be is None else be
         owned = int(r.get("owned_qty") or 0)
+        be_avg = r.get("days_to_breakeven_avg")
+        be_best = r.get("days_to_breakeven_best")
+        be_avg_out = "" if be_avg is None else be_avg
+        be_best_out = "" if be_best is None else be_best
         print(
-            f"{r['shortname']}\t{r['name']}\t{r['type']}\t{cost}\t{owned}\t{r['routes']}\t"
-            f"{round(avg, 2)}\t{round(float(r.get('best_daily_profit') or 0), 2)}\t{be_out}"
+            f"{r['shortname']}\t{r['name']}\t{r['type']}\t{int(r.get('cost') or 0)}\t{owned}\t{r['routes']}\t"
+            f"{round(avg, 2)}\t{round(float(r.get('best_daily_profit') or 0), 2)}\t"
+            f"{be_avg_out}\t{be_best_out}"
         )

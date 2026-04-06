@@ -49,7 +49,9 @@ def fleet_recommend_rows(
 
     Returns ``(rows, err)``. ``err`` is ``None`` on success, or ``"unknown_hub"`` if
     the IATA is missing. Each row includes ``owned_qty`` from ``my_fleet`` (0 if none),
-    and ``days_to_breakeven`` (``None`` if not computable).
+    ``days_to_breakeven_avg`` and ``days_to_breakeven_best`` (``None`` if not computable),
+    and ``days_to_breakeven`` as an alias for the **best-route** case (same as
+    ``days_to_breakeven_best``), since an aircraft flies one route at a time.
 
     If ``hide_owned`` is true, aircraft with ``my_fleet.quantity > 0`` are excluded
     before the ``LIMIT`` (top-N applies to the filtered set).
@@ -76,9 +78,14 @@ def fleet_recommend_rows(
         r = dict(zip(col_names, tup, strict=True))
         r["owned_qty"] = int(r.get("owned_qty") or 0)
         avg = float(r.get("avg_daily_profit") or 0)
+        best = float(r.get("best_daily_profit") or 0)
         cost = int(r.get("cost") or 0)
-        r["days_to_breakeven"] = (
+        r["days_to_breakeven_avg"] = (
             round(cost / avg, 1) if avg > 0 and cost > 0 else None
         )
+        r["days_to_breakeven_best"] = (
+            round(cost / best, 1) if best > 0 and cost > 0 else None
+        )
+        r["days_to_breakeven"] = r["days_to_breakeven_best"]
         rows.append(r)
     return rows, None

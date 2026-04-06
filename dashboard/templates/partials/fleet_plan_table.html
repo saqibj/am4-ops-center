@@ -10,7 +10,8 @@
                 <th scope="col" class="px-4 py-3 text-right">Routes</th>
                 <th scope="col" class="px-4 py-3 text-right">Avg profit/d</th>
                 <th scope="col" class="px-4 py-3 text-right">Best profit/d</th>
-                <th scope="col" class="px-4 py-3 text-right">Days break-even</th>
+                <th scope="col" class="px-4 py-3 text-right" title="Assumes flying the single most profitable route">Days BE (best)</th>
+                <th scope="col" class="px-4 py-3 text-right" title="Blends all viable routes at this hub">Days BE (avg)</th>
             </tr>
         </thead>
         <tbody>
@@ -24,9 +25,16 @@
                 <td class="px-4 py-3 text-right font-mono">{{ r.routes }}</td>
                 <td class="px-4 py-3 text-right font-mono am4-accent">${{ "{:,.0f}".format(r.avg_daily_profit or 0) }}</td>
                 <td class="px-4 py-3 text-right font-mono text-emerald-300">${{ "{:,.0f}".format(r.best_daily_profit or 0) }}</td>
-                <td class="px-4 py-3 text-right font-mono">
-                    {% if r.days_to_breakeven is not none %}
-                    {{ "{:,.1f}".format(r.days_to_breakeven) }}
+                <td class="px-4 py-3 text-right font-mono text-emerald-300">
+                    {% if r.days_to_breakeven_best is not none %}
+                    {{ "{:,.1f}".format(r.days_to_breakeven_best) }}
+                    {% else %}
+                    <span class="am4-text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-right font-mono am4-text-secondary">
+                    {% if r.days_to_breakeven_avg is not none %}
+                    {{ "{:,.1f}".format(r.days_to_breakeven_avg) }}
                     {% else %}
                     <span class="am4-text-muted">—</span>
                     {% endif %}
@@ -37,3 +45,4 @@
     </table>
 </div>
 <p class="am4-text-secondary text-sm mt-4">{{ rows|length }} aircraft in budget (by avg daily profit).</p>
+<p class="am4-text-muted text-xs mt-2 max-w-3xl"><strong class="am4-text-secondary">Days BE (best)</strong> is the optimistic case (one aircraft, its best route). <strong class="am4-text-secondary">Days BE (avg)</strong> is higher because it averages profitability across all viable routes.</p>

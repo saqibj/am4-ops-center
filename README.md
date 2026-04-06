@@ -251,6 +251,8 @@ python3 main.py fleet list
 python3 main.py recommend --hub KHI --budget 500000000 --top 25
 ```
 
+Tab-separated output includes **`days_be_avg`** (break-even days using average daily profit across routes) and **`days_be_best`** (using the single best route). **`days_be_best`** is never greater than **`days_be_avg`** when both are present.
+
 **Fleet CSV format:** `shortname,count,notes`
 ```csv
 a342,58,Main long-haul fleet

@@ -250,7 +250,7 @@
         "id": "19",
         "title": "Add recommendation breakeven: best-route variant",
         "description": "Fix the naive days_to_breakeven in fleet_recommend.py that uses average profit across all routes. Add a best-route variant.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "1"
         ],

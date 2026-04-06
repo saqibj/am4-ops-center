@@ -2,7 +2,7 @@
 {% block title %}Buy Next{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Buy next</h2>
-<p class="am4-text-secondary mb-4">Aircraft you can afford at this hub, ranked by <strong class="am4-text-secondary">average daily profit</strong> across extracted routes. Same engine as <a href="/fleet-planner" class="am4-accent hover:text-emerald-300 underline underline-offset-2">Fleet Planner</a> and <code class="am4-text-muted">python main.py recommend</code>.</p>
+<p class="am4-text-secondary mb-4">Aircraft you can afford at this hub, ranked by <strong class="am4-text-secondary">average daily profit</strong> across extracted routes. The table shows <strong class="am4-text-secondary">days to break-even</strong> for both the <strong class="am4-text-secondary">best</strong> single route and the <strong class="am4-text-secondary">average</strong> across routes. Same engine as <a href="/fleet-planner" class="am4-accent hover:text-emerald-300 underline underline-offset-2">Fleet Planner</a> and <code class="am4-text-muted">python main.py recommend</code>.</p>
 <p class="am4-text-muted text-sm mb-6">Uses saved <code class="am4-text-muted">route_aircraft</code> data only. Refresh hubs or re-extract if numbers feel stale. The <strong class="am4-text-secondary">Owned</strong> column is from <code class="am4-text-muted">my_fleet</code>; check <strong class="am4-text-secondary">Hide types I already own</strong> to exclude those aircraft from the ranked list.</p>
 
 <form id="buy-next-filters" class="flex flex-wrap gap-4 mb-6 items-end">

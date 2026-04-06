@@ -381,15 +381,37 @@ def create_schema(conn: sqlite3.Connection) -> None:
 def clear_route_tables(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM route_aircraft")
     conn.execute("DELETE FROM route_demands")
+    conn.execute("DELETE FROM sqlite_sequence WHERE name = 'route_aircraft'")
     conn.commit()
 
 
 def replace_master_tables(conn: sqlite3.Connection) -> None:
-    conn.execute("PRAGMA foreign_keys = OFF")
-    conn.execute("DELETE FROM aircraft")
-    conn.execute("DELETE FROM airports")
-    conn.commit()
-    conn.execute("PRAGMA foreign_keys = ON")
+    """Clear aircraft and airports master tables in FK-safe order.
+
+    Delete route_aircraft and route_demands first so removing aircraft/airports
+    does not leave dangling references. User tables (my_fleet, my_routes, my_hubs)
+    still reference aircraft/airports by ID; am4 repopulates deterministic IDs on
+    the next extract.
+
+    Foreign keys are always re-enabled in ``finally`` so a failed delete cannot
+    leave the connection with enforcement permanently off.
+    """
+    try:
+        conn.execute("PRAGMA foreign_keys = OFF")
+        conn.execute("BEGIN")
+        conn.execute("DELETE FROM route_aircraft")
+        conn.execute("DELETE FROM route_demands")
+        conn.execute("DELETE FROM aircraft")
+        conn.execute("DELETE FROM airports")
+        conn.execute(
+            "DELETE FROM sqlite_sequence WHERE name IN ('route_aircraft', 'aircraft', 'airports')"
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
 
 def _reassign_airport_id(conn: sqlite3.Connection, old_id: int, new_id: int) -> None:

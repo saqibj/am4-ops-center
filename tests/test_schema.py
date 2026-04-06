@@ -7,7 +7,13 @@ from typing import Any
 
 import pytest
 
-from database.schema import create_schema, get_connection, migrate_add_unique_constraints
+from database.schema import (
+    clear_route_tables,
+    create_schema,
+    get_connection,
+    migrate_add_unique_constraints,
+    replace_master_tables,
+)
 from extractors.routes import ROUTE_INSERT_SQL
 
 
@@ -103,3 +109,84 @@ def test_migrate_idempotent_on_fresh_schema(tmp_path) -> None:
     ).fetchone()
     assert row and "UNIQUE(origin_id, dest_id, aircraft_id)" in row[0]
     c4.close()
+
+
+class _ConnBoomOnFirstRouteDelete:
+    """sqlite3.Connection.execute is not patchable on Python 3.14+; delegate with a hook."""
+
+    def __init__(self, inner: sqlite3.Connection) -> None:
+        self._inner = inner
+        self._armed = True
+
+    def execute(self, sql: str, parameters: Any = ()) -> sqlite3.Cursor:
+        if "DELETE FROM route_aircraft" in sql and self._armed:
+            self._armed = False
+            raise sqlite3.OperationalError("simulated failure")
+        return self._inner.execute(sql, parameters) if parameters else self._inner.execute(sql)
+
+    def commit(self) -> None:
+        self._inner.commit()
+
+    def rollback(self) -> None:
+        self._inner.rollback()
+
+
+def test_replace_master_tables_restores_fk_on_error(tmp_path) -> None:
+    db = tmp_path / "fk.db"
+    inner = get_connection(db)
+    create_schema(inner)
+    wrapped = _ConnBoomOnFirstRouteDelete(inner)
+
+    with pytest.raises(sqlite3.OperationalError, match="simulated"):
+        replace_master_tables(wrapped)  # type: ignore[arg-type]
+
+    fk = inner.execute("PRAGMA foreign_keys").fetchone()
+    assert fk is not None and int(fk[0]) == 1
+    inner.close()
+
+
+def test_replace_master_tables_clears_routes_then_masters(tmp_path) -> None:
+    db = tmp_path / "masters.db"
+    conn = get_connection(db)
+    create_schema(conn)
+    conn.execute(
+        "INSERT INTO aircraft (id, shortname, name, type) VALUES (1, 'b738', 'B737-800', 'PAX')"
+    )
+    conn.execute("INSERT INTO airports (id, iata) VALUES (1, 'KHI'), (2, 'DXB')")
+    conn.commit()
+    conn.execute(ROUTE_INSERT_SQL, _base_route_row())
+    conn.execute(
+        "INSERT INTO route_demands (origin_id, dest_id, distance_km, demand_y, demand_j, demand_f) "
+        "VALUES (1, 2, 100.0, 1, 0, 0)"
+    )
+    conn.commit()
+    replace_master_tables(conn)
+    assert conn.execute("SELECT COUNT(*) FROM route_aircraft").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM route_demands").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM aircraft").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM airports").fetchone()[0] == 0
+    fk = conn.execute("PRAGMA foreign_keys").fetchone()
+    assert fk is not None and int(fk[0]) == 1
+    conn.close()
+
+
+def test_clear_route_tables_resets_route_aircraft_sequence(tmp_path) -> None:
+    db = tmp_path / "seq.db"
+    conn = get_connection(db)
+    create_schema(conn)
+    conn.execute(
+        "INSERT INTO aircraft (id, shortname, name, type) VALUES (1, 'b738', 'B737-800', 'PAX')"
+    )
+    conn.execute("INSERT INTO airports (id, iata) VALUES (1, 'KHI'), (2, 'DXB')")
+    conn.commit()
+    conn.execute(ROUTE_INSERT_SQL, _base_route_row())
+    conn.commit()
+    max_before = conn.execute("SELECT MAX(id) FROM route_aircraft").fetchone()[0]
+    assert max_before is not None
+    clear_route_tables(conn)
+    conn.execute(ROUTE_INSERT_SQL, _base_route_row())
+    conn.commit()
+    max_after = conn.execute("SELECT MAX(id) FROM route_aircraft").fetchone()[0]
+    assert max_after is not None
+    assert int(max_after) <= int(max_before)
+    conn.close()

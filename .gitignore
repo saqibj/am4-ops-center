@@ -8,7 +8,10 @@ build/
 
 # Data
 *.db
+*.db-*
+*.db.*
 *.sqlite
+*.sqlite-*
 *.parquet
 
 # Exports

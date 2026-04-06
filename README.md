@@ -149,7 +149,7 @@ For **Taskmaster MCP** (optional), copy `.mcp.json.example` to `.mcp.json` and a
 
 ### `requirements.txt` and `pyproject.toml`
 
-Both list the same direct dependencies. **`requirements.txt`** is the recommended install path (`pip install -r requirements.txt`). **`pyproject.toml`** matches it (including the same **`am4`** Git URL: `github.com/saqibj/am4` branch **`msvc-fix`**) so `pip install -e .` stays consistent. If you change the `am4` source, update **both** files.
+Both list the same direct dependencies. **`requirements.txt`** is the recommended install path (`pip install -r requirements.txt`). **`pyproject.toml`** matches it (including the same **`am4`** Git install from **`github.com/saqibj/am4`**, pinned to a **commit hash** on branch **`msvc-fix`**) so `pip install -e .` stays consistent. If you upgrade `am4`, update **both** files (see the comment above the `am4` line in `requirements.txt`).
 
 ---
 
@@ -207,12 +207,16 @@ python3 main.py export --format excel --output ./exports/
 
 ### Launch Dashboard
 
+By default the dashboard binds to **127.0.0.1** only (localhost). To open it from another device on your LAN, run `python3 main.py dashboard --host 0.0.0.0` — **there is no authentication**; use that only on trusted networks. Add `--reload` for development auto-reload.
+
 ```bash
 python3 main.py dashboard
 # Opens at http://localhost:8000
 
 python3 main.py dashboard --port 3000  # custom port
 python3 main.py dashboard --db custom.db  # custom database
+python3 main.py dashboard --host 0.0.0.0  # LAN access (no auth)
+python3 main.py dashboard --reload  # dev: auto-reload on file changes
 ```
 
 ### Fleet Management
@@ -403,6 +407,7 @@ am4-routemine/
 | Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |
 | SQLite locked | Close other DB connections, enable WAL mode |
 | Dashboard blank page | Check `AM4_ROUTEMINE_DB` path points to an existing `.db` file |
+| Can’t reach the dashboard from another device | Expected with the default bind address — use `--host 0.0.0.0` only on trusted networks (see [Launch Dashboard](#launch-dashboard)) |
 | Settings / theme seem “stuck” | Preferences live in **`localStorage`** for this origin; try a hard refresh or clear site data for localhost if corrupted |
 | Aircraft shortname not found | Use am4 shortnames (e.g., `a342` not `A340-200`) |
 | WSL venv broken after move | Delete `.venv` and recreate — pip paths are hardcoded |

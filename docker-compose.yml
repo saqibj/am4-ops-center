@@ -11,6 +11,7 @@ services:
       - routemine-data:/app/data
     environment:
       - AM4_ROUTEMINE_DB=/app/data/am4_data.db
+    command: python main.py dashboard --host 0.0.0.0 --db /app/data/am4_data.db
     # Override CMD for different tasks:
     #   docker compose run routemine python main.py extract --hubs KHI,DXB
     #   docker compose run routemine python main.py query --hub KHI --top 10

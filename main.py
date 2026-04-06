@@ -124,12 +124,14 @@ def cmd_query(args: argparse.Namespace) -> None:
 def cmd_dashboard(args: argparse.Namespace) -> None:
     import uvicorn
 
-    os.environ["AM4_ROUTEMINE_DB"] = str(Path(args.db).resolve())
+    if not os.environ.get("AM4_ROUTEMINE_DB"):
+        os.environ["AM4_ROUTEMINE_DB"] = str(Path(args.db).resolve())
+
     uvicorn.run(
         "dashboard.server:app",
         host=args.host,
         port=int(args.port),
-        reload=True,
+        reload=args.reload,
     )
 
 
@@ -212,7 +214,18 @@ def main() -> None:
     dash = sub.add_parser("dashboard", help="Launch web dashboard")
     dash.add_argument("--db", type=str, default="am4_data.db")
     dash.add_argument("--port", type=int, default=8000)
-    dash.add_argument("--host", type=str, default="0.0.0.0")
+    dash.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Bind address. Default 127.0.0.1 (localhost only). "
+        "Use 0.0.0.0 for LAN access (no auth; trusted networks only).",
+    )
+    dash.add_argument(
+        "--reload",
+        action="store_true",
+        help="Enable uvicorn auto-reload (dev only; wastes resources otherwise).",
+    )
     dash.set_defaults(func=cmd_dashboard)
 
     fleet_p = sub.add_parser("fleet", help="My airline fleet table (my_fleet) CSV")

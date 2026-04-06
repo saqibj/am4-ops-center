@@ -145,6 +145,8 @@ cursor .   # or: code .
 
 Alternatively, you can use Cursor's "WSL: Connect to WSL" command (`Ctrl`+`Shift`+`P`).
 
+For **Taskmaster MCP** (optional), copy `.mcp.json.example` to `.mcp.json` and add your API keys. The real `.mcp.json` is gitignored so secrets are not committed.
+
 ### `requirements.txt` and `pyproject.toml`
 
 Both list the same direct dependencies. **`requirements.txt`** is the recommended install path (`pip install -r requirements.txt`). **`pyproject.toml`** matches it (including the same **`am4`** Git URL: `github.com/saqibj/am4` branch **`msvc-fix`**) so `pip install -e .` stays consistent. If you change the `am4` source, update **both** files.

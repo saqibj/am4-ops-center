@@ -13,3 +13,10 @@ build/
 exports/*.csv
 exports/*.xlsx
 *.Zone.Identifier
+
+# Secrets
+.env
+.env.*
+!.env.example
+.mcp.json
+!.mcp.json.example

@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **CLI `backup`:** **`python main.py backup --db …`** copies the SQLite file via the online backup API to **`./backups/<stem>_UTCtimestamp.db`** ( **`--output`** / **`-o`** for another directory) (SEC-15).
 - **Recommend / Fleet Planner / Buy Next:** **`days_to_breakeven_avg`** and **`days_to_breakeven_best`** (CLI columns **`days_be_avg`**, **`days_be_best`**); primary **`days_to_breakeven`** follows the **best-route** case.
 - **Extract:** **`--aircraft-id-max`** and **`--airport-id-max`** (**`UserConfig`**, persisted via **`extract_metadata`**).
 - **`scripts/verify_aircraft_map.py`** — validate **`convert_csv`** **`AIRCRAFT_MAP`** entries against am4.

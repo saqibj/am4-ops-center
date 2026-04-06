@@ -342,7 +342,7 @@
         "id": "26",
         "title": "Add CLI backup subcommand",
         "description": "Fix SEC-15 - no DB backup mechanism. Add a simple backup CLI that uses SQLite's online backup API.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "1"
         ],

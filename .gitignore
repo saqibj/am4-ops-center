@@ -7,6 +7,7 @@ build/
 .venv/
 
 # Data
+backups/
 *.db
 *.db-*
 *.db.*

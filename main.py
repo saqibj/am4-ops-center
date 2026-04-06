@@ -13,6 +13,8 @@ Usage:
     python main.py routes import --file my_routes.csv
     python main.py recommend --hub KHI --budget 500000000
     python main.py extract-info --db am4_data.db
+    python main.py backup --db am4_data.db
+    python main.py backup --db am4_data.db --output ./my-backups
 """
 
 from __future__ import annotations
@@ -252,6 +254,32 @@ def cmd_migrate(args: argparse.Namespace) -> None:
     print("Migration complete: unique constraints applied (safe to re-run).")
 
 
+def cmd_backup(args: argparse.Namespace) -> None:
+    import datetime
+    import sqlite3
+
+    src = Path(args.db)
+    if not src.is_file():
+        print(f"Error: source DB not found: {src}", file=sys.stderr)
+        sys.exit(2)
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dst_dir = Path(args.output or "./backups")
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / f"{src.stem}_{ts}.db"
+    src_conn = get_connection(str(src))
+    try:
+        dst_conn = sqlite3.connect(str(dst))
+        try:
+            with dst_conn:
+                src_conn.backup(dst_conn)
+        finally:
+            dst_conn.close()
+    finally:
+        src_conn.close()
+    size_mb = dst.stat().st_size / (1024 * 1024)
+    print(f"Backup written: {dst} ({size_mb:.2f} MiB)")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="AM4 RouteMine — bulk route data extractor")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -403,6 +431,20 @@ def main() -> None:
     )
     mig.add_argument("--db", type=str, default="am4_data.db")
     mig.set_defaults(func=cmd_migrate)
+
+    bak = sub.add_parser(
+        "backup",
+        help="Copy SQLite DB to a timestamped file (online backup; safe while readers hold the DB open)",
+    )
+    _add_db(bak)
+    bak.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default="./backups",
+        help="Destination directory (default: ./backups)",
+    )
+    bak.set_defaults(func=cmd_backup)
 
     args = parser.parse_args()
     args.func(args)

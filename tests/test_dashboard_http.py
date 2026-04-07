@@ -67,6 +67,15 @@ def test_extraction_deltas_api_without_db(
     assert "Database not found" in r.text
 
 
+def test_buy_next_page_includes_saved_filters_bar(
+    client: TestClient, absent_am4_db: None
+) -> None:
+    r = client.get("/buy-next")
+    assert r.status_code == 200
+    assert "sf-wrap-buy-next" in r.text
+    assert "saved-filters.js" in r.text or "Saved filters" in r.text
+
+
 # HTMX bubbles afterRequest to ancestors; without this guard, child requests (e.g. search)
 # can incorrectly trigger form.reset() on the parent form.
 _HTMX_AFTER_REQUEST_ELT_GUARD = "event.detail.elt !== event.currentTarget"

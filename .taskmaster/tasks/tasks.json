@@ -236,8 +236,9 @@
           "10",
           "12"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-07T12:00:00.000Z"
       },
       {
         "id": "18",

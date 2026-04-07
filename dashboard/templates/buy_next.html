@@ -4,6 +4,8 @@
 <h2 class="text-2xl font-bold mb-2">Buy next</h2>
 <p class="am4-text-secondary mb-6">Recommends aircraft to purchase next by shortest payback (cost ÷ average daily profit across valid routes), with optional budget, hub, type, and owned-exclusion filters. Top routes show the seat configuration used on each leg. Use <strong class="am4-text-secondary">Multi-hub allocate</strong> on a card to split N copies across hubs by greedy best marginal profit/day.</p>
 
+{% include "partials/saved_filters_bar.html" %}
+
 <form id="buynext-filters" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
         <label class="block text-xs am4-text-secondary mb-1">Hub (optional)</label>

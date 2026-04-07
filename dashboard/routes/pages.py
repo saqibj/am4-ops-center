@@ -10,8 +10,10 @@ from dashboard.db import base_context, fetch_all, fetch_one, get_db
 from database.extraction_runs import list_completed_runs
 from database.schema import load_extract_config
 from dashboard.hub_freshness import STALE_AFTER_DAYS
+from dashboard.routes.api.saved_filters import FORM_IDS as SAVED_FILTER_FORM_IDS
 from dashboard.server import templates
 from dashboard.ui_settings import ALLOWED_LANDING_PATHS
+from database.saved_filters import list_saved_filters
 
 router = APIRouter(tags=["pages"])
 
@@ -44,6 +46,25 @@ def _origin_hub_iatas_for_fleet_plan() -> list[str]:
     except FileNotFoundError:
         return []
     return [h["iata"] for h in hubs]
+
+
+def _saved_filters_bar_context(page_key: str) -> dict:
+    """Context keys for partials/saved_filters_bar.html."""
+    items: list = []
+    try:
+        conn = get_db()
+        try:
+            items = list_saved_filters(conn, page_key)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        pass
+    return {
+        "saved_filter_page": page_key,
+        "saved_filter_form_id": SAVED_FILTER_FORM_IDS[page_key],
+        "saved_filter_items": items,
+        "saved_filter_error": None,
+    }
 
 
 def _hubs_with_names() -> list[dict]:
@@ -184,6 +205,7 @@ def page_route_analyzer(request: Request):
 def page_fleet_planner(request: Request):
     ctx = base_context(request)
     ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
+    ctx.update(_saved_filters_bar_context("fleet-planner"))
     return templates.TemplateResponse(request, "fleet_planner.html", ctx)
 
 
@@ -191,6 +213,7 @@ def page_fleet_planner(request: Request):
 def page_buy_next(request: Request):
     ctx = base_context(request)
     ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
+    ctx.update(_saved_filters_bar_context("buy-next"))
     return templates.TemplateResponse(request, "buy_next.html", ctx)
 
 
@@ -263,6 +286,7 @@ def _hub_iatas_from_my_routes() -> list[str]:
 def page_fleet_health(request: Request):
     ctx = base_context(request)
     ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    ctx.update(_saved_filters_bar_context("fleet-health"))
     return templates.TemplateResponse(request, "fleet_health.html", ctx)
 
 
@@ -270,6 +294,7 @@ def page_fleet_health(request: Request):
 def page_demand_utilization(request: Request):
     ctx = base_context(request)
     ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    ctx.update(_saved_filters_bar_context("demand-utilization"))
     return templates.TemplateResponse(request, "demand_utilization.html", ctx)
 
 
@@ -285,6 +310,7 @@ def page_extraction_deltas(request: Request):
             conn.close()
     except FileNotFoundError:
         ctx["extraction_runs"] = []
+    ctx.update(_saved_filters_bar_context("extraction-deltas"))
     return templates.TemplateResponse(request, "extraction_deltas.html", ctx)
 
 
@@ -399,6 +425,7 @@ def page_scenarios(request: Request):
         df, dc = UserConfig().fuel_price, UserConfig().co2_price
     ctx["default_fuel"] = df
     ctx["default_co2"] = dc
+    ctx.update(_saved_filters_bar_context("scenarios"))
     return templates.TemplateResponse(request, "scenarios.html", ctx)
 
 

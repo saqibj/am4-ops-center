@@ -4,6 +4,8 @@
 <h2 class="text-2xl font-bold mb-2">Fuel &amp; CO₂ scenarios</h2>
 <p class="am4-text-secondary mb-6">Re-price fuel and CO₂ vs the <strong class="am4-text-secondary">baseline prices stored on each route row</strong> at extraction time. Profit is updated with pure arithmetic (no re-extract). Default slider values match your last saved extract config when available.</p>
 
+{% include "partials/saved_filters_bar.html" %}
+
 <form id="scenario-filters" class="space-y-6 mb-6">
     <div class="flex flex-wrap gap-6 items-end">
         <div class="min-w-[12rem] flex-1">
@@ -29,7 +31,7 @@
             <div class="text-xs font-mono am4-text-muted mt-1">0–500</div>
         </div>
     </div>
-    <p class="text-xs am4-text-muted">Type exact values: use browser focus on the slider or adjust in small steps. For precise entry, change the URL query after an update or add saved presets later.</p>
+    <p class="text-xs am4-text-muted">Type exact values: use browser focus on the slider or adjust in small steps. Use the <strong class="am4-text-secondary">Saved filters</strong> bar (above this form) to store and reload slider and scope settings.</p>
     <div class="flex flex-wrap gap-4 items-end">
         <div>
             <label class="block text-xs am4-text-secondary mb-1">Scope</label>

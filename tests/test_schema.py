@@ -99,6 +99,17 @@ def test_route_upsert_updates_single_row(tmp_path) -> None:
     conn.close()
 
 
+def test_create_schema_includes_saved_filters_table(tmp_path) -> None:
+    db = tmp_path / "test.db"
+    conn = get_connection(db)
+    create_schema(conn)
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='saved_filters' LIMIT 1"
+    ).fetchone()
+    assert row is not None
+    conn.close()
+
+
 def test_migrate_idempotent_on_fresh_schema(tmp_path) -> None:
     db = tmp_path / "test.db"
     conn = get_connection(db)

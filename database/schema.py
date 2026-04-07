@@ -215,6 +215,17 @@ CREATE TABLE IF NOT EXISTS extract_metadata (
     updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS saved_filters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    page TEXT NOT NULL,
+    params_json TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(name, page)
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_filters_page ON saved_filters(page);
+
 DROP VIEW IF EXISTS v_my_fleet;
 CREATE VIEW v_my_fleet AS
 SELECT

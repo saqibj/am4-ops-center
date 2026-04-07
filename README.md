@@ -8,7 +8,7 @@
 
 # AM4 Ops Center ✈️
 
-**Releases:** **0.1.1** (2026-04-04), **0.1.0** (2026-03-28) — [CHANGELOG.md](CHANGELOG.md). **Git tags:** **`v0.1.0`** (annotated); add **`v0.1.1`** after you commit the Settings/theme release (command in CHANGELOG).
+**Releases:** **0.1.1** (2026-04-04), **0.1.0** (2026-03-28) — [CHANGELOG.md](CHANGELOG.md). **Git tags:** **`v0.1.0`**, **`v0.1.1`**.
 
 > Bulk route profitability mining for Airline Manager 4 — extract, analyze, and optimize across all aircraft × hub combinations in a single offline tool.
 
@@ -368,18 +368,23 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 
 | Page | URL | Description |
 |------|-----|-------------|
-| Overview | `/` | Stats, top routes, quick links |
+| Overview | `/` | Stats, top routes, quick links, freshness card |
 | Hub Explorer | `/hub-explorer` | Routes from a hub, filterable by aircraft/type/profit |
-| Aircraft | `/aircraft` | Aircraft list and comparison against extracted routes |
+| Aircraft | `/aircraft` | Aircraft list plus cost-breakdown stacked chart |
 | Route Analyzer | `/route-analyzer` | All aircraft ranked for a specific origin → destination |
+| Scenarios | `/scenarios` | Fuel/CO2 what-if slider vs extracted baseline costs |
 | Fleet Planner | `/fleet-planner` | Budget-based aircraft / route suggestions |
-| Buy Next | `/buy-next` | Same ranking as Fleet Planner / `recommend`; **Owned** from `my_fleet` and optional **hide types I already own** (also `recommend --hide-owned`) |
+| Buy Next | `/buy-next` | Payback-ranked purchases, top routes, optional multi-hub allocator |
 | My Fleet | `/my-fleet` | `my_fleet` table: quantities, assigned vs free, buy/sell, CSV |
 | My Routes | `/my-routes` | `my_routes` assignments, merge on add, duplicate hints |
+| Fleet Health | `/fleet-health` | Profit gap vs best aircraft/config on each assigned route |
+| Demand utilization | `/demand-utilization` | Offered Y/J/F seats vs route demand with underserved/wasted flags |
+| Extraction deltas | `/extraction-deltas` | Compare two extraction snapshots: new/removed/movers/flip counts |
+| Hub ROI | `/hub-roi` | Per-hub capital deployed, daily profit, payback, worst-hub highlight |
 | Hub Manager | `/my-hubs` | Managed hubs (`my_hubs`): add IATA, per-hub refresh, **stale** refresh (OK extract older than 7 days), remove |
 | Contributions | `/contributions` | Routes sorted by alliance contribution |
 | Heatmap | `/heatmap` | Map visualization of profitable destinations |
-| Settings | `/settings` | Light / dark / system theme, comfortable or compact density, default landing page (first `/` visit per tab session), notification toggles, airline name + logo; saved in **`localStorage`** (per browser) |
+| Settings | `/settings` | Light/dark/system theme, density, landing page, notifications, branding; stored in **`localStorage`** |
 
 ### Tech Stack
 

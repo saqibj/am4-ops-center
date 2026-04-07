@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Extraction deltas{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Extraction deltas</h2>
+<p class="am4-text-secondary mb-3">
+    Compare <strong class="am4-text-secondary">snapshots</strong> from two completed route extractions (full or hub refresh).
+    See new and removed routes, large profit-per-day movers, and validity flips. Live <code class="text-xs am4-text-muted">route_aircraft</code> is unchanged; each successful extract records a run and copies rows into <code class="text-xs am4-text-muted">route_aircraft_snapshot</code>.
+</p>
+
+{% include "partials/saved_filters_bar.html" %}
+
+<form id="ed-filters" class="flex flex-wrap gap-4 mb-6 items-end">
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Older run</label>
+        <select name="run_a"
+                hx-get="/api/extraction-deltas"
+                hx-target="#ed-results"
+                hx-include="#ed-filters"
+                hx-indicator="#ed-spinner"
+                class="am4-input rounded-md px-3 py-2 min-w-[14rem] font-mono text-xs">
+            <option value="0">Auto (second-newest)</option>
+            {% for r in extraction_runs %}
+            <option value="{{ r.id }}">#{{ r.id }} · {{ r.started_at or '—' }} · {{ r.scope }} · {{ r.hubs or '—' }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Newer run</label>
+        <select name="run_b"
+                hx-get="/api/extraction-deltas"
+                hx-target="#ed-results"
+                hx-include="#ed-filters"
+                hx-indicator="#ed-spinner"
+                class="am4-input rounded-md px-3 py-2 min-w-[14rem] font-mono text-xs">
+            <option value="0">Auto (newest)</option>
+            {% for r in extraction_runs %}
+            <option value="{{ r.id }}">#{{ r.id }} · {{ r.started_at or '—' }} · {{ r.scope }} · {{ r.hubs or '—' }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Hub (optional)</label>
+        <select name="hub"
+                hx-get="/api/extraction-deltas"
+                hx-target="#ed-results"
+                hx-include="#ed-filters"
+                hx-indicator="#ed-spinner"
+                class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono">
+            <option value="">All hubs</option>
+            {% for h in hubs %}
+            <option value="{{ h }}">{{ h }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Min |Δ%|</label>
+        <input type="number" name="min_pct" value="5" min="0" step="0.5" max="1000"
+               hx-get="/api/extraction-deltas"
+               hx-trigger="change delay:300ms"
+               hx-target="#ed-results"
+               hx-include="#ed-filters"
+               hx-indicator="#ed-spinner"
+               class="am4-input rounded-md px-3 py-2 w-24 font-mono" />
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Limit / section</label>
+        <input type="number" name="limit" value="75" min="10" max="500" step="5"
+               hx-get="/api/extraction-deltas"
+               hx-trigger="change delay:300ms"
+               hx-target="#ed-results"
+               hx-include="#ed-filters"
+               hx-indicator="#ed-spinner"
+               class="am4-input rounded-md px-3 py-2 w-24 font-mono" />
+    </div>
+    <span id="ed-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
+</form>
+
+<div id="ed-results"
+     hx-get="/api/extraction-deltas"
+     hx-trigger="load"
+     hx-include="#ed-filters"
+     hx-indicator="#ed-spinner">
+    <p class="am4-text-secondary">Loading…</p>
+</div>
+{% endblock %}

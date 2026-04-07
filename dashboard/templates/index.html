@@ -31,6 +31,24 @@
     </div>
 </div>
 
+{% if hub_freshness_list %}
+<div class="am4-card rounded-lg shadow-lg p-6 mb-8">
+    <h3 class="text-lg font-semibold mb-3">Data freshness</h3>
+    <p class="text-xs am4-text-muted mb-4">Newest <code class="text-[0.7rem]">extracted_at</code> among valid routes per origin hub (green ≤7d, yellow 8–14d, red &gt;14d).</p>
+    <ul class="flex flex-wrap gap-x-4 gap-y-2 text-sm font-mono">
+        {% for fh in hub_freshness_list %}
+        <li class="inline-flex items-center gap-2">
+            <span class="h-2.5 w-2.5 rounded-full flex-shrink-0 {{ fh.dot_class }}" title="{{ fh.tier }}"></span>
+            <span class="am4-accent">{{ fh.iata }}</span>
+            <span class="am4-text-muted">
+                {% if fh.days is not none %}{{ fh.days }}d{% else %}—{% endif %}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 <p class="text-xs am4-text-muted uppercase tracking-wider mb-2">Analysis</p>
 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 mb-6">
     <a href="/hub-explorer" class="am4-quick-link rounded-md px-3 py-2 text-center text-sm">Hub Explorer</a>

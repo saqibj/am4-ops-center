@@ -45,3 +45,73 @@ def test_post_with_valid_bearer_succeeds(fleet_row_db, auth_headers) -> None:
         headers=auth_headers,
     )
     assert r.status_code == 200
+
+
+@pytest.fixture
+def saved_filters_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "saved_filters.db"
+    conn = get_connection(db_path)
+    create_schema(conn)
+    conn.close()
+    monkeypatch.setattr(dbm, "DB_PATH", str(db_path))
+    return db_path
+
+
+def test_saved_filters_save_requires_auth(saved_filters_db) -> None:
+    client = TestClient(app)
+    r = client.post(
+        "/api/saved-filters/save",
+        data={
+            "page": "buy-next",
+            "name": "preset-a",
+            "params_json": "hub=DXB&top_n=5",
+        },
+    )
+    assert r.status_code == 401
+
+
+def test_saved_filters_save_roundtrip(saved_filters_db, auth_headers) -> None:
+    client = TestClient(app)
+    r = client.post(
+        "/api/saved-filters/save",
+        data={
+            "page": "buy-next",
+            "name": "preset-a",
+            "params_json": "hub=DXB&top_n=5",
+        },
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert "sf-wrap-buy-next" in r.text
+    assert "preset-a" in r.text
+    conn = get_connection(saved_filters_db)
+    try:
+        n = conn.execute("SELECT COUNT(*) FROM saved_filters").fetchone()[0]
+        assert n == 1
+        row = conn.execute(
+            "SELECT page, name, params_json FROM saved_filters LIMIT 1"
+        ).fetchone()
+        assert row[0] == "buy-next"
+        assert row[1] == "preset-a"
+        assert "DXB" in row[2]
+    finally:
+        conn.close()
+
+
+def test_saved_filters_duplicate_name_returns_message(
+    saved_filters_db, auth_headers
+) -> None:
+    client = TestClient(app)
+    body = {
+        "page": "buy-next",
+        "name": "dup",
+        "params_json": "top_n=3",
+    }
+    assert client.post(
+        "/api/saved-filters/save", data=body, headers=auth_headers
+    ).status_code == 200
+    r2 = client.post(
+        "/api/saved-filters/save", data=body, headers=auth_headers
+    )
+    assert r2.status_code == 200
+    assert "already exists" in r2.text

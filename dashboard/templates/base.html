@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="/static/js/saved-filters.js" defer></script>
     <script src="/static/js/settings-store.js" defer></script>
     <script src="/static/js/shell-branding.js" defer></script>
     <script src="/static/js/app.js" defer></script>
@@ -46,11 +47,16 @@
         <a href="/hub-explorer" class="am4-nav-link block px-3 py-2 rounded-md">Hub Explorer</a>
         <a href="/aircraft" class="am4-nav-link block px-3 py-2 rounded-md">Aircraft</a>
         <a href="/route-analyzer" class="am4-nav-link block px-3 py-2 rounded-md">Route Analyzer</a>
+        <a href="/scenarios" class="am4-nav-link block px-3 py-2 rounded-md">Scenarios</a>
         <a href="/fleet-planner" class="am4-nav-link block px-3 py-2 rounded-md">Fleet Planner</a>
         <a href="/buy-next" class="am4-nav-link block px-3 py-2 rounded-md">Buy Next</a>
         <p class="text-xs am4-text-muted uppercase tracking-wider px-3 pt-4 pb-1">My Airline</p>
         <a href="/my-fleet" class="am4-nav-link block px-3 py-2 rounded-md">My Fleet</a>
         <a href="/my-routes" class="am4-nav-link block px-3 py-2 rounded-md">My Routes</a>
+        <a href="/fleet-health" class="am4-nav-link block px-3 py-2 rounded-md">Fleet Health</a>
+        <a href="/demand-utilization" class="am4-nav-link block px-3 py-2 rounded-md">Demand utilization</a>
+        <a href="/extraction-deltas" class="am4-nav-link block px-3 py-2 rounded-md">Extraction deltas</a>
+        <a href="/hub-roi" class="am4-nav-link block px-3 py-2 rounded-md">Hub ROI</a>
         <a href="/my-hubs" class="am4-nav-link block px-3 py-2 rounded-md">Hub Manager</a>
         <a href="/contributions" class="am4-nav-link block px-3 py-2 rounded-md">Contributions</a>
         <a href="/heatmap" class="am4-nav-link block px-3 py-2 rounded-md">Heatmap</a>
@@ -64,6 +70,15 @@
     <label for="nav-toggle" class="am4-overlay-scrim fixed inset-0 z-30 hidden peer-checked:block lg:hidden"></label>
 
     <main class="flex-1 overflow-auto w-full min-w-0 am4-main">
+        {% if stale_hub_banner %}
+        <div class="mx-4 mt-4 mb-2 rounded-md border border-rose-800/50 bg-rose-950/30 px-3 py-2 text-sm text-rose-100/95">
+            Data for <span class="font-mono font-semibold">{{ stale_hub_banner.hub }}</span> are
+            <strong>{{ stale_hub_banner.days }}</strong> days old.
+            Refresh with
+            <code class="text-xs font-mono bg-black/30 px-1 rounded">python main.py extract --refresh-hubs --hubs {{ stale_hub_banner.hub }}</code>
+            or use <a href="/my-hubs" class="underline font-medium">Hub Manager</a>.
+        </div>
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 </body>

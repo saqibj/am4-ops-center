@@ -1,0 +1,96 @@
+{% if not recommendations %}
+<p class="am4-text-secondary">No aircraft match these filters. Try raising the budget or clearing the hub.</p>
+{% else %}
+<div class="space-y-4">
+    {% for rec in recommendations %}
+    <div class="rounded-lg am4-bordered p-4 am4-sunken">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-3">
+            <div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-lg font-bold am4-accent">#{{ loop.index }}</span>
+                    <h3 class="text-lg font-semibold">{{ rec.name }}</h3>
+                    <span class="text-xs font-mono px-2 py-0.5 rounded am4-bordered">{{ rec.shortname }}</span>
+                    <span class="text-xs px-2 py-0.5 rounded bg-emerald-900/40 text-emerald-300">{{ rec.type }}</span>
+                </div>
+                <p class="text-xs am4-text-muted mt-1">
+                    Cost ${{ "{:,}".format(rec.cost) }} · Capacity {{ rec.capacity }} · Range {{ rec.range_km }} km · {{ rec.route_count }} valid routes
+                </p>
+            </div>
+            <div class="text-right font-mono text-sm">
+                <div class="am4-text-muted text-xs">Payback</div>
+                <div class="text-xl text-emerald-300">{{ rec.payback_days }}d</div>
+                <div class="am4-text-muted text-xs mt-1">Avg $/day</div>
+                <div>${{ "{:,.0f}".format(rec.avg_daily_profit) }}</div>
+            </div>
+        </div>
+        {% if rec.top_routes %}
+        <div class="overflow-x-auto mt-2">
+            <table class="am4-table w-full text-xs">
+                <thead class="am4-table-head uppercase tracking-wider">
+                    <tr>
+                        <th class="text-left py-1 px-2">Hub</th>
+                        <th class="text-left py-1 px-2">Dest</th>
+                        <th class="text-right py-1 px-2">Dist</th>
+                        <th class="text-right py-1 px-2">Y/J/F</th>
+                        <th class="text-right py-1 px-2">Trips/d</th>
+                        <th class="text-right py-1 px-2">Profit/d</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rec.top_routes %}
+                    <tr class="border-t am4-border font-mono">
+                        <td class="py-1 px-2">{{ r.hub }}</td>
+                        <td class="py-1 px-2">{{ r.destination }} <span class="am4-text-muted">{{ r.dest_country }}</span></td>
+                        <td class="py-1 px-2 text-right">{{ "{:,.0f}".format(r.distance_km or 0) }}</td>
+                        <td class="py-1 px-2 text-right">{{ r.config_y }}/{{ r.config_j }}/{{ r.config_f }}</td>
+                        <td class="py-1 px-2 text-right">{{ r.trips_per_day }}</td>
+                        <td class="py-1 px-2 text-right text-emerald-300">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="mt-4 pt-3 border-t am4-border">
+            <p class="text-xs am4-text-muted mb-2">
+                <strong class="am4-text-secondary">Multi-hub allocate</strong> — greedily assign copies to the best marginal profit/day route across selected hubs (one route per copy).
+            </p>
+            <form class="flex flex-wrap gap-3 items-end"
+                  hx-get="/api/buy-next/allocate"
+                  hx-target="#alloc-{{ rec.aircraft_id }}"
+                  hx-indicator="#alloc-spin-{{ rec.aircraft_id }}">
+                <input type="hidden" name="aircraft_id" value="{{ rec.aircraft_id }}">
+                <div>
+                    <label class="block text-[10px] am4-text-secondary mb-1">Copies (1–50)</label>
+                    <input type="number" name="quantity" value="1" min="1" max="50" required
+                           class="am4-input rounded-md px-2 py-1.5 w-20 font-mono text-sm">
+                </div>
+                {% if allocation_hubs %}
+                <div class="flex-1 min-w-[12rem] max-w-full">
+                    <span class="block text-[10px] am4-text-secondary mb-1">Hubs in scope</span>
+                    <div class="flex flex-wrap gap-x-3 gap-y-1 max-h-24 overflow-y-auto am4-bordered rounded-md px-2 py-1.5">
+                        {% for h in allocation_hubs %}
+                        <label class="inline-flex items-center gap-1.5 text-xs am4-text-secondary cursor-pointer whitespace-nowrap">
+                            <input type="checkbox" name="hubs" value="{{ h }}" checked
+                                   class="h-3.5 w-3.5 rounded border am4-border accent-[var(--accent)]">
+                            <span class="font-mono">{{ h }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-xs text-amber-200/90">No hub list: add <a href="/my-routes" class="underline">My Routes</a> or ensure extracted data has origins.</p>
+                {% endif %}
+                <button type="submit"
+                        class="rounded-md px-3 py-1.5 text-sm font-medium bg-emerald-800/80 hover:bg-emerald-700 text-white border border-emerald-600/50">
+                    Calculate
+                </button>
+                <span id="alloc-spin-{{ rec.aircraft_id }}" class="htmx-indicator am4-accent text-xs pb-1">…</span>
+            </form>
+            <div id="alloc-{{ rec.aircraft_id }}" class="mt-3"></div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

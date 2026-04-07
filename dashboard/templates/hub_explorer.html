@@ -16,7 +16,8 @@
                class="am4-input rounded-md px-3 py-2 min-w-[12rem] font-mono">
         <datalist id="hub-list">
             {% for h in hubs %}
-            <option value="{{ h.iata }}">{{ h.iata }} — {{ h.name }}</option>
+            {% set fhb = hub_freshness_by_iata.get(h.iata|upper, {}) %}
+            <option value="{{ h.iata }}">{{ h.iata }}{{ fhb.get('option_suffix', '') }} — {{ h.name }}</option>
             {% endfor %}
         </datalist>
     </div>

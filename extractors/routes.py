@@ -11,6 +11,12 @@ from typing import TYPE_CHECKING, Any
 log = logging.getLogger(__name__)
 
 from config import GameMode, UserConfig
+from database.extraction_runs import (
+    finish_extraction_run,
+    insert_snapshots_for_run,
+    mark_extraction_run_failed,
+    start_extraction_run,
+)
 from database.schema import (
     clear_route_tables,
     create_schema,
@@ -199,6 +205,8 @@ def extract_routes_for_hub(
                     "warnings": json.dumps([w.to_str() for w in acr.warnings]),
                     "is_valid": 1 if acr.valid else 0,
                     "game_mode": game_mode_label,
+                    "fuel_price": float(cfg.fuel_price),
+                    "co2_price": float(cfg.co2_price),
                 }
             )
 
@@ -215,7 +223,8 @@ INSERT INTO route_aircraft (
     profit_per_ac_day, income_per_ac_day,
     contribution,
     needs_stopover, stopover_iata, total_distance,
-    ci, warnings, is_valid, game_mode
+    ci, warnings, is_valid, game_mode,
+    fuel_price, co2_price, run_id
 ) VALUES (
     :origin_id, :dest_id, :aircraft_id, :distance_km,
     :config_y, :config_j, :config_f, :config_algorithm,
@@ -225,7 +234,8 @@ INSERT INTO route_aircraft (
     :profit_per_ac_day, :income_per_ac_day,
     :contribution,
     :needs_stopover, :stopover_iata, :total_distance,
-    :ci, :warnings, :is_valid, :game_mode
+    :ci, :warnings, :is_valid, :game_mode,
+    :fuel_price, :co2_price, :run_id
 )
 ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
     distance_km = excluded.distance_km,
@@ -255,6 +265,9 @@ ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
     warnings = excluded.warnings,
     is_valid = excluded.is_valid,
     game_mode = excluded.game_mode,
+    fuel_price = excluded.fuel_price,
+    co2_price = excluded.co2_price,
+    run_id = excluded.run_id,
     extracted_at = CURRENT_TIMESTAMP
 """
 
@@ -270,11 +283,17 @@ def _insert_batches(
     route_rows: list[dict],
     demand_pairs: dict[tuple[int, int], tuple],
     batch_size: int = 1000,
+    run_id: int | None = None,
 ) -> None:
     cur = conn.cursor()
     for i in range(0, len(route_rows), batch_size):
         chunk = route_rows[i : i + batch_size]
-        cur.executemany(ROUTE_INSERT_SQL, chunk)
+        batch: list[dict] = []
+        for r in chunk:
+            row = dict(r)
+            row["run_id"] = run_id
+            batch.append(row)
+        cur.executemany(ROUTE_INSERT_SQL, batch)
     for key, tup in demand_pairs.items():
         cur.execute(DEMAND_UPSERT_SQL, tup)
     conn.commit()
@@ -443,21 +462,35 @@ def refresh_single_hub_conn(conn: sqlite3.Connection, cfg: UserConfig, hub_iata:
 
     _my_hubs_mark_running(conn, ap_id)
 
+    run_id: int | None = None
     try:
+        row = conn.execute("SELECT iata FROM airports WHERE id = ?", (ap_id,)).fetchone()
+        iata_for_extract = (row["iata"] or raw_iata).strip() if row else raw_iata
+        hubs_csv = iata_for_extract.strip().upper()
+        run_id = start_extraction_run(conn, cfg, scope="hub", hubs_csv=hubs_csv)
+
         _delete_routes_for_origin(conn, ap_id)
         aircraft_rows = _aircraft_rows_from_db(conn)
         user = build_am4_user(cfg)
         options = _aircraft_route_options(cfg)
         game_mode_label = cfg.game_mode.value
-        row = conn.execute("SELECT iata FROM airports WHERE id = ?", (ap_id,)).fetchone()
-        iata_for_extract = (row["iata"] or raw_iata).strip() if row else raw_iata
         rr, dd = extract_routes_for_hub(
             iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label
         )
-        _insert_batches(conn, rr, _demands_to_map(dd))
+        _insert_batches(conn, rr, _demands_to_map(dd), run_id=run_id)
         save_extract_config(conn, cfg)
+        snap_n = insert_snapshots_for_run(conn, run_id, [ap_id])
+        finish_extraction_run(
+            conn,
+            run_id,
+            aircraft_count=len(aircraft_rows),
+            route_count=len(rr),
+            snapshot_count=snap_n,
+        )
         _my_hubs_mark_ok(conn, ap_id)
     except Exception as exc:
+        if run_id is not None:
+            mark_extraction_run_failed(conn, run_id, str(exc))
         err_txt = str(exc)[:1024] if str(exc) else type(exc).__name__
         _my_hubs_mark_error(conn, ap_id, raw_iata, err_txt)
         raise
@@ -513,6 +546,9 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
         allow = {h.strip().upper() for h in cfg.hub_filter if h.strip()}
         hubs = [h for h in hubs if h in allow]
 
+    hubs_csv = ",".join(str(h) for h in hubs if h) if hubs else "ALL"
+    run_id = start_extraction_run(conn, cfg, scope="full", hubs_csv=hubs_csv)
+
     game_mode_label = cfg.game_mode.value
 
     def _build_user_and_options() -> tuple[Any, Any]:
@@ -526,36 +562,53 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
 
     workers = max(1, int(cfg.max_workers))
 
-    if workers == 1:
-        user, options = _build_user_and_options()
-        for hub in tqdm(hubs):
-            rr, dd = extract_routes_for_hub(hub, aircraft_rows, cfg, user, options, game_mode_label)
-            _insert_batches(conn, rr, _demands_to_map(dd))
-            total_routes += len(rr)
-            total_demand_rows += len(dd)
-    else:
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            futs: dict[Any, str] = {}
-            for hub in hubs:
-
-                def _task(h: str = hub) -> tuple[list[dict], list[dict]]:
-                    user, options = _build_user_and_options()
-                    return extract_routes_for_hub(
-                        h, aircraft_rows, cfg, user, options, game_mode_label
-                    )
-
-                futs[ex.submit(_task)] = hub
-            for fut in tqdm(as_completed(futs), total=len(futs), desc="Hubs"):
-                hub = futs[fut]
-                try:
-                    rr, dd = fut.result()
-                except Exception as exc:
-                    log.warning("hub extraction failed for %s: %s", hub, exc)
-                    continue
-                _insert_batches(conn, rr, _demands_to_map(dd))
+    try:
+        if workers == 1:
+            user, options = _build_user_and_options()
+            for hub in tqdm(hubs):
+                rr, dd = extract_routes_for_hub(
+                    hub, aircraft_rows, cfg, user, options, game_mode_label
+                )
+                _insert_batches(conn, rr, _demands_to_map(dd), run_id=run_id)
                 total_routes += len(rr)
                 total_demand_rows += len(dd)
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                futs: dict[Any, str] = {}
+                for hub in hubs:
 
-    save_extract_config(conn, cfg)
-    print(f"    → {total_routes} route rows, {total_demand_rows} origin–destination demand rows")
-    conn.close()
+                    def _task(h: str = hub) -> tuple[list[dict], list[dict]]:
+                        user, options = _build_user_and_options()
+                        return extract_routes_for_hub(
+                            h, aircraft_rows, cfg, user, options, game_mode_label
+                        )
+
+                    futs[ex.submit(_task)] = hub
+                for fut in tqdm(as_completed(futs), total=len(futs), desc="Hubs"):
+                    hub = futs[fut]
+                    try:
+                        rr, dd = fut.result()
+                    except Exception as exc:
+                        log.warning("hub extraction failed for %s: %s", hub, exc)
+                        continue
+                    _insert_batches(conn, rr, _demands_to_map(dd), run_id=run_id)
+                    total_routes += len(rr)
+                    total_demand_rows += len(dd)
+
+        snap_n = insert_snapshots_for_run(conn, run_id, None)
+        finish_extraction_run(
+            conn,
+            run_id,
+            aircraft_count=len(aircraft_rows),
+            route_count=total_routes,
+            snapshot_count=snap_n,
+        )
+        save_extract_config(conn, cfg)
+        print(
+            f"    → {total_routes} route rows, {total_demand_rows} origin–destination demand rows"
+        )
+    except Exception as exc:
+        mark_extraction_run_failed(conn, run_id, str(exc))
+        raise
+    finally:
+        conn.close()

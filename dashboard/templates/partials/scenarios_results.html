@@ -1,0 +1,89 @@
+<div class="rounded-lg am4-bordered p-4 mb-6 am4-sunken">
+    <p class="text-xs am4-text-muted mb-2">Baseline prices used per row (from extraction / backfill): fuel ${{ "{:,.0f}".format(extraction_baseline_prices[0]) }}, CO₂ ${{ "{:,.0f}".format(extraction_baseline_prices[1]) }}</p>
+    <p class="text-xs am4-text-muted mb-4">Scenario prices: fuel ${{ "{:,.0f}".format(scenario_prices[0]) }}, CO₂ ${{ "{:,.0f}".format(scenario_prices[1]) }}</p>
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+            <div class="text-xs am4-text-muted">Baseline daily profit</div>
+            <div class="text-xl font-mono">${{ "{:,.0f}".format(baseline_daily_total) }}</div>
+        </div>
+        <div>
+            <div class="text-xs am4-text-muted">Scenario daily profit</div>
+            <div class="text-xl font-mono text-emerald-300">${{ "{:,.0f}".format(scenario_daily_total) }}</div>
+        </div>
+        <div>
+            <div class="text-xs am4-text-muted">Δ daily</div>
+            <div class="text-xl font-mono {% if delta_total >= 0 %}text-emerald-300{% else %}text-rose-300{% endif %}">${{ "{:,.0f}".format(delta_total) }}</div>
+        </div>
+        <div>
+            <div class="text-xs am4-text-muted">Δ %</div>
+            <div class="text-xl font-mono">
+                {% if pct_change is not none %}
+                {{ "{:,.1f}".format(pct_change) }}%
+                {% else %}
+                <span class="am4-text-muted">—</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <p class="text-sm am4-text-secondary mt-4">
+        Routes in scope: <strong>{{ n_rows }}</strong> ({{ scope }}).
+        Flipped to profitable: <strong class="text-emerald-300">{{ flip_neg_to_pos }}</strong> ·
+        Flipped to unprofitable: <strong class="text-rose-300">{{ flip_pos_to_neg }}</strong>
+    </p>
+</div>
+
+{% if not rows %}
+<p class="am4-text-secondary">No routes match. Add <strong>My Routes</strong> or switch scope to <strong>Full database</strong>.</p>
+{% else %}
+
+<div class="grid gap-6 lg:grid-cols-2 mb-6">
+    <div>
+        <h3 class="text-sm font-semibold am4-text-muted uppercase tracking-wider mb-2">Largest profit drops (per assignment)</h3>
+        <div class="overflow-x-auto rounded-lg am4-bordered">
+            <table class="am4-table w-full text-xs">
+                <thead class="am4-table-head">
+                    <tr>
+                        <th class="text-left py-2 px-2">Hub→Dest</th>
+                        <th class="text-left py-2 px-2">AC</th>
+                        <th class="text-right py-2 px-2">Δ $/day</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in worst10 %}
+                    <tr class="border-t am4-border">
+                        <td class="py-1 px-2 font-mono">{{ r.hub }}→{{ r.dest }}</td>
+                        <td class="py-1 px-2">{{ r.ac }}</td>
+                        <td class="py-1 px-2 text-right text-rose-300 font-mono">${{ "{:,.0f}".format(r.delta_daily) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div>
+        <h3 class="text-sm font-semibold am4-text-muted uppercase tracking-wider mb-2">Largest profit gains (per assignment)</h3>
+        <div class="overflow-x-auto rounded-lg am4-bordered">
+            <table class="am4-table w-full text-xs">
+                <thead class="am4-table-head">
+                    <tr>
+                        <th class="text-left py-2 px-2">Hub→Dest</th>
+                        <th class="text-left py-2 px-2">AC</th>
+                        <th class="text-right py-2 px-2">Δ $/day</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in best10 %}
+                    <tr class="border-t am4-border">
+                        <td class="py-1 px-2 font-mono">{{ r.hub }}→{{ r.dest }}</td>
+                        <td class="py-1 px-2">{{ r.ac }}</td>
+                        <td class="py-1 px-2 text-right text-emerald-300 font-mono">${{ "{:,.0f}".format(r.delta_daily) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<p class="am4-text-muted text-xs">Per-row Δ is total daily impact for that assignment (includes <code class="text-[0.65rem]">num_assigned</code> on My Routes).</p>
+{% endif %}

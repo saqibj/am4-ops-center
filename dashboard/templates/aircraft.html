@@ -4,6 +4,47 @@
 <h2 class="text-2xl font-bold mb-2">Aircraft comparison</h2>
 <p class="am4-text-secondary mb-6">Best routes for one aircraft across all hubs. Chart: top hubs by average daily profit.</p>
 
+<section class="mb-10 am4-card rounded-lg shadow-lg p-4">
+    <h3 class="text-lg font-semibold mb-1">Cost structure (all valid routes)</h3>
+    <p class="text-sm am4-text-secondary mb-4">
+        Average per-trip fuel, CO₂, A-check, repair, other costs, and profit as a share of average trip revenue, by aircraft (up to 50 rows).
+    </p>
+    <form id="cost-bd-filters" class="flex flex-wrap gap-4 mb-4 items-end">
+        <div>
+            <label class="block text-xs am4-text-secondary mb-1">Sort</label>
+            <select name="sort"
+                    hx-get="/api/aircraft-cost-breakdown"
+                    hx-target="#cost-bd-results"
+                    hx-include="#cost-bd-filters"
+                    class="am4-input rounded-md px-3 py-2">
+                <option value="margin_pct" selected>Profit margin %</option>
+                <option value="fuel_pct">Fuel % of revenue</option>
+                <option value="name">Aircraft name</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs am4-text-secondary mb-1">Type</label>
+            <select name="ac_type"
+                    hx-get="/api/aircraft-cost-breakdown"
+                    hx-target="#cost-bd-results"
+                    hx-include="#cost-bd-filters"
+                    class="am4-input rounded-md px-3 py-2">
+                <option value="">All</option>
+                <option value="pax">PAX</option>
+                <option value="cargo">Cargo</option>
+                <option value="vip">VIP</option>
+            </select>
+        </div>
+    </form>
+    <div id="cost-bd-results"
+         class="min-h-[12rem]"
+         hx-get="/api/aircraft-cost-breakdown"
+         hx-trigger="load"
+         hx-include="#cost-bd-filters">
+        <p class="am4-text-secondary text-sm">Loading cost breakdown…</p>
+    </div>
+</section>
+
 <form id="ac-filters" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
         <label class="block text-xs am4-text-secondary mb-1">Aircraft</label>

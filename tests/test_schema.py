@@ -53,6 +53,9 @@ def _base_route_row(**overrides: Any) -> dict[str, Any]:
         "warnings": "[]",
         "is_valid": 1,
         "game_mode": "easy",
+        "fuel_price": 700.0,
+        "co2_price": 120.0,
+        "run_id": None,
     }
     r.update(overrides)
     return r
@@ -93,6 +96,17 @@ def test_route_upsert_updates_single_row(tmp_path) -> None:
     assert float(row[0]) == 999.0
     n = conn.execute("SELECT COUNT(*) FROM route_aircraft").fetchone()[0]
     assert n == 1
+    conn.close()
+
+
+def test_create_schema_includes_saved_filters_table(tmp_path) -> None:
+    db = tmp_path / "test.db"
+    conn = get_connection(db)
+    create_schema(conn)
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='saved_filters' LIMIT 1"
+    ).fetchone()
+    assert row is not None
     conn.close()
 
 

@@ -1,0 +1,54 @@
+<div id="sf-wrap-{{ saved_filter_page }}" class="rounded-lg am4-bordered px-3 py-3 mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+    {% if saved_filter_error %}
+    <p class="text-sm text-rose-300 w-full">{{ saved_filter_error }}</p>
+    {% endif %}
+    <div class="flex flex-wrap items-end gap-2">
+        <div>
+            <label class="block text-xs am4-text-secondary mb-1" for="sf-pick-{{ saved_filter_page }}">Saved filters</label>
+            <select id="sf-pick-{{ saved_filter_page }}"
+                    class="am4-input rounded-md px-3 py-2 min-w-[12rem] text-sm font-mono">
+                <option value="">Choose…</option>
+                {% for it in saved_filter_items %}
+                <option value="{{ it.id }}" data-params="{{ it.params_json|e }}">{{ it.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="button"
+                class="am4-input rounded-md px-3 py-2 text-sm"
+                onclick="window.am4SavedFilters.applySelect(document.getElementById('sf-pick-{{ saved_filter_page }}'))">
+            Apply
+        </button>
+        <form class="inline"
+              hx-post="/api/saved-filters/delete"
+              hx-target="#sf-wrap-{{ saved_filter_page }}"
+              hx-swap="outerHTML"
+              hx-headers='{"Authorization": "Bearer {{ auth_token }}"}'>
+            <input type="hidden" name="page" value="{{ saved_filter_page }}" />
+            <input type="hidden" name="bookmark_id" id="sf-del-{{ saved_filter_page }}" value="" />
+            <button type="submit"
+                    class="am4-input rounded-md px-3 py-2 text-sm text-rose-200 border-rose-800/50"
+                    onclick="var s=document.getElementById('sf-pick-{{ saved_filter_page }}');if(!s||!s.value){alert('Select a saved filter to delete.');return false;}document.getElementById('sf-del-{{ saved_filter_page }}').value=s.value;return true;">
+                Delete
+            </button>
+        </form>
+    </div>
+    <form class="flex flex-wrap items-end gap-2 border-t am4-border pt-2 sm:border-t-0 sm:pt-0 sm:border-l sm:pl-3 flex-1 min-w-[12rem]"
+          hx-post="/api/saved-filters/save"
+          hx-target="#sf-wrap-{{ saved_filter_page }}"
+          hx-swap="outerHTML"
+          hx-headers='{"Authorization": "Bearer {{ auth_token }}"}'>
+        <input type="hidden" name="page" value="{{ saved_filter_page }}" />
+        <input type="hidden" name="params_json" id="sf-params-{{ saved_filter_page }}" value="" />
+        <div class="flex-1 min-w-[8rem]">
+            <label class="block text-xs am4-text-secondary mb-1" for="sf-name-{{ saved_filter_page }}">Save current</label>
+            <input type="text" name="name" id="sf-name-{{ saved_filter_page }}" maxlength="80" required
+                   placeholder="Name this filter set"
+                   class="am4-input rounded-md px-3 py-2 w-full max-w-xs text-sm" />
+        </div>
+        <button type="submit"
+                class="am4-input rounded-md px-3 py-2 text-sm am4-accent border-[var(--accent)]/40"
+                onclick="window.am4SavedFilters.fillParamsHidden('{{ saved_filter_form_id }}', 'sf-params-{{ saved_filter_page }}'); return true;">
+            Save
+        </button>
+    </form>
+</div>

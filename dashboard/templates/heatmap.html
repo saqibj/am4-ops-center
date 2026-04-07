@@ -14,7 +14,8 @@
                 hx-indicator="#map-spinner"
                 class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono">
             {% for h in hubs %}
-            <option value="{{ h.iata }}" {% if h.iata == default_hub %}selected{% endif %}>{{ h.iata }}{% if h.name %} — {{ h.name }}{% endif %}</option>
+            {% set fhb = hub_freshness_by_iata.get(h.iata|upper, {}) %}
+            <option value="{{ h.iata }}" {% if h.iata == default_hub %}selected{% endif %}>{{ h.iata }}{{ fhb.get('option_suffix', '') }}{% if h.name %} — {{ h.name }}{% endif %}</option>
             {% endfor %}
         </select>
     </div>

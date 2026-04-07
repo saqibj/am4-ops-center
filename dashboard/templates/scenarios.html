@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Scenarios{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Fuel &amp; CO₂ scenarios</h2>
+<p class="am4-text-secondary mb-6">Re-price fuel and CO₂ vs the <strong class="am4-text-secondary">baseline prices stored on each route row</strong> at extraction time. Profit is updated with pure arithmetic (no re-extract). Default slider values match your last saved extract config when available.</p>
+
+{% include "partials/saved_filters_bar.html" %}
+
+<form id="scenario-filters" class="space-y-6 mb-6">
+    <div class="flex flex-wrap gap-6 items-end">
+        <div class="min-w-[12rem] flex-1">
+            <label class="block text-xs am4-text-secondary mb-1">Fuel price ($/lb)</label>
+            <input type="range" name="fuel_price" min="0" max="4000" step="1" value="{{ default_fuel|int }}"
+                   class="w-full accent-[var(--accent)]"
+                   hx-get="/api/scenarios"
+                   hx-target="#scenario-results"
+                   hx-include="#scenario-filters"
+                   hx-trigger="change delay:300ms, input delay:300ms"
+                   hx-indicator="#scenario-spinner">
+            <div class="text-xs font-mono am4-text-muted mt-1">0–4000</div>
+        </div>
+        <div class="min-w-[12rem] flex-1">
+            <label class="block text-xs am4-text-secondary mb-1">CO₂ price ($/quota)</label>
+            <input type="range" name="co2_price" min="0" max="500" step="1" value="{{ default_co2|int }}"
+                   class="w-full accent-[var(--accent)]"
+                   hx-get="/api/scenarios"
+                   hx-target="#scenario-results"
+                   hx-include="#scenario-filters"
+                   hx-trigger="change delay:300ms, input delay:300ms"
+                   hx-indicator="#scenario-spinner">
+            <div class="text-xs font-mono am4-text-muted mt-1">0–500</div>
+        </div>
+    </div>
+    <p class="text-xs am4-text-muted">Type exact values: use browser focus on the slider or adjust in small steps. Use the <strong class="am4-text-secondary">Saved filters</strong> bar (above this form) to store and reload slider and scope settings.</p>
+    <div class="flex flex-wrap gap-4 items-end">
+        <div>
+            <label class="block text-xs am4-text-secondary mb-1">Scope</label>
+            <select name="scope"
+                    class="am4-input rounded-md px-3 py-2"
+                    hx-get="/api/scenarios"
+                    hx-target="#scenario-results"
+                    hx-include="#scenario-filters"
+                    hx-indicator="#scenario-spinner">
+                <option value="my_routes" selected>My Routes only</option>
+                <option value="all">Full database (all valid routes)</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs am4-text-secondary mb-1">Hub (optional)</label>
+            <select name="hub"
+                    class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono"
+                    hx-get="/api/scenarios"
+                    hx-target="#scenario-results"
+                    hx-include="#scenario-filters"
+                    hx-indicator="#scenario-spinner">
+                <option value="">All</option>
+                {% for h in hubs %}
+                {% set fhb = hub_freshness_by_iata.get(h|upper, {}) %}
+                <option value="{{ h }}">{{ h }}{{ fhb.get('option_suffix', '') }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <span id="scenario-spinner" class="htmx-indicator am4-accent text-sm pb-2">Updating…</span>
+    </div>
+</form>
+
+<div id="scenario-results" hx-get="/api/scenarios" hx-trigger="load" hx-include="#scenario-filters" hx-indicator="#scenario-spinner">
+    <p class="am4-text-secondary">Loading…</p>
+</div>
+{% endblock %}

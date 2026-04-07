@@ -5,12 +5,21 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+import dashboard.db as dashboard_db
 from dashboard.server import app
 
 
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
+
+
+@pytest.fixture
+def absent_am4_db(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Point dashboard at a non-existent DB so routes that use get_db() stay fast and deterministic."""
+    p = tmp_path / "no_am4_data.db"
+    assert not p.exists()
+    monkeypatch.setattr(dashboard_db, "DB_PATH", str(p))
 
 
 def test_static_theme_css(client: TestClient) -> None:
@@ -39,6 +48,32 @@ def test_index_renders(client: TestClient) -> None:
     assert "hx-headers" in r.text
     assert "Authorization" in r.text
     assert "Bearer " in r.text
+
+
+def test_extraction_deltas_page_renders(
+    client: TestClient, absent_am4_db: None
+) -> None:
+    r = client.get("/extraction-deltas")
+    assert r.status_code == 200
+    assert "Extraction deltas" in r.text
+    assert 'hx-get="/api/extraction-deltas"' in r.text
+
+
+def test_extraction_deltas_api_without_db(
+    client: TestClient, absent_am4_db: None
+) -> None:
+    r = client.get("/api/extraction-deltas")
+    assert r.status_code == 200
+    assert "Database not found" in r.text
+
+
+def test_buy_next_page_includes_saved_filters_bar(
+    client: TestClient, absent_am4_db: None
+) -> None:
+    r = client.get("/buy-next")
+    assert r.status_code == 200
+    assert "sf-wrap-buy-next" in r.text
+    assert "saved-filters.js" in r.text or "Saved filters" in r.text
 
 
 # HTMX bubbles afterRequest to ancestors; without this guard, child requests (e.g. search)

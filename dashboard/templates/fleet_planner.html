@@ -4,6 +4,8 @@
 <h2 class="text-2xl font-bold mb-2">Fleet planner</h2>
 <p class="am4-text-secondary mb-6">Aircraft under budget at this hub, ranked by average route profit. Days to break-even = cost ÷ avg daily profit.</p>
 
+{% include "partials/saved_filters_bar.html" %}
+
 <form id="fleet-filters" class="flex flex-wrap gap-4 mb-6 items-end">
     <div>
         <label class="block text-xs am4-text-secondary mb-1">Hub</label>
@@ -15,7 +17,8 @@
                 class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono">
             <option value="">Select…</option>
             {% for h in hubs %}
-            <option value="{{ h }}">{{ h }}</option>
+            {% set fhb = hub_freshness_by_iata.get(h|upper, {}) %}
+            <option value="{{ h }}">{{ h }}{{ fhb.get('option_suffix', '') }}</option>
             {% endfor %}
         </select>
     </div>

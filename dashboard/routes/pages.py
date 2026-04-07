@@ -217,6 +217,13 @@ def page_buy_next(request: Request):
     return templates.TemplateResponse(request, "buy_next.html", ctx)
 
 
+@router.get("/buy-next/global", response_class=HTMLResponse)
+def page_buy_next_global(request: Request):
+    ctx = base_context(request)
+    ctx.update(_saved_filters_bar_context("buy-next-global"))
+    return templates.TemplateResponse(request, "buy_next_global.html", ctx)
+
+
 @router.get("/my-fleet", response_class=HTMLResponse)
 def page_my_fleet(request: Request):
     try:

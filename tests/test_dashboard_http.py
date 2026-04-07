@@ -76,6 +76,15 @@ def test_buy_next_page_includes_saved_filters_bar(
     assert "saved-filters.js" in r.text or "Saved filters" in r.text
 
 
+def test_buy_next_global_page_includes_saved_filters_bar(
+    client: TestClient, absent_am4_db: None
+) -> None:
+    r = client.get("/buy-next/global")
+    assert r.status_code == 200
+    assert "sf-wrap-buy-next-global" in r.text
+    assert "buynext-global-filters" in r.text
+
+
 # HTMX bubbles afterRequest to ancestors; without this guard, child requests (e.g. search)
 # can incorrectly trigger form.reset() on the parent form.
 _HTMX_AFTER_REQUEST_ELT_GUARD = "event.detail.elt !== event.currentTarget"

@@ -19,6 +19,7 @@ router = APIRouter()
 ALLOWED_PAGES: frozenset[str] = frozenset(
     {
         "buy-next",
+        "buy-next-global",
         "fleet-planner",
         "fleet-health",
         "scenarios",
@@ -29,6 +30,7 @@ ALLOWED_PAGES: frozenset[str] = frozenset(
 
 FORM_IDS: dict[str, str] = {
     "buy-next": "buynext-filters",
+    "buy-next-global": "buynext-global-filters",
     "fleet-planner": "fleet-filters",
     "fleet-health": "fleet-health-filters",
     "scenarios": "scenario-filters",

@@ -16,13 +16,22 @@ from dashboard.routes.api.shared import CONTRIB_SORT, _contrib_order, _query_fla
 router = APIRouter()
 
 
-def _parse_buy_next_budget(budget: str | None) -> int | None:
+def _parse_buy_next_budget(budget: str | None) -> tuple[int | None, str | None]:
+    """Parse budget from query string.
+
+    Returns (value, error_code) where error_code is one of:
+    - "missing" for empty input
+    - "invalid" for non-numeric or negative input
+    """
     if budget is None or str(budget).strip() == "":
-        return None
+        return None, "missing"
     try:
-        return max(0, int(float(budget)))
-    except ValueError:
-        return None
+        val = int(float(str(budget).strip()))
+    except (TypeError, ValueError):
+        return None, "invalid"
+    if val < 0:
+        return None, "invalid"
+    return val, None
 
 
 def _buy_next_ac_type_filter(ac_type: str) -> str | None:
@@ -37,35 +46,98 @@ def _exclude_owned_from_request(request: Request) -> bool:
     return "1" in vals
 
 
-def _buy_next_phase_a(
+def _buy_next_sort_clause(sort: str) -> str:
+    sort_map = {
+        "price_desc": "ac.cost DESC, ra.profit_per_ac_day DESC, a_dest.iata COLLATE NOCASE ASC, a_orig.iata COLLATE NOCASE ASC",
+        "price_asc": "ac.cost ASC, ra.profit_per_ac_day DESC, a_dest.iata COLLATE NOCASE ASC, a_orig.iata COLLATE NOCASE ASC",
+        "profit_desc": "ra.profit_per_ac_day DESC, ac.cost DESC, a_dest.iata COLLATE NOCASE ASC, a_orig.iata COLLATE NOCASE ASC",
+        "profit_asc": "ra.profit_per_ac_day ASC, ac.cost ASC, a_dest.iata COLLATE NOCASE ASC, a_orig.iata COLLATE NOCASE ASC",
+        "yield_desc": "profit_yield DESC, ra.profit_per_ac_day DESC, ac.cost DESC, a_orig.iata COLLATE NOCASE ASC",
+    }
+    return sort_map.get(sort, sort_map["price_desc"])
+
+
+def _buy_next_flat_rows(
     conn,
     *,
     origin_id: int | None,
-    budget_val: int | None,
+    budget_val: int,
+    sort: str,
     type_filter: str | None,
     exclude_owned: bool,
-    top_n: int,
+    hide_stopovers: bool,
+    hide_existing: bool,
+    limit: int,
 ) -> list[dict]:
+    # my_routes_collapsed intentionally aggregates multiple aircraft on same OD into one
+    # row so highlight doesn't duplicate recommendations.
     sql = """
-    SELECT ac.id AS aircraft_id,
-           ac.shortname, ac.name, ac.type, ac.cost, ac.capacity, ac.range_km,
-           COUNT(*) AS route_count,
-           AVG(ra.profit_per_ac_day) AS avg_daily_profit,
-           MAX(ra.profit_per_ac_day) AS best_daily_profit
+    WITH my_routes_collapsed AS (
+        SELECT origin_id, dest_id,
+               MIN(id) AS id,
+               MAX(aircraft_id) AS aircraft_id,
+               SUM(num_assigned) AS num_assigned
+        FROM my_routes
+        GROUP BY origin_id, dest_id
+    )
+    SELECT a_orig.iata AS hub_iata,
+           a_dest.iata AS destination,
+           a_dest.country AS dest_country,
+           a_dest.id AS dest_id,
+           ac.id AS aircraft_id,
+           ac.shortname AS ac_shortname,
+           ac.name AS ac_name,
+           ac.type AS ac_type,
+           ac.cost AS ac_cost,
+           ac.capacity AS ac_capacity,
+           ac.range_km AS ac_range,
+           ra.distance_km,
+           ra.config_y, ra.config_j, ra.config_f,
+           ra.profit_per_trip,
+           ra.trips_per_day,
+           ra.profit_per_ac_day,
+           ra.flight_time_hrs,
+           ra.needs_stopover,
+           ra.stopover_iata,
+           CASE WHEN ac.cost > 0
+                THEN (ra.profit_per_ac_day * 1000000.0 / ac.cost)
+                ELSE 0
+           END AS profit_yield,
+           mr.id AS my_route_id,
+           mr.aircraft_id AS my_route_ac_id,
+           current_ac.shortname AS current_ac_shortname,
+           current_ac.name AS current_ac_name,
+           mr.num_assigned AS current_num_assigned,
+           EXISTS (
+               SELECT 1 FROM my_routes mr_exact
+               WHERE mr_exact.origin_id = ra.origin_id
+                 AND mr_exact.dest_id = ra.dest_id
+                 AND mr_exact.aircraft_id = ra.aircraft_id
+           ) AS is_exact_match
     FROM route_aircraft ra
     JOIN aircraft ac ON ra.aircraft_id = ac.id
+    JOIN airports a_orig ON ra.origin_id = a_orig.id
+    JOIN airports a_dest ON ra.dest_id = a_dest.id
+    LEFT JOIN my_routes_collapsed mr ON mr.origin_id = ra.origin_id AND mr.dest_id = ra.dest_id
+    LEFT JOIN aircraft current_ac ON mr.aircraft_id = current_ac.id
     WHERE ra.is_valid = 1
     """
+    origin_sql = ""
     params: list = []
     if origin_id is not None:
-        sql += " AND ra.origin_id = ?"
+        origin_sql = " AND ra.origin_id = ?"
         params.append(origin_id)
-    if budget_val is not None:
-        sql += " AND ac.cost <= ?"
-        params.append(budget_val)
+    sql += origin_sql + """
+      AND ac.cost > 0
+      AND ac.cost <= ?
+      AND ra.profit_per_ac_day > 0
+    """
+    params.append(budget_val)
     if type_filter:
         sql += " AND UPPER(TRIM(ac.type)) = UPPER(TRIM(?))"
         params.append(type_filter)
+    if hide_stopovers:
+        sql += " AND COALESCE(ra.needs_stopover, 0) = 0"
     if exclude_owned:
         sql += """
         AND NOT EXISTS (
@@ -73,14 +145,54 @@ def _buy_next_phase_a(
             WHERE mf.aircraft_id = ac.id AND COALESCE(mf.quantity, 0) > 0
         )
         """
-    sql += """
-    GROUP BY ac.id, ac.shortname, ac.name, ac.type, ac.cost, ac.capacity, ac.range_km
-    HAVING AVG(ra.profit_per_ac_day) > 0
-    ORDER BY (ac.cost * 1.0 / AVG(ra.profit_per_ac_day)) ASC
-    LIMIT ?
-    """
-    params.append(top_n)
+    if hide_existing:
+        sql += " AND mr.id IS NULL"
+
+    fetch_limit = limit * 5 if sort == "total_desc" else limit
+    sql += f" ORDER BY {_buy_next_sort_clause(sort)} LIMIT ?"
+    params.append(fetch_limit)
     return fetch_all(conn, sql, params)
+
+
+def _enrich_buy_next_rows(rows: list[dict], budget_val: int) -> None:
+    for r in rows:
+        cost = int(r.get("ac_cost") or 0)
+        profit_day = float(r.get("profit_per_ac_day") or 0.0)
+        qty = (int(budget_val) // cost) if cost > 0 else 0
+        total_day = qty * profit_day
+        payback_days = round(cost / profit_day, 1) if profit_day > 0 else None
+        r["qty_affordable"] = qty
+        r["total_daily_profit"] = total_day
+        r["payback_days"] = payback_days
+        if int(r.get("is_exact_match") or 0):
+            r["match_tier"] = "exact"
+        elif r.get("my_route_id") is not None:
+            r["match_tier"] = "route"
+        else:
+            r["match_tier"] = "none"
+        r["is_best_buy"] = False
+
+
+def _finalize_buy_next_rows(
+    rows: list[dict], sort_val: str, limit: int
+) -> tuple[list[dict], bool]:
+    if sort_val == "total_desc":
+        rows.sort(
+            key=lambda r: (
+                float(r.get("total_daily_profit") or 0.0),
+                float(r.get("profit_per_ac_day") or 0.0),
+            ),
+            reverse=True,
+        )
+    truncated = len(rows) >= limit
+    rows = rows[:limit]
+    if rows:
+        best_idx = max(
+            range(len(rows)),
+            key=lambda i: float(rows[i].get("total_daily_profit") or 0.0),
+        )
+        rows[best_idx]["is_best_buy"] = True
+    return rows, truncated
 
 
 def _allocation_hub_iatas(conn) -> list[str]:
@@ -235,12 +347,38 @@ def api_buy_next(
     request: Request,
     hub: str = Query(""),
     budget: str | None = Query(None),
+    sort: str = Query("price_desc"),
     ac_type: str = Query(""),
-    top_n: int = Query(5, ge=1, le=20),
+    exclude_owned: int = Query(0),
+    hide_stopovers: int = Query(0),
+    hide_existing: int = Query(0),
+    limit: int = Query(15, ge=1, le=500),
 ):
-    budget_val = _parse_buy_next_budget(budget)
-    exclude_owned = _exclude_owned_from_request(request)
+    allowed_sorts = {
+        "price_desc",
+        "price_asc",
+        "profit_desc",
+        "profit_asc",
+        "yield_desc",
+        "total_desc",
+    }
+    sort_val = sort if sort in allowed_sorts else "price_desc"
+    budget_val, budget_err = _parse_buy_next_budget(budget)
     type_filter = _buy_next_ac_type_filter(ac_type)
+    exclude_owned_flag = _query_flag_on(str(exclude_owned))
+    hide_stopovers_flag = _query_flag_on(str(hide_stopovers))
+    hide_existing_flag = _query_flag_on(str(hide_existing))
+
+    if not hub.strip():
+        return HTMLResponse(
+            "<p class='am4-text-secondary'>Pick a hub and enter a budget.</p>"
+        )
+    if budget_err == "missing":
+        return HTMLResponse(
+            "<p class='am4-text-secondary'>Pick a hub and enter a budget.</p>"
+        )
+    if budget_err == "invalid" or budget_val is None:
+        return HTMLResponse("<p class='text-amber-400'>Enter a valid budget.</p>")
 
     try:
         conn = get_db()
@@ -250,58 +388,110 @@ def api_buy_next(
         )
 
     try:
-        origin_id: int | None = None
-        if hub.strip():
-            hub_row = fetch_one(
-                conn,
-                "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
-                [hub.strip()],
-            )
-            if not hub_row:
-                return HTMLResponse("<p class='text-amber-400'>Unknown hub.</p>")
-            origin_id = int(hub_row["id"])
+        hub_row = fetch_one(
+            conn,
+            "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+            [hub.strip()],
+        )
+        if not hub_row:
+            return HTMLResponse("<p class='text-amber-400'>Unknown hub.</p>")
+        origin_id = int(hub_row["id"])
 
-        candidates = _buy_next_phase_a(
+        rows = _buy_next_flat_rows(
             conn,
             origin_id=origin_id,
-            budget_val=budget_val,
+            budget_val=int(budget_val),
+            sort=sort_val,
             type_filter=type_filter,
-            exclude_owned=exclude_owned,
-            top_n=top_n,
+            exclude_owned=exclude_owned_flag,
+            hide_stopovers=hide_stopovers_flag,
+            hide_existing=hide_existing_flag,
+            limit=limit,
         )
-
-        allocation_hubs = _allocation_hub_iatas(conn)
-
-        recommendations: list[dict] = []
-        for row in candidates:
-            avg = float(row["avg_daily_profit"] or 0)
-            cost = int(row["cost"] or 0)
-            payback_days = round(cost / avg, 1) if avg > 0 else 0.0
-            aid = int(row["aircraft_id"])
-            top_routes = _buy_next_top_routes(conn, aid, origin_id)
-            recommendations.append(
-                {
-                    "aircraft_id": aid,
-                    "shortname": row["shortname"],
-                    "name": row["name"],
-                    "type": row["type"],
-                    "cost": cost,
-                    "capacity": row["capacity"],
-                    "range_km": row["range_km"],
-                    "route_count": int(row["route_count"] or 0),
-                    "avg_daily_profit": avg,
-                    "best_daily_profit": float(row["best_daily_profit"] or 0),
-                    "payback_days": payback_days,
-                    "top_routes": top_routes,
-                }
-            )
+        _enrich_buy_next_rows(rows, int(budget_val))
+        rows, truncated = _finalize_buy_next_rows(rows, sort_val, limit)
 
         return templates.TemplateResponse(
             request,
             "partials/buy_next_results.html",
             {
-                "recommendations": recommendations,
-                "allocation_hubs": allocation_hubs,
+                "rows": rows,
+                "sort": sort_val,
+                "budget": int(budget_val),
+                "hub": hub.strip().upper(),
+                "truncated": truncated,
+                "limit": limit,
+            },
+        )
+    finally:
+        conn.close()
+
+
+@router.get("/buy-next-global", response_class=HTMLResponse)
+def api_buy_next_global(
+    request: Request,
+    budget: str | None = Query(None),
+    sort: str = Query("total_desc"),
+    ac_type: str = Query(""),
+    exclude_owned: int = Query(0),
+    hide_stopovers: int = Query(0),
+    hide_existing: int = Query(0),
+    limit: int = Query(15, ge=1, le=100),
+):
+    """Flat buy-next across all hubs (hub column in results). Max limit 100."""
+    allowed_sorts = {
+        "price_desc",
+        "price_asc",
+        "profit_desc",
+        "profit_asc",
+        "yield_desc",
+        "total_desc",
+    }
+    sort_val = sort if sort in allowed_sorts else "total_desc"
+    budget_val, budget_err = _parse_buy_next_budget(budget)
+    type_filter = _buy_next_ac_type_filter(ac_type)
+    exclude_owned_flag = _query_flag_on(str(exclude_owned))
+    hide_stopovers_flag = _query_flag_on(str(hide_stopovers))
+    hide_existing_flag = _query_flag_on(str(hide_existing))
+
+    if budget_err == "missing":
+        return HTMLResponse(
+            "<p class='am4-text-secondary'>Enter a budget to browse globally.</p>"
+        )
+    if budget_err == "invalid" or budget_val is None:
+        return HTMLResponse("<p class='text-amber-400'>Enter a valid budget.</p>")
+
+    try:
+        conn = get_db()
+    except FileNotFoundError:
+        return HTMLResponse(
+            "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
+        )
+
+    try:
+        rows = _buy_next_flat_rows(
+            conn,
+            origin_id=None,
+            budget_val=int(budget_val),
+            sort=sort_val,
+            type_filter=type_filter,
+            exclude_owned=exclude_owned_flag,
+            hide_stopovers=hide_stopovers_flag,
+            hide_existing=hide_existing_flag,
+            limit=limit,
+        )
+        _enrich_buy_next_rows(rows, int(budget_val))
+        rows, truncated = _finalize_buy_next_rows(rows, sort_val, limit)
+
+        return templates.TemplateResponse(
+            request,
+            "partials/buy_next_global_results.html",
+            {
+                "rows": rows,
+                "sort": sort_val,
+                "budget": int(budget_val),
+                "truncated": truncated,
+                "limit": limit,
             },
         )
     finally:

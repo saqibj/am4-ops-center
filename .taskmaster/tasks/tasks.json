@@ -9,7 +9,7 @@
         "testStrategy": "`git branch --show-current` prints the dedicated feature branch name. `git status` shows a clean working tree.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -22,7 +22,7 @@
         "dependencies": [
           1
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -35,7 +35,7 @@
         "dependencies": [
           2
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -48,7 +48,7 @@
         "dependencies": [
           3
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -61,7 +61,7 @@
         "dependencies": [
           4
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -74,7 +74,7 @@
         "dependencies": [
           5
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -100,13 +100,13 @@
         "dependencies": [
           7
         ],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": []
       }
     ],
     "metadata": {
       "created": "2026-04-07T10:08:21.000Z",
-      "updated": "2026-04-07T10:08:21.000Z",
+      "updated": "2026-04-07T14:00:00.000Z",
       "description": "am4-routemine: Buy Next page refinement v2. Refactor the existing per-aircraft card layout into a flat sortable (route \u00d7 aircraft \u00d7 seat config) table requiring hub + budget, with three profitability metrics (profit/day, yield, total/day), my_routes highlighting (two-tier: blue for route-with-different-aircraft, dim with checkmark for exact match), \ud83c\udfc6 badge on best-total-profit row, default 15-row limit with 'Show all' button, and a separate /buy-next/global page for cross-hub browsing."
     }
   }

@@ -2,30 +2,31 @@
 <p class="am4-text-secondary">No affordable routes match these filters. Try raising the budget or clearing the type filter.</p>
 {% else %}
 <div class="text-xs am4-text-muted mb-2">
-    Showing {{ rows|length }} rows for hub <span class="font-mono am4-accent">{{ hub }}</span> under ${{ "{:,}".format(budget) }} · sort: {{ sort }}
+    Showing {{ rows|length }} rows globally under ${{ "{:,}".format(budget) }} · sort: {{ sort }}
 </div>
 <div class="overflow-x-auto rounded-lg am4-bordered">
     <table class="am4-table w-full text-xs">
         <thead class="am4-table-head uppercase tracking-wider">
             <tr>
                 <th class="text-left py-2 px-2"></th>
+                <th class="text-left py-2 px-2">Hub</th>
                 <th class="text-left py-2 px-2">Dest</th>
                 <th class="text-left py-2 px-2">Aircraft</th>
                 <th class="text-left py-2 px-2">Type</th>
                 <th class="text-right py-2 px-2 cursor-pointer hover:text-emerald-300"
-                    hx-get="/api/buy-next" hx-target="#buynext-results" hx-include="#buynext-filters"
+                    hx-get="/api/buy-next-global" hx-target="#buynext-global-results" hx-include="#buynext-global-filters"
                     hx-vals='{"sort": "price_desc"}'>A/C $</th>
                 <th class="text-right py-2 px-2">Y/J/F</th>
                 <th class="text-right py-2 px-2">Dist</th>
                 <th class="text-right py-2 px-2 cursor-pointer hover:text-emerald-300"
-                    hx-get="/api/buy-next" hx-target="#buynext-results" hx-include="#buynext-filters"
+                    hx-get="/api/buy-next-global" hx-target="#buynext-global-results" hx-include="#buynext-global-filters"
                     hx-vals='{"sort": "profit_desc"}'>Profit/d</th>
                 <th class="text-right py-2 px-2 cursor-pointer hover:text-emerald-300"
-                    hx-get="/api/buy-next" hx-target="#buynext-results" hx-include="#buynext-filters"
+                    hx-get="/api/buy-next-global" hx-target="#buynext-global-results" hx-include="#buynext-global-filters"
                     hx-vals='{"sort": "yield_desc"}'>Yield</th>
                 <th class="text-right py-2 px-2">Qty</th>
                 <th class="text-right py-2 px-2 cursor-pointer hover:text-emerald-300"
-                    hx-get="/api/buy-next" hx-target="#buynext-results" hx-include="#buynext-filters"
+                    hx-get="/api/buy-next-global" hx-target="#buynext-global-results" hx-include="#buynext-global-filters"
                     hx-vals='{"sort": "total_desc"}'>Total/d</th>
                 <th class="text-right py-2 px-2">Payback</th>
                 <th class="text-left py-2 px-2">Currently</th>
@@ -37,6 +38,7 @@
                 <td class="py-1 px-2 text-center">
                     {% if r.is_best_buy %}<span title="Highest total daily profit at this budget">🏆</span>{% endif %}
                 </td>
+                <td class="py-1 px-2 font-mono text-emerald-200">{{ r.hub_iata }}</td>
                 <td class="py-1 px-2">
                     {{ r.destination }} <span class="am4-text-muted">{{ r.dest_country }}</span>
                     {% if r.needs_stopover %} <span class="text-amber-400" title="Stopover at {{ r.stopover_iata }}">⚠</span>{% endif %}
@@ -66,14 +68,14 @@
 
 {% if truncated %}
 <div class="mt-3 flex items-center gap-3">
-    <span class="text-xs am4-text-muted">Showing first {{ limit }} rows. More matches exist.</span>
-    <button hx-get="/api/buy-next"
-            hx-target="#buynext-results"
-            hx-include="#buynext-filters"
-            hx-vals='{"limit": 500}'
-            hx-indicator="#buynext-spinner"
+    <span class="text-xs am4-text-muted">Showing first {{ limit }} rows (max 100). More matches exist.</span>
+    <button hx-get="/api/buy-next-global"
+            hx-target="#buynext-global-results"
+            hx-include="#buynext-global-filters"
+            hx-vals='{"limit": 100}'
+            hx-indicator="#buynext-global-spinner"
             class="text-xs px-3 py-1 bg-emerald-700 hover:bg-emerald-600 rounded-md text-white">
-        Show all matches
+        Show all (100)
     </button>
 </div>
 {% endif %}

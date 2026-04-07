@@ -18,7 +18,7 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 
 ## 📸 Screenshots
 
-> Screenshots coming soon. The dashboard has **12** pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, Buy Next, My Fleet, My Routes, Hub Manager, Contributions, Heatmap, and **Settings**.
+> Screenshots coming soon. The dashboard has **17** main pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Scenarios, Fleet Planner, Buy Next, My Fleet, My Routes, Fleet Health, Demand utilization, Extraction deltas, Hub ROI, Hub Manager, Contributions, Heatmap, and **Settings**.
 
 ---
 
@@ -30,7 +30,7 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 - **3,900+ airports** — complete airport database with runway, market tier, hub costs
 - **SQLite storage** — 3.8M+ route rows queryable offline
 - **FastAPI dashboard** — web UI with **light / dark / system** themes, semantic styling (`theme.css`, `am4-*` utilities), Tailwind CSS (CDN) + HTMX (no page reloads)
-- **12 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, Fleet Planner, **Buy Next** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Hub Manager** (managed hubs, per-hub / stale refresh), Contributions, Heatmap, and **Settings** (`/settings`: themes, airline branding, default landing page, UI density, notification toggles; stored in browser **`localStorage`**)
+- **17 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, **Scenarios** (fuel/CO₂ vs extraction baselines), Fleet Planner, **Buy Next** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Fleet Health**, **Demand utilization**, **Extraction deltas** (compare route snapshots between two extractions), **Hub ROI**, **Hub Manager** (managed hubs, per-hub / stale refresh), Contributions, Heatmap, and **Settings** (`/settings`: themes, airline branding, default landing page, UI density, notification toggles; stored in browser **`localStorage`**)
 - **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; CSV import defaults to **merge**; **`--replace`** overwrites counts; dashboard forms match the same semantics
 - **CLI `recommend`** / **Buy Next** (`/buy-next`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**)
 - **CSV/Excel export** — dump tables for spreadsheet analysis

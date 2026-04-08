@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS airports (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_airports_iata_unique
-    ON airports(iata) WHERE iata IS NOT NULL AND TRIM(iata) != '';
+    ON airports(iata);
 
 CREATE TABLE IF NOT EXISTS route_demands (
     origin_id       INTEGER NOT NULL,
@@ -562,17 +562,18 @@ def _dedupe_airports_for_iata_index(conn: sqlite3.Connection) -> None:
 
 
 def _migrate_airports_iata_unique(conn: sqlite3.Connection) -> None:
-    has_idx = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_airports_iata_unique'"
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_airports_iata_unique'"
     ).fetchone()
-    if has_idx:
+    # Already the correct plain (non-partial) unique index — nothing to do.
+    if row and row[0] and "WHERE" not in row[0].upper():
         return
+    # Old partial index exists — drop it so we can recreate as plain unique.
+    if row:
+        conn.execute("DROP INDEX idx_airports_iata_unique")
     _dedupe_airports_for_iata_index(conn)
     conn.execute(
-        """
-        CREATE UNIQUE INDEX idx_airports_iata_unique
-            ON airports(iata) WHERE iata IS NOT NULL AND TRIM(iata) != ''
-        """
+        "CREATE UNIQUE INDEX idx_airports_iata_unique ON airports(iata)"
     )
 
 

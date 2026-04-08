@@ -137,7 +137,7 @@ def page_index(request: Request):
         top_routes = []
         top_hubs = []
 
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update(
         {
             "stats": stats,
@@ -152,7 +152,7 @@ def page_index(request: Request):
 
 @router.get("/hub-explorer", response_class=HTMLResponse)
 def page_hub_explorer(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": _hubs_with_names()})
     return templates.TemplateResponse(request, "hub_explorer.html", ctx)
 
@@ -170,7 +170,7 @@ def page_aircraft(request: Request):
             conn.close()
     except FileNotFoundError:
         aircraft = []
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"aircraft": aircraft})
     return templates.TemplateResponse(request, "aircraft.html", ctx)
 
@@ -196,14 +196,14 @@ def page_route_analyzer(request: Request):
             conn.close()
     except FileNotFoundError:
         origins = []
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"origins": origins})
     return templates.TemplateResponse(request, "route_analyzer.html", ctx)
 
 
 @router.get("/fleet-planner", response_class=HTMLResponse)
 def page_fleet_planner(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
     ctx.update(_saved_filters_bar_context("fleet-planner"))
     return templates.TemplateResponse(request, "fleet_planner.html", ctx)
@@ -211,7 +211,7 @@ def page_fleet_planner(request: Request):
 
 @router.get("/buy-next", response_class=HTMLResponse)
 def page_buy_next(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
     ctx.update(_saved_filters_bar_context("buy-next"))
     return templates.TemplateResponse(request, "buy_next.html", ctx)
@@ -219,7 +219,7 @@ def page_buy_next(request: Request):
 
 @router.get("/buy-next/global", response_class=HTMLResponse)
 def page_buy_next_global(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update(_saved_filters_bar_context("buy-next-global"))
     return templates.TemplateResponse(request, "buy_next_global.html", ctx)
 
@@ -237,7 +237,7 @@ def page_my_fleet(request: Request):
             conn.close()
     except FileNotFoundError:
         aircraft = []
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"aircraft": aircraft})
     return templates.TemplateResponse(request, "my_fleet.html", ctx)
 
@@ -263,7 +263,7 @@ def _airports_with_iata() -> list[dict]:
 
 @router.get("/my-hubs", response_class=HTMLResponse)
 def page_my_hubs(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx["stale_after_days"] = STALE_AFTER_DAYS
     return templates.TemplateResponse(request, "my_hubs.html", ctx)
 
@@ -291,7 +291,7 @@ def _hub_iatas_from_my_routes() -> list[str]:
 
 @router.get("/fleet-health", response_class=HTMLResponse)
 def page_fleet_health(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": _hub_iatas_from_my_routes()})
     ctx.update(_saved_filters_bar_context("fleet-health"))
     return templates.TemplateResponse(request, "fleet_health.html", ctx)
@@ -299,7 +299,7 @@ def page_fleet_health(request: Request):
 
 @router.get("/demand-utilization", response_class=HTMLResponse)
 def page_demand_utilization(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": _hub_iatas_from_my_routes()})
     ctx.update(_saved_filters_bar_context("demand-utilization"))
     return templates.TemplateResponse(request, "demand_utilization.html", ctx)
@@ -307,7 +307,7 @@ def page_demand_utilization(request: Request):
 
 @router.get("/extraction-deltas", response_class=HTMLResponse)
 def page_extraction_deltas(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": _hub_iatas_from_my_routes()})
     try:
         conn = get_db()
@@ -401,14 +401,14 @@ def _hub_roi_summary() -> dict:
 
 @router.get("/hub-roi", response_class=HTMLResponse)
 def page_hub_roi(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update(_hub_roi_summary())
     return templates.TemplateResponse(request, "hub_roi.html", ctx)
 
 
 @router.get("/scenarios", response_class=HTMLResponse)
 def page_scenarios(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": _hub_iatas_from_my_routes()})
     try:
         conn = get_db()
@@ -449,7 +449,7 @@ def page_my_routes(request: Request):
             conn.close()
     except FileNotFoundError:
         aircraft = []
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"airports": _airports_with_iata(), "aircraft": aircraft})
     return templates.TemplateResponse(request, "my_routes.html", ctx)
 
@@ -464,7 +464,7 @@ def page_contributions(request: Request):
             conn.close()
     except FileNotFoundError:
         hubs = []
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": [h["hub"] for h in hubs]})
     return templates.TemplateResponse(request, "contributions.html", ctx)
 
@@ -473,14 +473,14 @@ def page_contributions(request: Request):
 def page_heatmap(request: Request):
     hl = _hubs_with_names()
     default_hub = hl[0]["iata"] if hl else ""
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx.update({"hubs": hl, "default_hub": default_hub})
     return templates.TemplateResponse(request, "heatmap.html", ctx)
 
 
 @router.get("/settings", response_class=HTMLResponse)
 def page_settings(request: Request):
-    ctx = base_context(request)
+    ctx = base_context(request, None)
     ctx["landing_paths"] = sorted(ALLOWED_LANDING_PATHS)
     ctx["app_version"] = _package_version()
     return templates.TemplateResponse(request, "settings.html", ctx)

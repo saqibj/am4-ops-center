@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
 from dashboard.auth import check_auth_token
-from dashboard.db import fetch_all, fetch_one, get_db
+from dashboard.db import fetch_all, fetch_one, get_db, get_read_db
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_routes_rows
@@ -19,6 +19,7 @@ router = APIRouter()
 @router.get("/route-exists", response_class=HTMLResponse)
 def api_route_exists(
     request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
     origin: str = Query("", description="Hub IATA (alias for hub_iata)"),
     dest: str = Query("", description="Destination IATA (alias for destination_iata)"),
     aircraft: str = Query(""),
@@ -36,52 +37,48 @@ def api_route_exists(
             "partials/route_exists_hint.html",
             {"incomplete": True, "exists": False},
         )
-    try:
-        conn = get_db()
-        try:
-            hub = fetch_one(
-                conn,
-                "SELECT id, iata FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
-                [h],
-            )
-            apd = fetch_one(
-                conn,
-                "SELECT id, iata FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
-                [d],
-            )
-            acr = fetch_one(
-                conn,
-                "SELECT id, shortname FROM aircraft WHERE LOWER(TRIM(shortname)) = LOWER(TRIM(?)) LIMIT 1",
-                [ac],
-            )
-            if not hub or not apd or not acr:
-                return templates.TemplateResponse(
-                    request,
-                    "partials/route_exists_hint.html",
-                    {
-                        "incomplete": False,
-                        "lookup_failed": True,
-                        "exists": False,
-                        "hub": h,
-                        "dest": d,
-                        "aircraft": ac,
-                    },
-                )
-            row = fetch_one(
-                conn,
-                """
-                SELECT num_assigned FROM my_routes
-                WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
-                """,
-                [int(hub["id"]), int(apd["id"]), int(acr["id"])],
-            )
-        finally:
-            conn.close()
-    except FileNotFoundError:
+    if conn is None:
         return templates.TemplateResponse(
             request,
             "partials/route_exists_hint.html",
             {"incomplete": True, "exists": False},
+        )
+    try:
+        hub = fetch_one(
+            conn,
+            "SELECT id, iata FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+            [h],
+        )
+        apd = fetch_one(
+            conn,
+            "SELECT id, iata FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+            [d],
+        )
+        acr = fetch_one(
+            conn,
+            "SELECT id, shortname FROM aircraft WHERE LOWER(TRIM(shortname)) = LOWER(TRIM(?)) LIMIT 1",
+            [ac],
+        )
+        if not hub or not apd or not acr:
+            return templates.TemplateResponse(
+                request,
+                "partials/route_exists_hint.html",
+                {
+                    "incomplete": False,
+                    "lookup_failed": True,
+                    "exists": False,
+                    "hub": h,
+                    "dest": d,
+                    "aircraft": ac,
+                },
+            )
+        row = fetch_one(
+            conn,
+            """
+            SELECT num_assigned FROM my_routes
+            WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+            """,
+            [int(hub["id"]), int(apd["id"]), int(acr["id"])],
         )
     except sqlite3.OperationalError:
         return templates.TemplateResponse(
@@ -122,6 +119,7 @@ def api_route_exists(
 @router.get("/routes/pair-coverage", response_class=HTMLResponse)
 def api_routes_pair_coverage(
     request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
     hub_iata: str = Query(""),
     destination_iata: str = Query(""),
 ):
@@ -135,45 +133,51 @@ def api_routes_pair_coverage(
             "partials/route_pair_coverage.html",
             {"hub": hub, "dest": dest, "my_rows": [], "extract_rows": []},
         )
-    try:
-        conn = get_db()
+    if conn is None:
+        pass
+    else:
         try:
-            my_rows = fetch_all(
+            hub_row = fetch_one(
                 conn,
-                """
-                SELECT ac.shortname AS aircraft, mr.num_assigned, mr.notes
-                FROM my_routes mr
-                JOIN airports ho ON mr.origin_id = ho.id
-                JOIN airports hd ON mr.dest_id = hd.id
-                JOIN aircraft ac ON mr.aircraft_id = ac.id
-                WHERE UPPER(TRIM(ho.iata)) = UPPER(?) AND UPPER(TRIM(hd.iata)) = UPPER(?)
-                ORDER BY ac.shortname COLLATE NOCASE
-                """,
-                [hub, dest],
+                "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+                [hub],
             )
-            extract_rows = fetch_all(
+            dest_row = fetch_one(
                 conn,
-                """
-                SELECT ac.shortname, MAX(ra.profit_per_ac_day) AS profit_per_ac_day
-                FROM route_aircraft ra
-                JOIN airports a_orig ON ra.origin_id = a_orig.id
-                JOIN airports a_dest ON ra.dest_id = a_dest.id
-                JOIN aircraft ac ON ra.aircraft_id = ac.id
-                WHERE ra.is_valid = 1
-                  AND UPPER(TRIM(a_orig.iata)) = UPPER(?)
-                  AND UPPER(TRIM(a_dest.iata)) = UPPER(?)
-                GROUP BY ra.aircraft_id
-                ORDER BY profit_per_ac_day DESC
-                LIMIT 8
-                """,
-                [hub, dest],
+                "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+                [dest],
             )
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        pass
-    except sqlite3.OperationalError:
-        pass
+            if not hub_row or not dest_row:
+                my_rows = []
+                extract_rows = []
+            else:
+                oid, did = int(hub_row["id"]), int(dest_row["id"])
+                my_rows = fetch_all(
+                    conn,
+                    """
+                    SELECT ac.shortname AS aircraft, mr.num_assigned, mr.notes
+                    FROM my_routes mr
+                    JOIN aircraft ac ON mr.aircraft_id = ac.id
+                    WHERE mr.origin_id = ? AND mr.dest_id = ?
+                    ORDER BY ac.shortname COLLATE NOCASE
+                    """,
+                    [oid, did],
+                )
+                extract_rows = fetch_all(
+                    conn,
+                    """
+                    SELECT ac.shortname, MAX(ra.profit_per_ac_day) AS profit_per_ac_day
+                    FROM route_aircraft ra
+                    JOIN aircraft ac ON ra.aircraft_id = ac.id
+                    WHERE ra.is_valid = 1 AND ra.origin_id = ? AND ra.dest_id = ?
+                    GROUP BY ra.aircraft_id
+                    ORDER BY profit_per_ac_day DESC
+                    LIMIT 8
+                    """,
+                    [oid, did],
+                )
+        except sqlite3.OperationalError:
+            pass
     return templates.TemplateResponse(
         request,
         "partials/route_pair_coverage.html",
@@ -187,17 +191,17 @@ def api_routes_pair_coverage(
 
 
 @router.get("/routes/inventory", response_class=HTMLResponse)
-def api_routes_inventory(request: Request):
-    try:
-        conn = get_db()
+def api_routes_inventory(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+):
+    if conn is None:
+        routes = []
+    else:
         try:
             routes = _my_routes_rows(conn)
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        routes = []
-    except sqlite3.OperationalError:
-        routes = []
+        except sqlite3.OperationalError:
+            routes = []
     return templates.TemplateResponse(
         request,
         "partials/my_routes_inventory.html",
@@ -206,9 +210,14 @@ def api_routes_inventory(request: Request):
 
 
 @router.get("/routes/summary", response_class=HTMLResponse)
-def api_routes_summary(request: Request):
-    try:
-        conn = get_db()
+def api_routes_summary(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+):
+    if conn is None:
+        row = {"nrows": 0, "assigned": 0}
+        est = 0.0
+    else:
         try:
             row = fetch_one(
                 conn,
@@ -218,14 +227,9 @@ def api_routes_summary(request: Request):
                 """,
             )
             est = _airline_est_profit_from_my_routes(conn)
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        row = {"nrows": 0, "assigned": 0}
-        est = 0.0
-    except sqlite3.OperationalError:
-        row = {"nrows": 0, "assigned": 0}
-        est = 0.0
+        except sqlite3.OperationalError:
+            row = {"nrows": 0, "assigned": 0}
+            est = 0.0
     stats = {
         "nrows": int(row["nrows"] or 0) if row else 0,
         "assigned": int(row["assigned"] or 0) if row else 0,
@@ -335,12 +339,14 @@ def api_routes_add(
         msg = "Database missing my_routes table — run extract or upgrade schema."
 
     try:
-        conn = get_db()
+        c = get_db()
         try:
-            routes = _my_routes_rows(conn)
+            routes = _my_routes_rows(c)
         finally:
-            conn.close()
+            c.close()
     except FileNotFoundError:
+        routes = []
+    except sqlite3.OperationalError:
         routes = []
 
     ctx: dict = {"routes": routes}
@@ -374,12 +380,14 @@ def api_routes_delete(request: Request, my_route_id: int = Form(...)):
         )
 
     try:
-        conn = get_db()
+        c = get_db()
         try:
-            routes = _my_routes_rows(conn)
+            routes = _my_routes_rows(c)
         finally:
-            conn.close()
+            c.close()
     except FileNotFoundError:
+        routes = []
+    except sqlite3.OperationalError:
         routes = []
     return templates.TemplateResponse(
         request,
@@ -389,14 +397,15 @@ def api_routes_delete(request: Request, my_route_id: int = Form(...)):
 
 
 @router.get("/routes/json")
-def api_routes_json() -> list[dict]:
+def api_routes_json(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+) -> list[dict]:
+    if conn is None:
+        return []
     try:
-        conn = get_db()
-        try:
-            rows = _my_routes_rows(conn)
-        finally:
-            conn.close()
-    except FileNotFoundError:
+        rows = _my_routes_rows(conn)
+    except sqlite3.OperationalError:
         return []
     return [
         {

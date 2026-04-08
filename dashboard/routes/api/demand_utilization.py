@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+import sqlite3
+
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
-from dashboard.db import fetch_all, get_db
+from dashboard.db import fetch_all, get_read_db
 from dashboard.server import templates
 
 router = APIRouter()
@@ -140,21 +142,17 @@ def _apply_filters(
 @router.get("/demand-utilization", response_class=HTMLResponse)
 def api_demand_utilization(
     request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
     hub: str = Query(""),
     ac_type: str = Query("", alias="type"),
     classification: str = Query("all"),
 ):
-    try:
-        conn = get_db()
-    except FileNotFoundError:
+    if conn is None:
         return HTMLResponse(
             "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
         )
 
-    try:
-        raw = fetch_all(conn, _DEMAND_UTIL_SQL)
-    finally:
-        conn.close()
+    raw = fetch_all(conn, _DEMAND_UTIL_SQL)
 
     rows = [_enrich_row(dict(r)) for r in raw]
     clf = classification.strip().lower() if classification else "all"

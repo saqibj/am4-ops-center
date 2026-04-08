@@ -2,71 +2,61 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+import sqlite3
+
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
-from dashboard.db import fetch_all, get_db
+from dashboard.db import fetch_all, get_read_db
 from dashboard.server import templates
 
 router = APIRouter()
 
 _FLEET_HEALTH_SQL = """
-WITH my AS (
-    SELECT mr.id AS my_route_id,
-           mr.origin_id, mr.dest_id, mr.aircraft_id AS my_ac_id,
-           mr.num_assigned,
-           COALESCE(ra_mine.profit_per_ac_day, 0) AS my_profit_day,
-           ra_mine.config_y AS my_y, ra_mine.config_j AS my_j, ra_mine.config_f AS my_f,
-           ho.iata AS hub, hd.iata AS dest,
-           ac_mine.shortname AS my_ac
-    FROM my_routes mr
-    JOIN route_aircraft ra_mine
-         ON ra_mine.origin_id = mr.origin_id
-        AND ra_mine.dest_id = mr.dest_id
-        AND ra_mine.aircraft_id = mr.aircraft_id
-        AND ra_mine.is_valid = 1
-    JOIN airports ho ON mr.origin_id = ho.id
-    JOIN airports hd ON mr.dest_id = hd.id
-    JOIN aircraft ac_mine ON mr.aircraft_id = ac_mine.id
-),
-best AS (
-    SELECT ra.origin_id, ra.dest_id,
-           ra.aircraft_id AS best_ac_id,
-           ra.profit_per_ac_day AS best_profit_day,
-           ra.config_y AS best_y, ra.config_j AS best_j, ra.config_f AS best_f,
-           ac.shortname AS best_ac,
-           ROW_NUMBER() OVER (
-               PARTITION BY ra.origin_id, ra.dest_id
-               ORDER BY ra.profit_per_ac_day DESC
-           ) AS rn
-    FROM route_aircraft ra
-    JOIN aircraft ac ON ra.aircraft_id = ac.id
-    WHERE ra.is_valid = 1
-)
-SELECT m.my_route_id,
-       m.origin_id, m.dest_id, m.my_ac_id,
-       m.num_assigned,
-       m.my_profit_day,
-       m.my_y, m.my_j, m.my_f,
-       m.hub, m.dest,
-       m.my_ac,
-       b.best_ac, b.best_ac_id,
-       COALESCE(b.best_profit_day, 0) AS best_profit_day,
-       b.best_y, b.best_j, b.best_f,
-       (COALESCE(b.best_profit_day, 0) - m.my_profit_day) AS daily_gap_per_ac,
-       (COALESCE(b.best_profit_day, 0) - m.my_profit_day) * m.num_assigned AS daily_gap_total,
+SELECT mr.id AS my_route_id,
+       mr.origin_id, mr.dest_id, mr.aircraft_id AS my_ac_id,
+       mr.num_assigned,
+       COALESCE(ra_mine.profit_per_ac_day, 0) AS my_profit_day,
+       ra_mine.config_y AS my_y, ra_mine.config_j AS my_j, ra_mine.config_f AS my_f,
+       ho.iata AS hub, hd.iata AS dest,
+       ac_mine.shortname AS my_ac,
+       ac_best.shortname AS best_ac,
+       best_ra.aircraft_id AS best_ac_id,
+       COALESCE(best_ra.profit_per_ac_day, 0) AS best_profit_day,
+       best_ra.config_y AS best_y, best_ra.config_j AS best_j, best_ra.config_f AS best_f,
+       (COALESCE(best_ra.profit_per_ac_day, 0)
+        - COALESCE(ra_mine.profit_per_ac_day, 0)) AS daily_gap_per_ac,
+       (COALESCE(best_ra.profit_per_ac_day, 0)
+        - COALESCE(ra_mine.profit_per_ac_day, 0)) * mr.num_assigned AS daily_gap_total,
        CASE
-           WHEN m.my_ac_id = b.best_ac_id
+           WHEN mr.aircraft_id = best_ra.aircraft_id
                 AND (
-                    COALESCE(m.my_y, -1) != COALESCE(b.best_y, -1)
-                    OR COALESCE(m.my_j, -1) != COALESCE(b.best_j, -1)
-                    OR COALESCE(m.my_f, -1) != COALESCE(b.best_f, -1)
+                    COALESCE(ra_mine.config_y, -1) != COALESCE(best_ra.config_y, -1)
+                    OR COALESCE(ra_mine.config_j, -1) != COALESCE(best_ra.config_j, -1)
+                    OR COALESCE(ra_mine.config_f, -1) != COALESCE(best_ra.config_f, -1)
                 )
            THEN 1
            ELSE 0
        END AS reconfig_only
-FROM my m
-JOIN best b ON m.origin_id = b.origin_id AND m.dest_id = b.dest_id AND b.rn = 1
+FROM my_routes mr
+JOIN route_aircraft ra_mine
+     ON ra_mine.origin_id = mr.origin_id
+    AND ra_mine.dest_id   = mr.dest_id
+    AND ra_mine.aircraft_id = mr.aircraft_id
+    AND ra_mine.is_valid  = 1
+JOIN airports ho ON mr.origin_id = ho.id
+JOIN airports hd ON mr.dest_id   = hd.id
+JOIN aircraft ac_mine ON mr.aircraft_id = ac_mine.id
+LEFT JOIN route_aircraft best_ra
+     ON best_ra.id = (
+         SELECT ra2.id FROM route_aircraft ra2
+         WHERE ra2.origin_id = mr.origin_id
+           AND ra2.dest_id   = mr.dest_id
+           AND ra2.is_valid  = 1
+         ORDER BY ra2.profit_per_ac_day DESC
+         LIMIT 1
+     )
+LEFT JOIN aircraft ac_best ON best_ra.aircraft_id = ac_best.id
 ORDER BY daily_gap_total DESC
 """
 
@@ -124,23 +114,19 @@ def _apply_filters(
 @router.get("/fleet-health", response_class=HTMLResponse)
 def api_fleet_health(
     request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
     hub: str = Query(""),
     min_gap: float = Query(0.0, ge=0.0),
 ):
     hide_optimal = _hide_optimal_from_request(request)
     reconfig_only = _reconfig_only_from_request(request)
 
-    try:
-        conn = get_db()
-    except FileNotFoundError:
+    if conn is None:
         return HTMLResponse(
             "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
         )
 
-    try:
-        raw = fetch_all(conn, _FLEET_HEALTH_SQL)
-    finally:
-        conn.close()
+    raw = fetch_all(conn, _FLEET_HEALTH_SQL)
 
     filtered = _apply_filters(
         raw,

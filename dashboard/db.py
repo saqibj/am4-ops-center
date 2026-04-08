@@ -14,20 +14,68 @@ from fastapi import Request
 DB_PATH = os.environ.get("AM4_ROUTEMINE_DB", "am4_data.db")
 
 
+def _apply_pragmas(conn: sqlite3.Connection) -> None:
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA cache_size=-200000")
+    conn.execute("PRAGMA mmap_size=268435456")
+    conn.execute("PRAGMA temp_store=MEMORY")
+    conn.execute("PRAGMA busy_timeout=5000")
+
+
 def get_db() -> sqlite3.Connection:
     p = Path(DB_PATH)
     if not p.exists():
         raise FileNotFoundError(f"Database not found: {p}")
     conn = sqlite3.connect(str(p), check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    from database.extraction_runs import ensure_extraction_runs_schema
-    from database.saved_filters import ensure_saved_filters_schema
-    from database.schema import ensure_route_aircraft_baseline_prices
+    _apply_pragmas(conn)
+    from dashboard.middleware.profiling import instrument_connection
 
-    ensure_route_aircraft_baseline_prices(conn)
-    ensure_extraction_runs_schema(conn)
-    ensure_saved_filters_schema(conn)
-    return conn
+    return instrument_connection(conn)
+
+
+def _close_stale_read_if_path_changed(request: Request) -> None:
+    """If AM4_ROUTEMINE_DB / DB_PATH was monkeypatched (tests), drop the old shared reader."""
+    want = str(Path(DB_PATH).resolve())
+    backed = getattr(request.app.state, "db_read_path", None)
+    raw = getattr(request.app.state, "db_read", None)
+    if raw is not None and backed is not None and backed != want:
+        try:
+            raw.close()
+        except sqlite3.Error:
+            pass
+        request.app.state.db_read = None
+        request.app.state.db_read_path = None
+
+
+def open_read_connection(request: Request) -> tuple[sqlite3.Connection | None, bool]:
+    """Return (instrumented connection, needs_close). Caller must close when needs_close is True."""
+    _close_stale_read_if_path_changed(request)
+    from dashboard.middleware.profiling import instrument_connection
+
+    want = str(Path(DB_PATH).resolve())
+    raw = getattr(request.app.state, "db_read", None)
+    backed = getattr(request.app.state, "db_read_path", None)
+    if raw is not None and backed == want:
+        return instrument_connection(raw), False
+    try:
+        return get_db(), True
+    except FileNotFoundError:
+        return None, False
+
+
+def get_read_db(request: Request):
+    """FastAPI dependency: shared long-lived reader, or per-request connection when path differs."""
+    conn, owns = open_read_connection(request)
+    if conn is None:
+        yield None
+        return
+    try:
+        yield conn
+    finally:
+        if owns:
+            conn.close()
 
 
 def fetch_all(conn: sqlite3.Connection, sql: str, params: tuple | list = ()) -> list[dict]:
@@ -90,11 +138,18 @@ def _freshness_dot_class(tier: str) -> str:
     return "bg-slate-500"
 
 
+# Per-origin_id MAX(extracted_at) uses index-friendly GROUP BY origin_id; outer GROUP BY
+# hub IATA preserves semantics if multiple origin_ids ever shared one IATA code.
 _HUB_FRESHNESS_SQL = """
-    SELECT UPPER(TRIM(a.iata)) AS hub, MAX(ra.extracted_at) AS latest
-    FROM route_aircraft ra
-    JOIN airports a ON ra.origin_id = a.id
-    WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
+    SELECT UPPER(TRIM(a.iata)) AS hub, MAX(mx.latest) AS latest
+    FROM (
+        SELECT origin_id, MAX(extracted_at) AS latest
+        FROM route_aircraft
+        WHERE is_valid = 1
+        GROUP BY origin_id
+    ) AS mx
+    JOIN airports a ON mx.origin_id = a.id
+    WHERE a.iata IS NOT NULL AND TRIM(a.iata) != ''
     GROUP BY UPPER(TRIM(a.iata))
 """
 
@@ -148,15 +203,19 @@ def _hub_freshness_from_rows(
     }
 
 
-def hub_freshness_context(request: Request) -> dict[str, Any]:
+def hub_freshness_context(
+    request: Request, conn: sqlite3.Connection | None
+) -> dict[str, Any]:
     """Per-origin IATA: age of newest extracted route row (valid routes only)."""
+    if conn is None:
+        return {
+            "hub_freshness_by_iata": {},
+            "hub_freshness_list": [],
+            "stale_hub_banner": None,
+        }
     try:
-        conn = get_db()
-        try:
-            rows = fetch_all(conn, _HUB_FRESHNESS_SQL)
-        finally:
-            conn.close()
-    except FileNotFoundError:
+        rows = fetch_all(conn, _HUB_FRESHNESS_SQL)
+    except sqlite3.OperationalError:
         return {
             "hub_freshness_by_iata": {},
             "hub_freshness_list": [],
@@ -165,25 +224,30 @@ def hub_freshness_context(request: Request) -> dict[str, Any]:
     return _hub_freshness_from_rows(request, rows)
 
 
-def base_context(request: Request) -> dict:
+def base_context(
+    request: Request, conn: sqlite3.Connection | None
+) -> dict:
     empty_fresh = {
         "hub_freshness_by_iata": {},
         "hub_freshness_list": [],
         "stale_hub_banner": None,
     }
+    if conn is None:
+        return {
+            "request": request,
+            "db_name": os.path.basename(DB_PATH),
+            "route_count": 0,
+            **empty_fresh,
+        }
     try:
-        conn = get_db()
-        try:
-            row = fetch_one(
-                conn,
-                "SELECT COUNT(*) AS route_count FROM route_aircraft WHERE is_valid = 1",
-            )
-            rc = int(row["route_count"]) if row else 0
-            frows = fetch_all(conn, _HUB_FRESHNESS_SQL)
-            fresh = _hub_freshness_from_rows(request, frows)
-        finally:
-            conn.close()
-    except FileNotFoundError:
+        row = fetch_one(
+            conn,
+            "SELECT COUNT(*) AS route_count FROM route_aircraft WHERE is_valid = 1",
+        )
+        rc = int(row["route_count"]) if row else 0
+        frows = fetch_all(conn, _HUB_FRESHNESS_SQL)
+        fresh = _hub_freshness_from_rows(request, frows)
+    except sqlite3.OperationalError:
         rc = 0
         fresh = empty_fresh
     return {

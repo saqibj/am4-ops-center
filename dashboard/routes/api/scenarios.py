@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
+import sqlite3
+
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
 from config import UserConfig
-from dashboard.db import fetch_all, fetch_one, get_db
+from dashboard.db import fetch_all, fetch_one, get_read_db
 from dashboard.server import templates
 from database.schema import load_extract_config
 
@@ -28,13 +30,25 @@ def _fallback_baseline_prices(conn) -> tuple[float, float]:
     return UserConfig().fuel_price, UserConfig().co2_price
 
 
-def _fetch_scenario_rows(conn, scope: str, hub: str) -> list[dict]:
+def _resolve_hub_origin_id(conn, hub: str) -> int | None:
     hub = (hub or "").strip()
-    hub_sql = ""
+    if not hub:
+        return None
+    row = fetch_one(
+        conn,
+        "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+        [hub],
+    )
+    return int(row["id"]) if row else None
+
+
+def _fetch_scenario_rows(conn, scope: str, hub: str) -> list[dict]:
+    origin_id = _resolve_hub_origin_id(conn, hub)
+    origin_sql = ""
     params: list = []
-    if hub:
-        hub_sql = " AND UPPER(TRIM(ho.iata)) = UPPER(TRIM(?))"
-        params.append(hub)
+    if origin_id is not None:
+        origin_sql = " AND ra.origin_id = ?"
+        params.append(origin_id)
 
     if scope == "all":
         sql = f"""
@@ -47,9 +61,15 @@ def _fetch_scenario_rows(conn, scope: str, hub: str) -> list[dict]:
         JOIN airports hd ON ra.dest_id = hd.id
         JOIN aircraft ac ON ra.aircraft_id = ac.id
         WHERE ra.is_valid = 1
-        {hub_sql}
+        {origin_sql}
         """
         return fetch_all(conn, sql, params)
+
+    hub_filter = ""
+    mr_params: list = []
+    if origin_id is not None:
+        hub_filter = " AND mr.origin_id = ?"
+        mr_params.append(origin_id)
 
     sql = f"""
     SELECT ra.profit_per_trip, ra.trips_per_day, ra.fuel_cost, ra.co2_cost,
@@ -66,9 +86,9 @@ def _fetch_scenario_rows(conn, scope: str, hub: str) -> list[dict]:
     JOIN airports hd ON mr.dest_id = hd.id
     JOIN aircraft ac ON ra.aircraft_id = ac.id
     WHERE 1 = 1
-    {hub_sql}
+    {hub_filter}
     """
-    return fetch_all(conn, sql, params)
+    return fetch_all(conn, sql, mr_params)
 
 
 def _scenario_profit_per_ac_day(
@@ -99,24 +119,20 @@ def _scenario_profit_per_ac_day(
 @router.get("/scenarios", response_class=HTMLResponse)
 def api_scenarios(
     request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
     fuel_price: float = Query(700.0, ge=0.0, le=10_000.0),
     co2_price: float = Query(120.0, ge=0.0, le=2000.0),
     scope: str = Query("my_routes"),
     hub: str = Query(""),
 ):
     scope_norm = "all" if scope.strip().lower() == "all" else "my_routes"
-    try:
-        conn = get_db()
-    except FileNotFoundError:
+    if conn is None:
         return HTMLResponse(
             "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
         )
 
-    try:
-        fb, cb = _fallback_baseline_prices(conn)
-        rows = _fetch_scenario_rows(conn, scope_norm, hub)
-    finally:
-        conn.close()
+    fb, cb = _fallback_baseline_prices(conn)
+    rows = _fetch_scenario_rows(conn, scope_norm, hub)
 
     baseline_daily_total = 0.0
     scenario_daily_total = 0.0

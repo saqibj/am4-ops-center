@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Setup{% endblock %}
+{% block content %}
+<section class="p-6 space-y-4 max-w-3xl">
+  <p class="text-sm text-slate-400">Step {{ step }}/{{ step_total }} - {{ step_title }}</p>
+  <h1 class="text-2xl font-semibold">Welcome to AM4 Ops Center</h1>
+  <p class="text-slate-300">
+    This setup wizard will guide you through credentials, hubs, initial extraction, and optional fleet import.
+  </p>
+  <div class="pt-2">
+    <a class="am4-nav-link inline-block px-4 py-2 rounded-md" href="/setup/credentials">Start setup</a>
+  </div>
+</section>
+{% endblock %}
+

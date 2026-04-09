@@ -20,7 +20,11 @@ certifi==2026.2.25
     # via
     #   httpcore
     #   httpx
+cffi==2.0.0
+    # via cryptography
 click==8.3.2
+cryptography==46.0.7
+    # via -r requirements.in
     # via
     #   typer
     #   uvicorn
@@ -71,6 +75,8 @@ pydantic==2.12.5
     #   fastapi
 pydantic-core==2.41.5
     # via pydantic
+pycparser==3.0
+    # via cffi
 pygments==2.20.0
     # via rich
 python-dateutil==2.9.0.post0

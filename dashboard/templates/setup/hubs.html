@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Setup Hubs{% endblock %}
+{% block content %}
+<section class="p-6 space-y-4 max-w-3xl">
+  <p class="text-sm text-slate-400">Step {{ step }}/{{ step_total }} - {{ step_title }}</p>
+  <h1 class="text-2xl font-semibold">Select hubs</h1>
+  <p class="text-slate-300 text-sm">Enter comma-separated IATA codes (example: KHI,DXB,LAX).</p>
+  {% if flash %}<div class="text-emerald-300">{{ flash }}</div>{% endif %}
+  {% if flash_err %}<div class="text-rose-300">{{ flash_err }}</div>{% endif %}
+  <form method="post" action="/setup/hubs" class="space-y-3">
+    <textarea name="hubs" rows="3" class="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-700">{{ hubs or '' }}</textarea>
+    <div class="flex gap-2">
+      <a class="am4-nav-link inline-block px-4 py-2 rounded-md" href="/setup/credentials">Back</a>
+      <button class="am4-nav-link px-4 py-2 rounded-md" type="submit">Save hubs</button>
+      <a class="am4-nav-link inline-block px-4 py-2 rounded-md" href="/setup/extract">Next</a>
+    </div>
+  </form>
+</section>
+{% endblock %}
+

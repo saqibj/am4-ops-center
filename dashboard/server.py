@@ -48,6 +48,7 @@ async def _app_lifespan(app: FastAPI):
     get_dashboard_auth_token()
 
     app.state.db_read = None
+    app.state.templates = templates
 
     p = current_db_path()
     if p.is_file():
@@ -193,7 +194,8 @@ def redirect_contribution():
     return RedirectResponse(url="/contributions", status_code=307)
 
 
-from dashboard.routes import api_routes, pages
+from dashboard.routes import api_routes, pages, setup as setup_routes
 
 app.include_router(pages.router)
+app.include_router(setup_routes.router)
 app.include_router(api_routes.router)

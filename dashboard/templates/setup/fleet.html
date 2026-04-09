@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Setup Fleet{% endblock %}
+{% block content %}
+<section class="p-6 space-y-4 max-w-3xl">
+  <p class="text-sm text-slate-400">Step {{ step }}/{{ step_total }} - {{ step_title }}</p>
+  <h1 class="text-2xl font-semibold">Optional fleet CSV import</h1>
+  {% if flash %}<div class="text-emerald-300">{{ flash }}</div>{% endif %}
+  {% if flash_err %}<div class="text-rose-300">{{ flash_err }}</div>{% endif %}
+  {% if errors %}
+  <ul class="text-sm text-rose-300 list-disc pl-5">
+    {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  <form method="post" action="/setup/fleet" enctype="multipart/form-data" class="space-y-3">
+    <input type="file" name="file" accept=".csv" class="block w-full text-sm" />
+    <div class="flex gap-2">
+      <a class="am4-nav-link inline-block px-4 py-2 rounded-md" href="/setup/extract">Back</a>
+      <button class="am4-nav-link px-4 py-2 rounded-md" type="submit">Import CSV</button>
+    </div>
+  </form>
+  <form method="post" action="/setup/complete">
+    <button class="am4-nav-link px-4 py-2 rounded-md" type="submit">Finish setup</button>
+  </form>
+</section>
+{% endblock %}
+

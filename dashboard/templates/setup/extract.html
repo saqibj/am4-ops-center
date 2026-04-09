@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Setup Extract{% endblock %}
+{% block content %}
+<section class="p-6 space-y-4 max-w-3xl">
+  <p class="text-sm text-slate-400">Step {{ step }}/{{ step_total }} - {{ step_title }}</p>
+  <h1 class="text-2xl font-semibold">Initial extraction</h1>
+  <p class="text-slate-300 text-sm">Selected hubs: {{ hubs or "(none)" }}</p>
+  <div class="flex gap-2">
+    <a class="am4-nav-link inline-block px-4 py-2 rounded-md" href="/setup/hubs">Back</a>
+    <button class="am4-nav-link px-4 py-2 rounded-md"
+            hx-post="/setup/extract/start"
+            hx-target="#setup-extract-progress"
+            hx-swap="innerHTML">Start extraction</button>
+    <a class="am4-nav-link inline-block px-4 py-2 rounded-md" href="/setup/fleet">Next</a>
+  </div>
+  <div id="setup-extract-progress"
+       hx-get="/setup/extract/progress"
+       hx-trigger="load, every 2s"
+       hx-swap="innerHTML"></div>
+</section>
+{% endblock %}
+

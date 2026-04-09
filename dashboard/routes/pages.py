@@ -152,12 +152,6 @@ def page_index(request: Request):
     return templates.TemplateResponse(request, "index.html", ctx)
 
 
-@router.get("/setup", response_class=HTMLResponse)
-def page_setup(request: Request):
-    ctx = base_context(request, None)
-    return templates.TemplateResponse(request, "setup.html", ctx)
-
-
 @router.get("/hub-explorer", response_class=HTMLResponse)
 def page_hub_explorer(request: Request):
     ctx = base_context(request, None)

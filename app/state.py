@@ -59,6 +59,29 @@ def _write_state(key: str, value: str) -> None:
         conn.close()
 
 
+def set_state_value(key: str, value: str) -> None:
+    _write_state(key, value)
+
+
+def get_state_value(key: str, default: str | None = None) -> str | None:
+    p = _state_db_path()
+    if not p.exists():
+        return default
+    conn = _connect()
+    try:
+        try:
+            row = conn.execute(
+                "SELECT value FROM app_state WHERE key = ? LIMIT 1", (key,)
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return default
+    finally:
+        conn.close()
+    if row is None:
+        return default
+    return str(row["value"])
+
+
 def is_setup_complete() -> bool:
     p = _state_db_path()
     if not p.exists():

@@ -1,0 +1,8 @@
+AM4 Ops Center — installer license notice
+
+This installer may bundle components under their respective licenses:
+
+• AM4 Ops Center application — see the project repository for the current license.
+• Python runtime — Python Software Foundation License (https://docs.python.org/3/license.html).
+
+By continuing you agree to the terms applicable to the software you are installing.

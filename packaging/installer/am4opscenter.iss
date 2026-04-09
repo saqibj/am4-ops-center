@@ -6,7 +6,8 @@
 ;   2. Creates a venv under {app}\runtime
 ;   3. Installs app dependencies + am4 wheel from bundled offline wheels
 ;   4. Drops AM4OpsCenter.exe / AM4OpsCenter-Stop.exe shortcuts
-;   5. On uninstall, asks whether to preserve %APPDATA%\AM4OpsCenter
+;   5. Finished page: optional "Launch AM4 Ops Center now" checkbox
+;   6. On uninstall, asks whether to preserve %APPDATA%\AM4OpsCenter
 ;
 ; Build: iscc /DAppVersion=1.0.0 packaging\installer\am4opscenter.iss
 ; CI overrides AppVersion from the git tag.
@@ -39,8 +40,8 @@ DisableProgramGroupPage=yes
 DisableDirPage=no
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 OutputDir=Output
 OutputBaseFilename=AM4OpsCenter-Setup-{#AppVersion}
 SetupIconFile=assets\icon.ico
@@ -119,10 +120,7 @@ Filename: "{app}\runtime\Scripts\python.exe"; \
   StatusMsg: "Installing am4 engine..."; \
   Flags: runhidden waituntilterminated
 
-; ---- Step 6: Optionally launch after install ----
-Filename: "{app}\{#AppExeName}"; \
-  Description: "Launch {#AppName}"; \
-  Flags: nowait postinstall skipifsilent
+; Launch after install is handled in [Code] (checkbox on the Finished page).
 
 [UninstallDelete]
 ; Remove the venv directory (pip-installed files that Inno Setup didn't track)
@@ -135,6 +133,8 @@ Type: filesandordirs; Name: "{app}\app\__pycache__"
 ; [Code] - Pascal procedures
 ; =============================================================================
 [Code]
+uses
+  NewCheck;
 
 // Forward declarations
 function NeedsPython(): Boolean; forward;
@@ -144,6 +144,7 @@ function IsAppRunning(): Boolean; forward;
 
 var
   CachedPythonExe: String;
+  LaunchCheckbox: TNewCheckBox;
 
 // ---------------------------------------------------------------------------
 // FindExistingPython
@@ -235,6 +236,42 @@ begin
   Result := Exec(ExpandConstant('{cmd}'),
                  '/C tasklist /FI "IMAGENAME eq {#AppExeName}" /NH | findstr /I "{#AppExeName}" > nul',
                  '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+// ---------------------------------------------------------------------------
+// InitializeWizard
+// Checkbox on the Finished page: launch the app when setup completes.
+// ---------------------------------------------------------------------------
+procedure InitializeWizard;
+begin
+  if WizardSilent then
+    Exit;
+
+  LaunchCheckbox := TNewCheckBox.Create(WizardForm);
+  with LaunchCheckbox do
+  begin
+    Parent := WizardForm.FinishedPage;
+    Left := ScaleX(8);
+    Top := WizardForm.FinishedLabel.Top + WizardForm.FinishedLabel.Height + ScaleY(12);
+    Width := WizardForm.FinishedPage.ClientWidth - ScaleX(16);
+    Height := ScaleY(17);
+    Caption := 'Launch AM4 Ops Center now';
+    Checked := True;
+  end;
+end;
+
+// ---------------------------------------------------------------------------
+// DeinitializeSetup
+// Run the main exe if the user left the launch checkbox enabled.
+// ---------------------------------------------------------------------------
+procedure DeinitializeSetup;
+var
+  ResultCode: Integer;
+begin
+  if WizardSilent then
+    Exit;
+  if Assigned(LaunchCheckbox) and LaunchCheckbox.Checked then
+    Exec(ExpandConstant('{app}\{#AppExeName}'), '', '', SW_SHOW, ewNoWait, ResultCode);
 end;
 
 // ---------------------------------------------------------------------------

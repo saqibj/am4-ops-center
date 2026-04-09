@@ -35,8 +35,8 @@ on:
 
 env:
   PYTHON_VERSION: '3.14'
-  # Pin the am4 commit. Update this deliberately; check the smoke test still passes.
-  AM4_COMMIT_SHA: 'REPLACE_WITH_REAL_SHA_FROM_abc8747_am4_master'
+  # Pin via repository variable for reproducible builds.
+  AM4_COMMIT_SHA: ${{ vars.AM4_COMMIT_SHA }}
   AM4_REPO: 'https://github.com/abc8747/am4.git'
 
 jobs:
@@ -78,6 +78,7 @@ jobs:
       # Only installs the compiler + build tools, not python.
       # ---------------------------------------------------------------------
       - name: Install MSYS2 + mingw-w64 GCC
+        id: msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -89,6 +90,12 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-make
             git
+
+      - name: Validate AM4 commit pin
+        run: |
+          if ("${{ env.AM4_COMMIT_SHA }}" -eq "") {
+            throw "Repository variable AM4_COMMIT_SHA is required."
+          }
 
       # ---------------------------------------------------------------------
       # Step 4: Expose mingw64/bin to PowerShell PATH

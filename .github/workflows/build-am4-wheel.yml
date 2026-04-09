@@ -1,0 +1,12 @@
+name: Build am4 wheel
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-am4-wheel:
+    uses: ./.github/workflows/_build-am4-wheel-reusable.yml
+

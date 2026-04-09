@@ -1,0 +1,164 @@
+name: Build am4 wheel reusable
+
+on:
+  workflow_call:
+
+env:
+  PYTHON_VERSION: "3.14"
+  AM4_COMMIT_SHA: ${{ vars.AM4_COMMIT_SHA }}
+  AM4_REPO: "https://github.com/abc8747/am4.git"
+
+jobs:
+  build:
+    name: Build am4 wheel (Windows x64)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout am4-ops-center
+        uses: actions/checkout@v4
+
+      - name: Validate AM4 commit pin
+        run: |
+          if ("${{ env.AM4_COMMIT_SHA }}" -eq "") {
+            throw "Repository variable AM4_COMMIT_SHA is required."
+          }
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: "x64"
+
+      - name: Show Python info
+        run: |
+          python --version
+          python -c "import sys, sysconfig; print('executable:', sys.executable); print('platform:', sysconfig.get_platform()); print('abi:', sysconfig.get_config_var('SOABI'))"
+
+      - name: Install MSYS2 + mingw-w64 GCC
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gcc-libs
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-make
+            git
+
+      - name: Add mingw64 to PATH
+        run: |
+          $mingwBin = "${{ steps.msys2.outputs.msys2-location }}\mingw64\bin"
+          if (-not (Test-Path $mingwBin)) {
+            $mingwBin = "C:\msys64\mingw64\bin"
+          }
+          Write-Host "Adding to PATH: $mingwBin"
+          Add-Content -Path $env:GITHUB_PATH -Value $mingwBin
+
+      - name: Verify mingw toolchain is reachable
+        run: |
+          gcc --version
+          g++ --version
+          cmake --version
+          ninja --version
+          Get-Command gcc | Select-Object -ExpandProperty Source
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build delvewheel wheel setuptools
+
+      - name: Clone am4
+        run: |
+          git clone --recurse-submodules ${{ env.AM4_REPO }} am4-src
+          cd am4-src
+          git checkout ${{ env.AM4_COMMIT_SHA }}
+          git submodule update --init --recursive
+          git log -1 --oneline
+
+      - name: Build am4 wheel
+        working-directory: am4-src
+        env:
+          CC: gcc
+          CXX: g++
+          SKBUILD_CMAKE_ARGS: >-
+            -G=Ninja
+            -DCMAKE_C_COMPILER=gcc
+            -DCMAKE_CXX_COMPILER=g++
+            -DCMAKE_BUILD_TYPE=Release
+          CMAKE_GENERATOR: Ninja
+          CMAKE_C_COMPILER: gcc
+          CMAKE_CXX_COMPILER: g++
+        run: |
+          python -m build --wheel --outdir ..\dist-raw
+          Get-ChildItem ..\dist-raw
+
+      - name: Repair wheel with delvewheel
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $rawWheel = Get-ChildItem dist-raw\*.whl | Select-Object -First 1
+          if (-not $rawWheel) { throw "No wheel produced in dist-raw/" }
+          Write-Host "Repairing: $($rawWheel.FullName)"
+          python -m delvewheel repair `
+            --add-path "C:\msys64\mingw64\bin" `
+            --wheel-dir dist `
+            "$($rawWheel.FullName)"
+          Get-ChildItem dist
+
+      - name: Smoke test repaired wheel
+        run: |
+          python -m venv smoketest-venv
+          .\smoketest-venv\Scripts\Activate.ps1
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          python -m pip install --upgrade pip
+          python -m pip install "$($wheel.FullName)"
+          python -c @"
+          from am4.utils.db import init
+          init()
+          from am4.utils.aircraft import Aircraft
+          print('am4 import and init: OK')
+          "@
+          deactivate
+
+      - name: Generate wheel metadata
+        run: |
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          $hash = (Get-FileHash -Algorithm SHA256 $wheel.FullName).Hash
+          $metadata = @"
+          wheel: $($wheel.Name)
+          sha256: $hash
+          am4_commit: ${{ env.AM4_COMMIT_SHA }}
+          python_version: ${{ env.PYTHON_VERSION }}
+          built_at: $(Get-Date -Format 'o')
+          built_by: github.com/${{ github.repository }}@${{ github.sha }}
+          "@
+          $metadata | Out-File -FilePath dist\WHEEL_METADATA.txt -Encoding utf8
+          Get-Content dist\WHEEL_METADATA.txt
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: am4-wheel
+          path: |
+            dist/*.whl
+            dist/WHEEL_METADATA.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/WHEEL_METADATA.txt
+          generate_release_notes: false
+          draft: true
+          fail_on_unmatched_files: true
+

@@ -25,8 +25,11 @@ import os
 import sys
 from pathlib import Path
 
+from app.paths import db_path, ensure_runtime_dirs, migrate_legacy_repo_db
 from config import GameMode, UserConfig
 from database.schema import apply_route_aircraft_baseline_prices_at_path, get_connection
+
+DEFAULT_DB_PATH = str(db_path())
 
 
 def _invalidate_dashboard_static_caches() -> None:
@@ -176,6 +179,10 @@ def cmd_query(args: argparse.Namespace) -> None:
 def cmd_dashboard(args: argparse.Namespace) -> None:
     import uvicorn
 
+    ensure_runtime_dirs()
+    if migrate_legacy_repo_db():
+        print(f"Migrated legacy database to {db_path()}", file=sys.stderr)
+
     if not os.environ.get("AM4_ROUTEMINE_DB"):
         os.environ["AM4_ROUTEMINE_DB"] = str(Path(args.db).resolve())
 
@@ -188,7 +195,7 @@ def cmd_dashboard(args: argparse.Namespace) -> None:
 
 
 def _add_db(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--db", type=str, default="am4_data.db", help="SQLite database path")
+    p.add_argument("--db", type=str, default=DEFAULT_DB_PATH, help="SQLite database path")
 
 
 def cmd_fleet(args: argparse.Namespace) -> None:
@@ -310,6 +317,8 @@ def cmd_refresh_baseline(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    ensure_runtime_dirs()
+    migrate_legacy_repo_db()
     parser = argparse.ArgumentParser(description="AM4 RouteMine — bulk route data extractor")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -328,7 +337,7 @@ def main() -> None:
     ex.add_argument("--ci", type=int, default=200, help="Cost index hint (stored from am4 result; am4 optimizes CI)")
     ex.add_argument("--reputation", type=float, default=87.0)
     ex.add_argument("--aircraft", type=str, help="Limit to aircraft shortnames, e.g. b738,a388")
-    ex.add_argument("--db", type=str, default="am4_data.db")
+    ex.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
     ex.add_argument("--workers", type=int, default=4)
     ex.add_argument(
         "--planes-owned",
@@ -353,7 +362,7 @@ def main() -> None:
     exp = sub.add_parser("export", help="Export DB to CSV or Excel")
     exp.add_argument("--format", choices=["csv", "excel"], default="csv")
     exp.add_argument("--output", type=str, default="./exports/")
-    exp.add_argument("--db", type=str, default="am4_data.db")
+    exp.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
     exp.set_defaults(func=cmd_export)
 
     q = sub.add_parser("query", help="Query extracted SQLite data")
@@ -362,11 +371,11 @@ def main() -> None:
     q.add_argument("--type", choices=["pax", "cargo", "vip"])
     q.add_argument("--top", type=int, default=20)
     q.add_argument("--sort", choices=["profit", "contribution", "income"], default="profit")
-    q.add_argument("--db", type=str, default="am4_data.db")
+    q.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
     q.set_defaults(func=cmd_query)
 
     dash = sub.add_parser("dashboard", help="Launch web dashboard")
-    dash.add_argument("--db", type=str, default="am4_data.db")
+    dash.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
     dash.add_argument("--port", type=int, default=8000)
     dash.add_argument(
         "--host",
@@ -451,14 +460,14 @@ def main() -> None:
         "extract-info",
         help="Print saved extract UserConfig from extract_metadata (after an extract or hub refresh)",
     )
-    info.add_argument("--db", type=str, default="am4_data.db")
+    info.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
     info.set_defaults(func=cmd_extract_info)
 
     mig = sub.add_parser(
         "migrate",
         help="One-shot: dedupe data and add route_aircraft / aircraft / airports unique constraints",
     )
-    mig.add_argument("--db", type=str, default="am4_data.db")
+    mig.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
     mig.set_defaults(func=cmd_migrate)
 
     bak = sub.add_parser(
@@ -479,7 +488,7 @@ def main() -> None:
         "refresh-baseline",
         help="Backfill route_aircraft fuel_price / co2_price from extract_metadata (manual rebuild)",
     )
-    rb.add_argument("--db", type=str, default="am4_data.db")
+    rb.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
     rb.set_defaults(func=cmd_refresh_baseline)
 
     args = parser.parse_args()

@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+from app.paths import ensure_runtime_dirs, migrate_legacy_repo_db
+
 logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Request
@@ -34,16 +36,20 @@ templates = Jinja2Templates(
 @asynccontextmanager
 async def _app_lifespan(app: FastAPI):
     from dashboard.auth import get_dashboard_auth_token
-    from dashboard.db import DB_PATH, _apply_pragmas, get_db
+    from dashboard.db import _apply_pragmas, current_db_path, get_db
     from database.extraction_runs import ensure_extraction_runs_schema
     from database.saved_filters import ensure_saved_filters_schema
     from database.schema import apply_route_aircraft_baseline_prices_at_path
+
+    ensure_runtime_dirs()
+    if migrate_legacy_repo_db():
+        logger.info("Migrated legacy database to %s", current_db_path())
 
     get_dashboard_auth_token()
 
     app.state.db_read = None
 
-    p = Path(DB_PATH)
+    p = current_db_path()
     if p.is_file():
         def _short_setup_conn() -> sqlite3.Connection:
             c = sqlite3.connect(str(p), check_same_thread=False)

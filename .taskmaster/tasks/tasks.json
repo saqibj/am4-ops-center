@@ -9,9 +9,9 @@
         "testStrategy": "git status shows the new tree. packaging/README.md renders on GitHub. .gitignore correctly excludes wheels/, bootstrap/, and dist/. No binary files in the commit.",
         "priority": "high",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-04-09T08:16:22.524Z"
+        "updatedAt": "2026-04-09T08:23:53.580Z"
       },
       {
         "id": "2",
@@ -23,8 +23,9 @@
         "dependencies": [
           "1"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-09T08:28:52.292Z"
       },
       {
         "id": "3",
@@ -207,9 +208,9 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-09T08:16:22.525Z",
+      "lastModified": "2026-04-09T08:28:52.293Z",
       "taskCount": 15,
-      "completedCount": 0,
+      "completedCount": 2,
       "tags": [
         "master"
       ]

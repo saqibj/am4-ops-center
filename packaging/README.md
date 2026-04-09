@@ -22,3 +22,4 @@ This directory contains all packaging artifacts used to build and distribute AM4
 
 - Keep build outputs out of source control (`dist/`, bundled wheels, and bootstrap artifacts are ignored).
 - Placeholder files are intentionally lightweight and will be implemented in later tasks.
+- Runtime writable data (database, config, logs) uses platformdirs by default and can be overridden with `AM4OPS_DATA_DIR` for local/dev setups.

@@ -8,10 +8,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.paths import db_path
 from dateutil import parser as date_parser
 from fastapi import Request
 
-DB_PATH = os.environ.get("AM4_ROUTEMINE_DB", "am4_data.db")
+
+def current_db_path() -> Path:
+    env_db = os.environ.get("AM4_ROUTEMINE_DB")
+    if env_db:
+        return Path(env_db).expanduser().resolve()
+    db_path_override = globals().get("DB_PATH")
+    if db_path_override:
+        return Path(str(db_path_override)).expanduser().resolve()
+    return db_path().resolve()
+
+
+# Backward-compatibility for modules/tests that monkeypatch dashboard.db.DB_PATH.
+DB_PATH = str(current_db_path())
 
 
 def _apply_pragmas(conn: sqlite3.Connection) -> None:
@@ -24,7 +37,7 @@ def _apply_pragmas(conn: sqlite3.Connection) -> None:
 
 
 def get_db() -> sqlite3.Connection:
-    p = Path(DB_PATH)
+    p = current_db_path()
     if not p.exists():
         raise FileNotFoundError(f"Database not found: {p}")
     conn = sqlite3.connect(str(p), check_same_thread=False)
@@ -37,7 +50,7 @@ def get_db() -> sqlite3.Connection:
 
 def _close_stale_read_if_path_changed(request: Request) -> None:
     """If AM4_ROUTEMINE_DB / DB_PATH was monkeypatched (tests), drop the old shared reader."""
-    want = str(Path(DB_PATH).resolve())
+    want = str(current_db_path())
     backed = getattr(request.app.state, "db_read_path", None)
     raw = getattr(request.app.state, "db_read", None)
     if raw is not None and backed is not None and backed != want:
@@ -54,7 +67,7 @@ def open_read_connection(request: Request) -> tuple[sqlite3.Connection | None, b
     _close_stale_read_if_path_changed(request)
     from dashboard.middleware.profiling import instrument_connection
 
-    want = str(Path(DB_PATH).resolve())
+    want = str(current_db_path())
     raw = getattr(request.app.state, "db_read", None)
     backed = getattr(request.app.state, "db_read_path", None)
     if raw is not None and backed == want:
@@ -90,7 +103,7 @@ def fetch_one(conn: sqlite3.Connection, sql: str, params: tuple | list = ()) -> 
 
 
 def db_file_size_bytes() -> int | None:
-    p = Path(DB_PATH)
+    p = current_db_path()
     if not p.exists():
         return None
     return p.stat().st_size
@@ -235,7 +248,7 @@ def base_context(
     if conn is None:
         return {
             "request": request,
-            "db_name": os.path.basename(DB_PATH),
+            "db_name": current_db_path().name,
             "route_count": 0,
             **empty_fresh,
         }
@@ -252,7 +265,7 @@ def base_context(
         fresh = empty_fresh
     return {
         "request": request,
-        "db_name": os.path.basename(DB_PATH),
+        "db_name": current_db_path().name,
         "route_count": rc,
         **fresh,
     }

@@ -63,6 +63,8 @@ orjson==3.11.8
     # via am4
 pandas==3.0.2
     # via -r requirements.in
+platformdirs==4.9.6
+    # via -r requirements.in
 pydantic==2.12.5
     # via
     #   am4

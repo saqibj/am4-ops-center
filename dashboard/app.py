@@ -8,8 +8,11 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+from app.paths import db_path, ensure_runtime_dirs, migrate_legacy_repo_db
 
-DB_PATH = os.environ.get("AM4_ROUTEMINE_DB", str(Path(__file__).resolve().parent.parent / "am4_data.db"))
+ensure_runtime_dirs()
+migrate_legacy_repo_db()
+DB_PATH = os.environ.get("AM4_ROUTEMINE_DB", str(db_path()))
 
 
 @st.cache_resource

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
@@ -43,7 +45,7 @@ def _origin_hub_iatas_for_fleet_plan() -> list[str]:
             )
         finally:
             conn.close()
-    except FileNotFoundError:
+    except (FileNotFoundError, sqlite3.OperationalError):
         return []
     return [h["iata"] for h in hubs]
 
@@ -83,7 +85,7 @@ def _hubs_with_names() -> list[dict]:
             )
         finally:
             conn.close()
-    except FileNotFoundError:
+    except (FileNotFoundError, sqlite3.OperationalError):
         return []
 
 
@@ -150,6 +152,12 @@ def page_index(request: Request):
     return templates.TemplateResponse(request, "index.html", ctx)
 
 
+@router.get("/setup", response_class=HTMLResponse)
+def page_setup(request: Request):
+    ctx = base_context(request, None)
+    return templates.TemplateResponse(request, "setup.html", ctx)
+
+
 @router.get("/hub-explorer", response_class=HTMLResponse)
 def page_hub_explorer(request: Request):
     ctx = base_context(request, None)
@@ -168,7 +176,7 @@ def page_aircraft(request: Request):
             )
         finally:
             conn.close()
-    except FileNotFoundError:
+    except (FileNotFoundError, sqlite3.OperationalError):
         aircraft = []
     ctx = base_context(request, None)
     ctx.update({"aircraft": aircraft})
@@ -235,7 +243,7 @@ def page_my_fleet(request: Request):
             )
         finally:
             conn.close()
-    except FileNotFoundError:
+    except (FileNotFoundError, sqlite3.OperationalError):
         aircraft = []
     ctx = base_context(request, None)
     ctx.update({"aircraft": aircraft})
@@ -257,7 +265,7 @@ def _airports_with_iata() -> list[dict]:
             )
         finally:
             conn.close()
-    except FileNotFoundError:
+    except (FileNotFoundError, sqlite3.OperationalError):
         return []
 
 
@@ -447,7 +455,7 @@ def page_my_routes(request: Request):
             )
         finally:
             conn.close()
-    except FileNotFoundError:
+    except (FileNotFoundError, sqlite3.OperationalError):
         aircraft = []
     ctx = base_context(request, None)
     ctx.update({"airports": _airports_with_iata(), "aircraft": aircraft})

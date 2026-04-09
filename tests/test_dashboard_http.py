@@ -42,12 +42,23 @@ def test_settings_page_renders(client: TestClient) -> None:
 
 
 def test_index_renders(client: TestClient) -> None:
-    r = client.get("/")
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 307
+    assert r.headers.get("location") == "/setup"
+
+
+def test_setup_page_renders(client: TestClient) -> None:
+    r = client.get("/setup")
     assert r.status_code == 200
-    assert "AM4 Ops Center" in r.text or "Overview" in r.text
-    assert "hx-headers" in r.text
-    assert "Authorization" in r.text
-    assert "Bearer " in r.text
+    assert "Setup" in r.text
+
+
+def test_health_reports_setup_state(client: TestClient) -> None:
+    r = client.get("/health")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok"
+    assert "setup_complete" in body
 
 
 def test_extraction_deltas_page_renders(

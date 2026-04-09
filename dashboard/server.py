@@ -14,7 +14,7 @@ from app.paths import ensure_runtime_dirs, migrate_legacy_repo_db
 logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -148,6 +148,29 @@ if os.environ.get("PROFILE") == "1":
     app.add_middleware(PyInstrumentMiddleware)
 
 app.add_middleware(ProfilingMiddleware)
+
+
+@app.middleware("http")
+async def setup_redirect_guard(request: Request, call_next):
+    from app.state import is_setup_complete
+
+    path = request.url.path
+    exempt = (
+        path == "/health"
+        or path == "/favicon.ico"
+        or path.startswith("/static/")
+        or path.startswith("/setup")
+    )
+    if request.method == "GET" and not exempt and path == "/" and not is_setup_complete():
+        return RedirectResponse(url="/setup", status_code=307)
+    return await call_next(request)
+
+
+@app.get("/health")
+def health() -> JSONResponse:
+    from app.state import is_setup_complete
+
+    return JSONResponse({"status": "ok", "setup_complete": is_setup_complete()})
 
 
 @app.get("/hub", include_in_schema=False)

@@ -5,6 +5,8 @@ __pycache__/
 dist/
 build/
 .venv/
+packaging/installer/wheels/
+packaging/installer/bootstrap/
 
 # Data
 backups/

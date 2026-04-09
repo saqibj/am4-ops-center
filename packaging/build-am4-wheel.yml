@@ -1,0 +1,281 @@
+name: Build am4 wheel
+
+# =============================================================================
+# Builds a redistributable Windows x64 wheel of the `am4` package for the
+# stock python.org Python 3.14, using mingw-w64 GCC (because the am4 C++
+# source fails to compile under MSVC — error C2446).
+#
+# Strategy:
+#   1. Install stock python.org Python 3.14 via actions/setup-python
+#      (this is the ABI the wheel must match — NOT msys2 python)
+#   2. Install MSYS2 just for the mingw-w64 GCC toolchain + cmake + ninja
+#   3. Put mingw64/bin on PATH so python's build backend finds gcc/g++
+#   4. Clone abc8747/am4 at a pinned commit
+#   5. Build the wheel with `python -m build --wheel`, forcing CMake to use
+#      the mingw compilers
+#   6. Use delvewheel to bundle the mingw runtime DLLs (libstdc++, libgcc_s,
+#      libwinpthread) into the wheel so it's self-contained — users won't
+#      have mingw on their machines
+#   7. Smoke test the repaired wheel in a clean venv
+#   8. Upload as artifact and, on tag push, attach to the GitHub Release
+#
+# Bumping am4: edit AM4_COMMIT_SHA below. Do not float on master — reproducibility.
+# =============================================================================
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      wheel-artifact-name:
+        description: "Name of the uploaded wheel artifact"
+        value: ${{ jobs.build.outputs.artifact-name }}
+  push:
+    tags:
+      - 'v*'
+
+env:
+  PYTHON_VERSION: '3.14'
+  # Pin the am4 commit. Update this deliberately; check the smoke test still passes.
+  AM4_COMMIT_SHA: 'REPLACE_WITH_REAL_SHA_FROM_abc8747_am4_master'
+  AM4_REPO: 'https://github.com/abc8747/am4.git'
+
+jobs:
+  build:
+    name: Build am4 wheel (Windows x64, Python ${{ env.PYTHON_VERSION || '3.14' }})
+    runs-on: windows-latest
+    outputs:
+      artifact-name: am4-wheel
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      # ---------------------------------------------------------------------
+      # Step 1: Checkout our repo (for workflow files + any helper scripts)
+      # ---------------------------------------------------------------------
+      - name: Checkout am4-ops-center
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------------------
+      # Step 2: Install stock python.org Python 3.14
+      # This is the Python our wheel must be ABI-compatible with.
+      # Do NOT use msys2's python — it has a different ABI.
+      # ---------------------------------------------------------------------
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          architecture: 'x64'
+
+      - name: Show Python info
+        run: |
+          python --version
+          python -c "import sys, sysconfig; print('executable:', sys.executable); print('platform:', sysconfig.get_platform()); print('abi:', sysconfig.get_config_var('SOABI'))"
+
+      # ---------------------------------------------------------------------
+      # Step 3: Install MSYS2 mingw-w64 toolchain
+      # Only installs the compiler + build tools, not python.
+      # ---------------------------------------------------------------------
+      - name: Install MSYS2 + mingw-w64 GCC
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-gcc-libs
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-make
+            git
+
+      # ---------------------------------------------------------------------
+      # Step 4: Expose mingw64/bin to PowerShell PATH
+      # setup-msys2 provides an `msys2` shell, but we want to invoke the
+      # stock Python (from setup-python) and have it find mingw tools.
+      # ---------------------------------------------------------------------
+      - name: Add mingw64 to PATH
+        run: |
+          $mingwBin = "${{ steps.msys2.outputs.msys2-location }}\mingw64\bin"
+          # Fallback path if outputs not populated
+          if (-not (Test-Path $mingwBin)) {
+            $mingwBin = "C:\msys64\mingw64\bin"
+          }
+          Write-Host "Adding to PATH: $mingwBin"
+          Add-Content -Path $env:GITHUB_PATH -Value $mingwBin
+
+      - name: Verify mingw toolchain is reachable
+        run: |
+          gcc --version
+          g++ --version
+          cmake --version
+          ninja --version
+          Get-Command gcc | Select-Object -ExpandProperty Source
+
+      # ---------------------------------------------------------------------
+      # Step 5: Install Python build tooling (in the stock python.org Python)
+      # ---------------------------------------------------------------------
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build delvewheel wheel setuptools
+
+      # ---------------------------------------------------------------------
+      # Step 6: Clone am4 at the pinned commit
+      # --recurse-submodules: am4 vendors DuckDB and likely uses submodules
+      # ---------------------------------------------------------------------
+      - name: Clone am4
+        run: |
+          git clone --recurse-submodules ${{ env.AM4_REPO }} am4-src
+          cd am4-src
+          git checkout ${{ env.AM4_COMMIT_SHA }}
+          git submodule update --init --recursive
+          git log -1 --oneline
+
+      # ---------------------------------------------------------------------
+      # Step 7: Build the wheel
+      # Force CMake to use mingw gcc/g++ and Ninja. These env vars are read
+      # by scikit-build-core / CMake during the build backend's invocation.
+      #
+      # If the am4 build system ignores CMAKE_ARGS, we may need to patch
+      # its pyproject.toml [tool.scikit-build] config or set SKBUILD_CMAKE_ARGS.
+      # This is the most fragile step — if it fails, see FALLBACK notes below.
+      # ---------------------------------------------------------------------
+      - name: Build am4 wheel
+        working-directory: am4-src
+        env:
+          CC: gcc
+          CXX: g++
+          # scikit-build-core reads SKBUILD_CMAKE_ARGS and forwards to CMake
+          SKBUILD_CMAKE_ARGS: >-
+            -G=Ninja
+            -DCMAKE_C_COMPILER=gcc
+            -DCMAKE_CXX_COMPILER=g++
+            -DCMAKE_BUILD_TYPE=Release
+          # Generic CMake fallback (honored if build backend is raw setuptools+cmake)
+          CMAKE_GENERATOR: Ninja
+          CMAKE_C_COMPILER: gcc
+          CMAKE_CXX_COMPILER: g++
+        run: |
+          python -m build --wheel --outdir ..\dist-raw
+          Get-ChildItem ..\dist-raw
+
+      # ---------------------------------------------------------------------
+      # Step 8: Repair the wheel — bundle mingw runtime DLLs
+      # Without this, the wheel will import-fail on any machine that doesn't
+      # have libstdc++-6.dll / libgcc_s_seh-1.dll / libwinpthread-1.dll on PATH.
+      #
+      # delvewheel scans the .pyd, follows DLL imports, and copies required
+      # DLLs into the wheel with a mangled name so they don't clash.
+      # ---------------------------------------------------------------------
+      - name: Repair wheel with delvewheel
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $rawWheel = Get-ChildItem dist-raw\*.whl | Select-Object -First 1
+          if (-not $rawWheel) { throw "No wheel produced in dist-raw/" }
+          Write-Host "Repairing: $($rawWheel.FullName)"
+          python -m delvewheel repair `
+            --add-path "C:\msys64\mingw64\bin" `
+            --wheel-dir dist `
+            "$($rawWheel.FullName)"
+          Get-ChildItem dist
+
+      # ---------------------------------------------------------------------
+      # Step 9: Smoke test the repaired wheel in a clean venv
+      # This venv deliberately does NOT have mingw on PATH — it mirrors what
+      # an end user will have. If this passes, the wheel is truly portable.
+      # ---------------------------------------------------------------------
+      - name: Smoke test repaired wheel
+        run: |
+          python -m venv smoketest-venv
+          .\smoketest-venv\Scripts\Activate.ps1
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          python -m pip install --upgrade pip
+          python -m pip install "$($wheel.FullName)"
+          # Exercise the quirky init() + Aircraft.suggest() path noted in project memory
+          python -c @"
+          from am4.utils.db import init
+          init()
+          from am4.utils.aircraft import Aircraft
+          # Use a known-good shortname from the project notes
+          from am4.utils.game import User
+          print('am4 import and init: OK')
+          "@
+          deactivate
+
+      # ---------------------------------------------------------------------
+      # Step 10: Record wheel metadata for reproducibility
+      # ---------------------------------------------------------------------
+      - name: Generate wheel metadata
+        run: |
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          $hash = (Get-FileHash -Algorithm SHA256 $wheel.FullName).Hash
+          $metadata = @"
+          wheel: $($wheel.Name)
+          sha256: $hash
+          am4_commit: ${{ env.AM4_COMMIT_SHA }}
+          python_version: ${{ env.PYTHON_VERSION }}
+          built_at: $(Get-Date -Format 'o')
+          built_by: github.com/${{ github.repository }}@${{ github.sha }}
+          "@
+          $metadata | Out-File -FilePath dist\WHEEL_METADATA.txt -Encoding utf8
+          Get-Content dist\WHEEL_METADATA.txt
+
+      # ---------------------------------------------------------------------
+      # Step 11: Upload as workflow artifact
+      # Downstream jobs (build-installer.yml) pull this with download-artifact.
+      # ---------------------------------------------------------------------
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: am4-wheel
+          path: |
+            dist/*.whl
+            dist/WHEEL_METADATA.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      # ---------------------------------------------------------------------
+      # Step 12: On tag push, attach the wheel to the GitHub Release
+      # ---------------------------------------------------------------------
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/WHEEL_METADATA.txt
+          generate_release_notes: false
+          draft: true
+          fail_on_unmatched_files: true
+
+# =============================================================================
+# FALLBACK notes (if Step 7 fails):
+#
+# Symptom A: "Could not find compiler set in environment variable CC: gcc"
+#   → CMake is not picking up CC. Add -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/gcc.exe
+#     with the full path instead of just 'gcc'.
+#
+# Symptom B: "MSVC detected" or /MD flags in build log
+#   → scikit-build-core is defaulting to the Visual Studio generator.
+#     Force it with SKBUILD_CMAKE_ARGS='-G=Ninja' (already set above); verify by
+#     dumping the effective CMake command in a debug step.
+#
+# Symptom C: Wheel builds but imports fail on user machines with
+#   "DLL load failed while importing utils"
+#   → delvewheel didn't bundle a DLL. Check delvewheel repair output for
+#     "not found" warnings and add --add-path for the missing DLL's directory.
+#
+# Symptom D: Smoke test fails with a DuckDB load error
+#   → DuckDB may be loaded at runtime via a separate mechanism that delvewheel
+#     can't trace statically. Check if am4 ships duckdb.dll as a data file;
+#     if so, include it explicitly in the wheel via MANIFEST.in or package_data
+#     in the upstream am4 repo, OR patch it post-build with
+#     `wheel unpack` + manual copy + `wheel pack`.
+#
+# Last resort: give up on python.org ABI and ship an MSYS2 python runtime
+# inside the installer instead. This cascades changes into installer.iss
+# (different python path, different venv semantics) and is a significant
+# detour — treat as plan C.
+# =============================================================================

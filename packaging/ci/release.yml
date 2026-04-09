@@ -1,0 +1,11 @@
+name: Release packaging (placeholder)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: TODO
+        run: echo "Implemented in Task 12"

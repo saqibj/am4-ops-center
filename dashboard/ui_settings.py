@@ -32,6 +32,7 @@ ALLOWED_LANDING_PATHS: frozenset[str] = frozenset(
         "/scenarios",
         "/fleet-planner",
         "/buy-next",
+        "/buy-next/global",
         "/my-fleet",
         "/my-hubs",
         "/my-routes",

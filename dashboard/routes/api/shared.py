@@ -125,17 +125,17 @@ def _airline_est_profit_from_my_routes(conn: sqlite3.Connection) -> float:
     row = fetch_one(
         conn,
         """
-        WITH best AS (
-            SELECT origin_id, dest_id, aircraft_id, MAX(profit_per_ac_day) AS p
-            FROM route_aircraft
-            WHERE is_valid = 1
-            GROUP BY origin_id, dest_id, aircraft_id
-        )
-        SELECT COALESCE(SUM(mr.num_assigned * best.p), 0) AS est
+        SELECT COALESCE(SUM(
+            mr.num_assigned * COALESCE((
+                SELECT MAX(ra.profit_per_ac_day)
+                FROM route_aircraft ra
+                WHERE ra.origin_id   = mr.origin_id
+                  AND ra.dest_id     = mr.dest_id
+                  AND ra.aircraft_id = mr.aircraft_id
+                  AND ra.is_valid    = 1
+            ), 0)
+        ), 0) AS est
         FROM my_routes mr
-        JOIN best ON best.origin_id = mr.origin_id
-            AND best.dest_id = mr.dest_id
-            AND best.aircraft_id = mr.aircraft_id
         """,
     )
     return float(row["est"] or 0) if row else 0.0
@@ -186,19 +186,21 @@ def _my_routes_rows(conn: sqlite3.Connection) -> list[dict]:
                v.dest_country,
                v.num_assigned,
                v.notes,
-               best.p AS profit_per_ac_day,
-               best.dkm AS distance_km
+               (SELECT MAX(ra.profit_per_ac_day)
+                FROM route_aircraft ra
+                WHERE ra.origin_id   = v.origin_id
+                  AND ra.dest_id     = v.dest_id
+                  AND ra.aircraft_id = v.aircraft_id
+                  AND ra.is_valid    = 1
+               ) AS profit_per_ac_day,
+               (SELECT MAX(ra.distance_km)
+                FROM route_aircraft ra
+                WHERE ra.origin_id   = v.origin_id
+                  AND ra.dest_id     = v.dest_id
+                  AND ra.aircraft_id = v.aircraft_id
+                  AND ra.is_valid    = 1
+               ) AS distance_km
         FROM v_my_routes v
-        LEFT JOIN (
-            SELECT origin_id, dest_id, aircraft_id,
-                   MAX(profit_per_ac_day) AS p,
-                   MAX(distance_km) AS dkm
-            FROM route_aircraft
-            WHERE is_valid = 1
-            GROUP BY origin_id, dest_id, aircraft_id
-        ) best ON best.origin_id = v.origin_id
-            AND best.dest_id = v.dest_id
-            AND best.aircraft_id = v.aircraft_id
         ORDER BY v.hub COLLATE NOCASE, v.destination COLLATE NOCASE, v.aircraft COLLATE NOCASE
         """,
     )

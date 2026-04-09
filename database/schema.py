@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS airports (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_airports_iata_unique
-    ON airports(iata) WHERE iata IS NOT NULL AND TRIM(iata) != '';
+    ON airports(iata);
 
 CREATE TABLE IF NOT EXISTS route_demands (
     origin_id       INTEGER NOT NULL,
@@ -159,6 +159,11 @@ CREATE INDEX IF NOT EXISTS idx_ra_aircraft ON route_aircraft(aircraft_id);
 CREATE INDEX IF NOT EXISTS idx_ra_profit ON route_aircraft(profit_per_ac_day DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_origin_ac ON route_aircraft(origin_id, aircraft_id);
 CREATE INDEX IF NOT EXISTS idx_ra_valid_profit ON route_aircraft(is_valid, profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_route_profit ON route_aircraft(origin_id, dest_id, aircraft_id, is_valid, profit_per_ac_day);
+CREATE INDEX IF NOT EXISTS idx_ra_od_valid_profit ON route_aircraft(origin_id, dest_id, is_valid, profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_profit ON route_aircraft(origin_id, is_valid, profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_valid_contribution ON route_aircraft(is_valid, contribution DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_aircraft_valid_partial ON route_aircraft(aircraft_id) WHERE is_valid = 1;
 
 DROP TABLE IF EXISTS fleet_route_assignment;
 DROP TABLE IF EXISTS fleet_aircraft;
@@ -557,17 +562,18 @@ def _dedupe_airports_for_iata_index(conn: sqlite3.Connection) -> None:
 
 
 def _migrate_airports_iata_unique(conn: sqlite3.Connection) -> None:
-    has_idx = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_airports_iata_unique'"
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_airports_iata_unique'"
     ).fetchone()
-    if has_idx:
+    # Already the correct plain (non-partial) unique index — nothing to do.
+    if row and row[0] and "WHERE" not in row[0].upper():
         return
+    # Old partial index exists — drop it so we can recreate as plain unique.
+    if row:
+        conn.execute("DROP INDEX idx_airports_iata_unique")
     _dedupe_airports_for_iata_index(conn)
     conn.execute(
-        """
-        CREATE UNIQUE INDEX idx_airports_iata_unique
-            ON airports(iata) WHERE iata IS NOT NULL AND TRIM(iata) != ''
-        """
+        "CREATE UNIQUE INDEX idx_airports_iata_unique ON airports(iata)"
     )
 
 
@@ -664,7 +670,22 @@ CREATE INDEX IF NOT EXISTS idx_ra_aircraft ON route_aircraft(aircraft_id);
 CREATE INDEX IF NOT EXISTS idx_ra_profit ON route_aircraft(profit_per_ac_day DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_origin_ac ON route_aircraft(origin_id, aircraft_id);
 CREATE INDEX IF NOT EXISTS idx_ra_valid_profit ON route_aircraft(is_valid, profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_route_profit ON route_aircraft(origin_id, dest_id, aircraft_id, is_valid, profit_per_ac_day);
+CREATE INDEX IF NOT EXISTS idx_ra_od_valid_profit ON route_aircraft(origin_id, dest_id, is_valid, profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_profit ON route_aircraft(origin_id, is_valid, profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_valid_contribution ON route_aircraft(is_valid, contribution DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_aircraft_valid_partial ON route_aircraft(aircraft_id) WHERE is_valid = 1;
 """
+
+
+def ensure_route_aircraft_indexes(conn: sqlite3.Connection) -> None:
+    """Apply CREATE INDEX IF NOT EXISTS for route_aircraft (idempotent). Call after schema upgrades."""
+    conn.executescript(ROUTE_AIRCRAFT_INDEX_SQL)
+    try:
+        conn.execute("ANALYZE route_aircraft")
+    except sqlite3.OperationalError:
+        pass
+
 
 AIRCRAFT_NEW_TABLE_SQL = """
 CREATE TABLE aircraft__m (
@@ -757,7 +778,7 @@ def _route_aircraft_has_column(conn: sqlite3.Connection, col: str) -> bool:
 def ensure_route_aircraft_baseline_prices(conn: sqlite3.Connection) -> None:
     """Add ``fuel_price`` / ``co2_price`` (extraction baselines) and backfill NULLs.
 
-    Safe to call on every dashboard DB open; idempotent.
+    Idempotent. Call after extraction/import or at dashboard startup — not on every HTTP request.
     """
     if not _route_aircraft_has_column(conn, "fuel_price"):
         conn.execute("ALTER TABLE route_aircraft ADD COLUMN fuel_price REAL")
@@ -771,6 +792,49 @@ def ensure_route_aircraft_baseline_prices(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def apply_route_aircraft_baseline_prices_at_path(db_path: str | Path) -> float:
+    """Open the DB (dashboard-style connection), run baseline price backfill, close.
+
+    Returns elapsed wall time in seconds.
+    """
+    import time
+
+    p = Path(db_path)
+    if not p.is_file():
+        raise FileNotFoundError(p)
+    t0 = time.perf_counter()
+    conn = sqlite3.connect(str(p), check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    try:
+        ensure_route_aircraft_baseline_prices(conn)
+        ensure_route_aircraft_indexes(conn)
+        conn.commit()
+    finally:
+        conn.close()
+    return time.perf_counter() - t0
+
+
+def _ensure_analyze_stats(conn: sqlite3.Connection) -> None:
+    """Run ANALYZE on route_aircraft if stats are missing or stale.
+
+    The optimizer relies on sqlite_stat1 to avoid picking the non-selective
+    idx_ra_valid_profit over origin-based indexes.  Safe to skip if stats
+    already exist (they persist across connections).
+    """
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM sqlite_stat1 WHERE tbl = 'route_aircraft' LIMIT 1"
+        ).fetchone()
+        if row:
+            return
+    except sqlite3.OperationalError:
+        pass  # sqlite_stat1 doesn't exist yet on fresh databases
+    try:
+        conn.execute("ANALYZE route_aircraft")
+    except sqlite3.OperationalError:
+        pass  # route_aircraft may not exist yet
+
+
 def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
     """Apply unique constraints to DBs created before the schema update. Safe to run multiple times."""
     from database.extraction_runs import ensure_extraction_runs_schema
@@ -782,7 +846,9 @@ def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
         ensure_route_aircraft_baseline_prices(conn)
         ensure_extraction_runs_schema(conn)
         _migrate_route_aircraft_unique(conn)
+        ensure_route_aircraft_indexes(conn)
         _recreate_dashboard_views(conn)
+        _ensure_analyze_stats(conn)
         conn.commit()
     except Exception:
         conn.rollback()

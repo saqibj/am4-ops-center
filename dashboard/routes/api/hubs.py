@@ -9,7 +9,8 @@ from fastapi.responses import HTMLResponse
 
 from config import UserConfig
 from dashboard.auth import check_auth_token
-from dashboard.db import DB_PATH, fetch_all, fetch_one, get_db
+import dashboard.db as dbm
+from dashboard.db import fetch_all, fetch_one, get_db
 from dashboard.errors import safe_error_message
 from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
 from dashboard.server import templates
@@ -24,23 +25,19 @@ from dashboard.routes.api.shared import (
 router = APIRouter()
 
 
-def _dashboard_extract_config() -> UserConfig:
+def _dashboard_extract_config_from_conn(conn: sqlite3.Connection) -> UserConfig:
     """Load last saved extract UserConfig; merge my_fleet-derived plane count when present."""
     from database.schema import derived_total_planes, load_extract_config
 
     cfg = UserConfig()
     try:
-        conn = get_db()
-        try:
-            loaded = load_extract_config(conn)
-            if loaded is not None:
-                cfg = loaded
-            derived = derived_total_planes(conn)
-            if derived is not None:
-                cfg.total_planes_owned = derived
-        finally:
-            conn.close()
-    except (FileNotFoundError, sqlite3.OperationalError):
+        loaded = load_extract_config(conn)
+        if loaded is not None:
+            cfg = loaded
+        derived = derived_total_planes(conn)
+        if derived is not None:
+            cfg.total_planes_owned = derived
+    except sqlite3.OperationalError:
         pass
     return cfg
 
@@ -72,8 +69,9 @@ def _hub_inventory_rows(conn: sqlite3.Connection) -> list[dict]:
                h.notes, h.is_active, h.last_extracted_at, h.last_extract_status, h.last_extract_error,
                (SELECT COUNT(*) FROM route_aircraft ra
                 WHERE ra.origin_id = h.airport_id AND ra.is_valid = 1) AS route_count,
-               (SELECT MAX(ra.profit_per_ac_day) FROM route_aircraft ra
-                WHERE ra.origin_id = h.airport_id AND ra.is_valid = 1) AS best_profit_day
+               (SELECT ra.profit_per_ac_day FROM route_aircraft ra
+                WHERE ra.origin_id = h.airport_id AND ra.is_valid = 1
+                ORDER BY ra.profit_per_ac_day DESC LIMIT 1) AS best_profit_day
         FROM v_my_hubs h
         ORDER BY h.iata COLLATE NOCASE
         """,
@@ -202,7 +200,7 @@ def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form(
         conn = get_db()
         try:
             _hubs_ensure_schema(conn)
-            cfg = _dashboard_extract_config()
+            cfg = _dashboard_extract_config_from_conn(conn)
             _am4_init()
             from extractors.routes import upsert_airport_from_am4
 
@@ -280,7 +278,15 @@ def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
             _am4_init()
             from extractors.routes import refresh_single_hub
 
-            refresh_single_hub(DB_PATH, _dashboard_extract_config(), iata)
+            try:
+                ccfg = get_db()
+                try:
+                    cfg = _dashboard_extract_config_from_conn(ccfg)
+                finally:
+                    ccfg.close()
+            except FileNotFoundError:
+                cfg = UserConfig()
+            refresh_single_hub(dbm.DB_PATH, cfg, iata)
         except ImportError:
             return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
         except RuntimeError as exc:
@@ -343,7 +349,14 @@ def api_hubs_refresh_stale(request: Request):
         except ImportError:
             return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
 
-        cfg = _dashboard_extract_config()
+        try:
+            ccfg = get_db()
+            try:
+                cfg = _dashboard_extract_config_from_conn(ccfg)
+            finally:
+                ccfg.close()
+        except FileNotFoundError:
+            cfg = UserConfig()
         errors: list[str] = []
         ok_n = 0
         for row in stale:
@@ -351,7 +364,7 @@ def api_hubs_refresh_stale(request: Request):
             if not code:
                 continue
             try:
-                refresh_single_hub(DB_PATH, cfg, code)
+                refresh_single_hub(dbm.DB_PATH, cfg, code)
                 ok_n += 1
             except (RuntimeError, ValueError) as exc:
                 errors.append(f"{code}: {safe_error_message(exc)}")

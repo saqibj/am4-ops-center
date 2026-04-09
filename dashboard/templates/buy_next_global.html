@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Buy next (global){% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Buy next — global</h2>
+<p class="am4-text-secondary mb-2">
+    Same flat table as <a href="/buy-next" class="am4-accent hover:underline">hub Buy next</a>, but every hub is included.
+    Default sort is total daily profit at your budget. Results are capped at 100 rows per request.
+</p>
+<a href="/buy-next" class="text-xs am4-accent hover:underline">← Hub-only view</a>
+
+{% include "partials/saved_filters_bar.html" %}
+
+<form id="buynext-global-filters" class="flex flex-wrap gap-4 mb-6 items-end">
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Budget $</label>
+        <input type="number" name="budget" value="" step="1000000" min="0"
+               required
+               placeholder="e.g. 100000000"
+               hx-get="/api/buy-next-global"
+               hx-target="#buynext-global-results"
+               hx-trigger="change delay:400ms, keyup changed delay:600ms"
+               hx-include="#buynext-global-filters"
+               hx-indicator="#buynext-global-spinner"
+               class="am4-input rounded-md px-3 py-2 w-44 font-mono">
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Sort by</label>
+        <select name="sort"
+                title="Sort by"
+                hx-get="/api/buy-next-global"
+                hx-target="#buynext-global-results"
+                hx-include="#buynext-global-filters"
+                hx-indicator="#buynext-global-spinner"
+                class="am4-input rounded-md px-3 py-2">
+            <option value="total_desc" selected>Total daily profit at budget</option>
+            <option value="price_desc">A/C price (high → low)</option>
+            <option value="price_asc">A/C price (low → high)</option>
+            <option value="profit_desc">Profit/day (high → low)</option>
+            <option value="profit_asc">Profit/day (low → high)</option>
+            <option value="yield_desc">Profit yield ($/d per $1M)</option>
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs am4-text-secondary mb-1">Type</label>
+        <select name="ac_type"
+                title="Aircraft type"
+                hx-get="/api/buy-next-global"
+                hx-target="#buynext-global-results"
+                hx-include="#buynext-global-filters"
+                hx-indicator="#buynext-global-spinner"
+                class="am4-input rounded-md px-3 py-2">
+            <option value="">All</option>
+            <option value="pax">Passenger</option>
+            <option value="cargo">Cargo</option>
+            <option value="vip">VIP</option>
+        </select>
+    </div>
+    <div>
+        <input type="hidden" name="exclude_owned" value="0" />
+        <label class="inline-flex items-center gap-2 text-xs am4-text-secondary cursor-pointer">
+            <input type="checkbox" name="exclude_owned" value="1"
+                   hx-get="/api/buy-next-global"
+                   hx-target="#buynext-global-results"
+                   hx-include="#buynext-global-filters"
+                   hx-indicator="#buynext-global-spinner"
+                   class="h-4 w-4 rounded border am4-border accent-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
+            Exclude aircraft I already own
+        </label>
+    </div>
+    <div>
+        <input type="hidden" name="hide_stopovers" value="0" />
+        <label class="inline-flex items-center gap-2 text-xs am4-text-secondary cursor-pointer">
+            <input type="checkbox" name="hide_stopovers" value="1"
+                   hx-get="/api/buy-next-global"
+                   hx-target="#buynext-global-results"
+                   hx-include="#buynext-global-filters"
+                   hx-indicator="#buynext-global-spinner"
+                   class="h-4 w-4 rounded border am4-border accent-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
+            Hide stopover routes
+        </label>
+    </div>
+    <div>
+        <input type="hidden" name="hide_existing" value="0" />
+        <label class="inline-flex items-center gap-2 text-xs am4-text-secondary cursor-pointer">
+            <input type="checkbox" name="hide_existing" value="1"
+                   hx-get="/api/buy-next-global"
+                   hx-target="#buynext-global-results"
+                   hx-include="#buynext-global-filters"
+                   hx-indicator="#buynext-global-spinner"
+                   class="h-4 w-4 rounded border am4-border accent-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
+            Hide routes I already operate
+        </label>
+    </div>
+    <span id="buynext-global-spinner" class="htmx-indicator am4-accent text-sm pb-2">Loading…</span>
+</form>
+
+<div id="buynext-global-results">
+    <p class="am4-text-secondary">Enter a budget to load global recommendations.</p>
+</div>
+{% endblock %}

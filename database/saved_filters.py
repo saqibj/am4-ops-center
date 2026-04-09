@@ -29,7 +29,6 @@ def ensure_saved_filters_schema(conn: sqlite3.Connection) -> None:
 
 
 def list_saved_filters(conn: sqlite3.Connection, page: str) -> list[dict[str, Any]]:
-    ensure_saved_filters_schema(conn)
     cur = conn.execute(
         """
         SELECT id, name, page, params_json, created_at

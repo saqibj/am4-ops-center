@@ -18,6 +18,7 @@
     "/scenarios": 1,
     "/fleet-planner": 1,
     "/buy-next": 1,
+    "/buy-next/global": 1,
     "/my-fleet": 1,
     "/my-hubs": 1,
     "/my-routes": 1,

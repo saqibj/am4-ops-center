@@ -8,7 +8,7 @@ from html import escape as html_escape
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
-from dashboard.db import fetch_all, get_db
+from dashboard.db import fetch_all, fetch_one, get_db
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import (

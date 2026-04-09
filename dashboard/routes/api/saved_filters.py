@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
 from dashboard.auth import check_auth_token
-from dashboard.db import get_db
+from dashboard.db import get_db, open_read_connection
 from dashboard.server import templates
 from database.saved_filters import (
     delete_saved_filter,
@@ -19,6 +21,7 @@ router = APIRouter()
 ALLOWED_PAGES: frozenset[str] = frozenset(
     {
         "buy-next",
+        "buy-next-global",
         "fleet-planner",
         "fleet-health",
         "scenarios",
@@ -29,6 +32,7 @@ ALLOWED_PAGES: frozenset[str] = frozenset(
 
 FORM_IDS: dict[str, str] = {
     "buy-next": "buynext-filters",
+    "buy-next-global": "buynext-global-filters",
     "fleet-planner": "fleet-filters",
     "fleet-health": "fleet-health-filters",
     "scenarios": "scenario-filters",
@@ -42,17 +46,31 @@ def _bar_context(
     page: str,
     *,
     error: str | None = None,
+    force_fresh_list: bool = False,
 ) -> dict:
+    """List filters from the shared reader, or a short-lived connection after POST writes."""
     fid = FORM_IDS.get(page, "filters")
     items: list = []
-    try:
-        conn = get_db()
+    if force_fresh_list:
         try:
-            items = list_saved_filters(conn, page)
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        pass
+            c = get_db()
+            try:
+                items = list_saved_filters(c, page)
+            finally:
+                c.close()
+        except (FileNotFoundError, sqlite3.OperationalError):
+            pass
+    else:
+        conn, needs_close = open_read_connection(request)
+        if conn is not None:
+            try:
+                try:
+                    items = list_saved_filters(conn, page)
+                except sqlite3.OperationalError:
+                    pass
+            finally:
+                if needs_close:
+                    conn.close()
     return {
         "request": request,
         "saved_filter_page": page,
@@ -110,7 +128,7 @@ def api_saved_filters_save(
     return templates.TemplateResponse(
         request,
         "partials/saved_filters_bar.html",
-        _bar_context(request, p),
+        _bar_context(request, p, force_fresh_list=True),
     )
 
 
@@ -137,7 +155,7 @@ def api_saved_filters_delete(
             conn.close()
     except FileNotFoundError:
         err = "Database not found."
-    ctx = _bar_context(request, p, error=err)
+    ctx = _bar_context(request, p, error=err, force_fresh_list=err is None)
     return templates.TemplateResponse(
         request,
         "partials/saved_filters_bar.html",

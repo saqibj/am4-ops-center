@@ -9,6 +9,8 @@ build/
 # Data
 backups/
 *.db
+*.db-wal
+*.db-shm
 *.db-*
 *.db.*
 *.sqlite

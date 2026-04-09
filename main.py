@@ -15,6 +15,7 @@ Usage:
     python main.py extract-info --db am4_data.db
     python main.py backup --db am4_data.db
     python main.py backup --db am4_data.db --output ./my-backups
+    python main.py refresh-baseline --db am4_data.db
 """
 
 from __future__ import annotations
@@ -25,7 +26,22 @@ import sys
 from pathlib import Path
 
 from config import GameMode, UserConfig
-from database.schema import get_connection
+from database.schema import apply_route_aircraft_baseline_prices_at_path, get_connection
+
+
+def _invalidate_dashboard_static_caches() -> None:
+    """Clear in-process dashboard caches after DB writes (extract / import / baseline)."""
+    try:
+        from dashboard.static_dashboard_cache import invalidate_static_dashboard_caches
+
+        invalidate_static_dashboard_caches()
+    except Exception:
+        pass
+
+
+def _print_baseline_prices_updated(db_path: str) -> None:
+    elapsed = apply_route_aircraft_baseline_prices_at_path(db_path)
+    print(f"Baseline prices updated in {elapsed:.1f}s")
 
 
 def _config_from_extract_args(args: argparse.Namespace) -> UserConfig:
@@ -92,6 +108,8 @@ def cmd_extract(args: argparse.Namespace) -> None:
         hub_list = [x.strip() for x in args.hubs.split(",") if x.strip()]
         refresh_hubs(args.db, cfg, hub_list)
         print(f"Refreshed routes for {len(hub_list)} hub(s).")
+        _print_baseline_prices_updated(args.db)
+        _invalidate_dashboard_static_caches()
         return
 
     if not args.all_hubs and not args.hubs:
@@ -100,6 +118,7 @@ def cmd_extract(args: argparse.Namespace) -> None:
     from extractors.routes import run_bulk_extraction
 
     run_bulk_extraction(args.db, cfg)
+    _print_baseline_prices_updated(args.db)
 
 
 def cmd_export(args: argparse.Namespace) -> None:
@@ -178,6 +197,7 @@ def cmd_fleet(args: argparse.Namespace) -> None:
     if args.fleet_cmd == "import":
         mode = "replace" if getattr(args, "replace", False) else "merge"
         fleet_import(args.db, args.file, mode=mode)
+        _invalidate_dashboard_static_caches()
     elif args.fleet_cmd == "export":
         fleet_export(args.db, args.output)
     else:
@@ -278,6 +298,15 @@ def cmd_backup(args: argparse.Namespace) -> None:
         src_conn.close()
     size_mb = dst.stat().st_size / (1024 * 1024)
     print(f"Backup written: {dst} ({size_mb:.2f} MiB)")
+
+
+def cmd_refresh_baseline(args: argparse.Namespace) -> None:
+    p = Path(args.db)
+    if not p.is_file():
+        print(f"Error: database not found: {p}", file=sys.stderr)
+        sys.exit(2)
+    _print_baseline_prices_updated(str(p))
+    _invalidate_dashboard_static_caches()
 
 
 def main() -> None:
@@ -445,6 +474,13 @@ def main() -> None:
         help="Destination directory (default: ./backups)",
     )
     bak.set_defaults(func=cmd_backup)
+
+    rb = sub.add_parser(
+        "refresh-baseline",
+        help="Backfill route_aircraft fuel_price / co2_price from extract_metadata (manual rebuild)",
+    )
+    rb.add_argument("--db", type=str, default="am4_data.db")
+    rb.set_defaults(func=cmd_refresh_baseline)
 
     args = parser.parse_args()
     args.func(args)

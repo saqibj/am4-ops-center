@@ -8,27 +8,27 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from dashboard.auth import check_auth_token
-from dashboard.db import fetch_one, get_db
+from dashboard.db import fetch_one, get_db, get_read_db
 from dashboard.errors import safe_error_message
 from dashboard.server import templates
 
-from dashboard.routes.api.shared import _my_fleet_rows
+from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_fleet_rows
 
 router = APIRouter()
 
 
 @router.get("/fleet/inventory", response_class=HTMLResponse)
-def api_fleet_inventory(request: Request):
-    try:
-        conn = get_db()
+def api_fleet_inventory(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+):
+    if conn is None:
+        fleets = []
+    else:
         try:
             fleets = _my_fleet_rows(conn)
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        fleets = []
-    except sqlite3.OperationalError:
-        fleets = []
+        except sqlite3.OperationalError:
+            fleets = []
     return templates.TemplateResponse(
         request,
         "partials/fleet_inventory.html",
@@ -37,9 +37,18 @@ def api_fleet_inventory(request: Request):
 
 
 @router.get("/fleet/summary", response_class=HTMLResponse)
-def api_fleet_summary(request: Request):
-    try:
-        conn = get_db()
+def api_fleet_summary(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+):
+    if conn is None:
+        row = {"types": 0, "planes": 0}
+        est = 0.0
+        route_rows = 0
+        val_row = {"fleet_value": 0}
+        ag_row = {"assigned_total": 0}
+        free_row = {"free_total": 0}
+    else:
         try:
             row = fetch_one(
                 conn,
@@ -84,22 +93,13 @@ def api_fleet_summary(request: Request):
                 ) ra ON ra.aircraft_id = mf.aircraft_id
                 """,
             )
-        finally:
-            conn.close()
-    except FileNotFoundError:
-        row = {"types": 0, "planes": 0}
-        est = 0.0
-        route_rows = 0
-        val_row = {"fleet_value": 0}
-        ag_row = {"assigned_total": 0}
-        free_row = {"free_total": 0}
-    except sqlite3.OperationalError:
-        row = {"types": 0, "planes": 0}
-        est = 0.0
-        route_rows = 0
-        val_row = {"fleet_value": 0}
-        ag_row = {"assigned_total": 0}
-        free_row = {"free_total": 0}
+        except sqlite3.OperationalError:
+            row = {"types": 0, "planes": 0}
+            est = 0.0
+            route_rows = 0
+            val_row = {"fleet_value": 0}
+            ag_row = {"assigned_total": 0}
+            free_row = {"free_total": 0}
     stats = {
         "types": int(row["types"] or 0) if row else 0,
         "planes": int(row["planes"] or 0) if row else 0,
@@ -179,12 +179,14 @@ def api_fleet_add(
         msg = "Database missing my_fleet table — run extract or upgrade schema."
 
     try:
-        conn = get_db()
+        c = get_db()
         try:
-            fleets = _my_fleet_rows(conn)
+            fleets = _my_fleet_rows(c)
         finally:
-            conn.close()
+            c.close()
     except FileNotFoundError:
+        fleets = []
+    except sqlite3.OperationalError:
         fleets = []
 
     ctx: dict = {"fleets": fleets}
@@ -218,12 +220,14 @@ def api_fleet_delete(request: Request, fleet_id: int = Form(...)):
         )
 
     try:
-        conn = get_db()
+        c = get_db()
         try:
-            fleets = _my_fleet_rows(conn)
+            fleets = _my_fleet_rows(c)
         finally:
-            conn.close()
+            c.close()
     except FileNotFoundError:
+        fleets = []
+    except sqlite3.OperationalError:
         fleets = []
     return templates.TemplateResponse(
         request,
@@ -271,12 +275,14 @@ def api_fleet_buy(request: Request, fleet_id: int, add_count: int = Form(1)):
         flash_err = safe_error_message(exc)
 
     try:
-        conn = get_db()
+        c = get_db()
         try:
-            fleets = _my_fleet_rows(conn)
+            fleets = _my_fleet_rows(c)
         finally:
-            conn.close()
+            c.close()
     except FileNotFoundError:
+        fleets = []
+    except sqlite3.OperationalError:
         fleets = []
     ctx: dict = {"fleets": fleets}
     if flash_err:
@@ -348,12 +354,14 @@ def api_fleet_sell(request: Request, fleet_id: int, sell_count: int = Form(1)):
         flash_err = safe_error_message(exc)
 
     try:
-        conn = get_db()
+        c = get_db()
         try:
-            fleets = _my_fleet_rows(conn)
+            fleets = _my_fleet_rows(c)
         finally:
-            conn.close()
+            c.close()
     except FileNotFoundError:
+        fleets = []
+    except sqlite3.OperationalError:
         fleets = []
     ctx: dict = {"fleets": fleets}
     if flash_err:
@@ -364,14 +372,15 @@ def api_fleet_sell(request: Request, fleet_id: int, sell_count: int = Form(1)):
 
 
 @router.get("/fleet/json")
-def api_fleet_json() -> list[dict]:
+def api_fleet_json(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+) -> list[dict]:
+    if conn is None:
+        return []
     try:
-        conn = get_db()
-        try:
-            rows = _my_fleet_rows(conn)
-        finally:
-            conn.close()
-    except FileNotFoundError:
+        rows = _my_fleet_rows(conn)
+    except sqlite3.OperationalError:
         return []
     return [
         {

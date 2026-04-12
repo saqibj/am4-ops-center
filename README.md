@@ -330,10 +330,26 @@ docker compose up --build
 
 ### Direct SQLite Queries
 
+Default file is **`am4ops.db`** at **`app.paths.db_path()`** (platform user data dir unless **`AM4OPS_DATA_DIR`** / **`AM4_ROUTEMINE_DB`** overrides). Run from the **repo root** so Python can import **`app`**. **`sqlite3`** is the SQLite CLI (install separately on Windows if needed).
+
+**Bash / Git Bash / WSL / macOS / Linux:**
+
 ```bash
-# Use your real path: native default is platformdirs user data dir + am4ops.db; Docker bind mount is often /app/data/am4ops.db
-sqlite3 /app/data/am4ops.db
+sqlite3 "$(python -c "from app.paths import db_path; print(db_path())")"
 ```
+
+**Windows PowerShell:**
+
+```powershell
+$db = python -c "from app.paths import db_path; print(db_path())"
+sqlite3 $db
+```
+
+**Windows `cmd.exe`:** run `python -c "from app.paths import db_path; print(db_path())"`, then `sqlite3 "that\path\am4ops.db"`. One-liner: `for /f "delims=" %p in ('python -c "from app.paths import db_path; print(db_path())"') do sqlite3 "%p"` (use `%%p` in a `.bat` file).
+
+**Docker** (path from compose): `sqlite3 /app/data/am4ops.db`
+
+More detail: **`.taskmaster/docs/prd/am4-routemine-SETUP-GUIDE.md`** (Direct SQLite Queries).
 
 **Example Queries:**
 

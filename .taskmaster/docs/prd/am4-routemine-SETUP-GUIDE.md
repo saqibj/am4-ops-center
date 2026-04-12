@@ -269,8 +269,44 @@ Dashboard pages:
 
 ## Direct SQLite Queries (Power Users)
 
+Run these from the **repository root** (so `python` can import **`app.paths`**). **`sqlite3`** must be on your **`PATH`** (install the SQLite CLI separately on Windows if needed).
+
+**Bash / Git Bash / WSL / macOS / Linux** — one line:
+
 ```bash
 sqlite3 "$(python -c "from app.paths import db_path; print(db_path())")"
+```
+
+**Windows PowerShell** — resolve the path, then open it (readable as two steps or one):
+
+```powershell
+# Two steps (easiest to debug)
+$db = python -c "from app.paths import db_path; print(db_path())"
+sqlite3 $db
+
+# One line (subexpression passes the printed path as the argument to sqlite3)
+sqlite3 (python -c "from app.paths import db_path; print(db_path())")
+```
+
+**Windows Command Prompt (`cmd.exe`)** — two steps:
+
+```bat
+python -c "from app.paths import db_path; print(db_path())"
+sqlite3 "PASTE_THE_PRINTED_PATH_HERE"
+```
+
+Or a single line (run from repo root):
+
+```bat
+for /f "delims=" %p in ('python -c "from app.paths import db_path; print(db_path())"') do sqlite3 "%p"
+```
+
+(In a **`.bat`** file, use **`%%p`** instead of **`%p`**.)
+
+**Docker** (shell inside the container, default bind mount):
+
+```bash
+sqlite3 /app/data/am4ops.db
 ```
 
 ```sql

@@ -8,13 +8,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.env_compat import resolved_env_db
 from app.paths import db_path
 from dateutil import parser as date_parser
 from fastapi import Request
 
+HTML_DB_NOT_FOUND = (
+    "<p class='text-amber-400'>Database not found. Configure AM4_OPS_CENTER_DB "
+    "(or legacy AM4_ROUTEMINE_DB) or run an extract.</p>"
+)
+
 
 def current_db_path() -> Path:
-    env_db = os.environ.get("AM4_ROUTEMINE_DB")
+    env_db = resolved_env_db()
     if env_db:
         return Path(env_db).expanduser().resolve()
     db_path_override = globals().get("DB_PATH")
@@ -49,7 +55,7 @@ def get_db() -> sqlite3.Connection:
 
 
 def _close_stale_read_if_path_changed(request: Request) -> None:
-    """If AM4_ROUTEMINE_DB / DB_PATH was monkeypatched (tests), drop the old shared reader."""
+    """If DB env / DB_PATH was monkeypatched (tests), drop the old shared reader."""
     want = str(current_db_path())
     backed = getattr(request.app.state, "db_read_path", None)
     raw = getattr(request.app.state, "db_read", None)

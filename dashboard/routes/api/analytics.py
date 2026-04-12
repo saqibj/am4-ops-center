@@ -8,7 +8,7 @@ from html import escape as html_escape
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
-from dashboard.db import fetch_all, fetch_one, get_db
+from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import (
@@ -556,7 +556,7 @@ def api_aircraft_cost_breakdown(
         conn = get_db()
     except FileNotFoundError:
         return HTMLResponse(
-            "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
+            HTML_DB_NOT_FOUND
         )
 
     try:

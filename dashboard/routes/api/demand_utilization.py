@@ -7,7 +7,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
-from dashboard.db import fetch_all, get_read_db
+from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, get_read_db
 from dashboard.server import templates
 
 router = APIRouter()
@@ -149,7 +149,7 @@ def api_demand_utilization(
 ):
     if conn is None:
         return HTMLResponse(
-            "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
+            HTML_DB_NOT_FOUND
         )
 
     raw = fetch_all(conn, _DEMAND_UTIL_SQL)

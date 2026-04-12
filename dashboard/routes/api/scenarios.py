@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
 from config import UserConfig
-from dashboard.db import fetch_all, fetch_one, get_read_db
+from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_read_db
 from dashboard.server import templates
 from database.schema import load_extract_config
 
@@ -128,7 +128,7 @@ def api_scenarios(
     scope_norm = "all" if scope.strip().lower() == "all" else "my_routes"
     if conn is None:
         return HTMLResponse(
-            "<p class='text-amber-400'>Database not found. Configure AM4_ROUTEMINE_DB or run an extract.</p>"
+            HTML_DB_NOT_FOUND
         )
 
     fb, cb = _fallback_baseline_prices(conn)

@@ -1,4 +1,4 @@
-# AM4 RouteMine — Setup & Run Guide
+# AM4 Ops Center — Setup & Run Guide
 
 > **Repository:** https://github.com/saqibj/am4-ops-center
 > **PRD:** am4-ops-center-PRD.md
@@ -221,7 +221,7 @@ python main.py extract --hubs KHI,DXB --mode easy --ci 200
 | `--ci` | `200` | Cost Index (0–200) |
 | `--reputation` | `87.0` | Player reputation (0–100) |
 | `--aircraft` | (all) | Filter to specific aircraft, e.g., `b738,a388` |
-| `--db` | `db_path()` → `…/am4ops.db` | SQLite path; override with `--db` or **`AM4_ROUTEMINE_DB`** |
+| `--db` | `db_path()` → `…/am4ops.db` | SQLite path; override with `--db` or **`AM4_OPS_CENTER_DB`** (legacy **`AM4_ROUTEMINE_DB`**) |
 | `--workers` | `4` | Number of parallel worker threads |
 
 ### Extract ALL hubs (full database)

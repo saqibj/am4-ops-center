@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -11,7 +10,9 @@ if str(_REPO) not in sys.path:
 
 from app.paths import db_path  # noqa: E402
 
-DB = os.environ.get("AM4_ROUTEMINE_DB", str(db_path()))
+from app.env_compat import effective_db_path
+
+DB = effective_db_path(str(db_path()))
 c = sqlite3.connect(DB)
 for r in c.execute(
     """

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import secrets
 
 from fastapi import HTTPException, Request
+
+from app.env_compat import resolved_env_token
 
 _printed: bool = False
 _generated: str | None = None
@@ -14,7 +15,7 @@ _generated: str | None = None
 def get_dashboard_auth_token() -> str:
     """Return the shared secret sent as ``Authorization: Bearer …`` on POST /api/*."""
     global _printed, _generated
-    env = (os.environ.get("AM4_ROUTEMINE_TOKEN") or "").strip()
+    env = resolved_env_token()
     if env:
         return env
     if _generated is None:
@@ -22,12 +23,14 @@ def get_dashboard_auth_token() -> str:
     if not _printed:
         _printed = True
         print(
-            "AM4_ROUTEMINE_TOKEN not set. Generated session token:",
+            "AM4_OPS_CENTER_TOKEN not set (nor legacy AM4_ROUTEMINE_TOKEN). "
+            "Generated session token:",
             _generated,
             flush=True,
         )
         print(
-            "Set AM4_ROUTEMINE_TOKEN in your env to persist it across restarts.",
+            "Set AM4_OPS_CENTER_TOKEN in your env to persist it across restarts "
+            "(AM4_ROUTEMINE_TOKEN is still supported).",
             flush=True,
         )
     return _generated

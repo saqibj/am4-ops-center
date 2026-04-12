@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AM4 RouteMine — bulk route extraction CLI.
+AM4 Ops Center — bulk route extraction CLI.
 
 Usage:
     python main.py extract --hubs KHI,DXB --mode easy --ci 200
@@ -25,6 +25,7 @@ import os
 import sys
 from pathlib import Path
 
+from app.env_compat import set_dashboard_db_from_cli
 from app.paths import db_path, ensure_runtime_dirs, migrate_legacy_repo_db
 from config import GameMode, UserConfig
 from database.schema import apply_route_aircraft_baseline_prices_at_path, get_connection
@@ -183,8 +184,7 @@ def cmd_dashboard(args: argparse.Namespace) -> None:
     if migrate_legacy_repo_db():
         print(f"Migrated legacy database to {db_path()}", file=sys.stderr)
 
-    if not os.environ.get("AM4_ROUTEMINE_DB"):
-        os.environ["AM4_ROUTEMINE_DB"] = str(Path(args.db).resolve())
+    set_dashboard_db_from_cli(str(Path(args.db).resolve()))
 
     uvicorn.run(
         "dashboard.server:app",
@@ -271,7 +271,7 @@ def cmd_migrate(args: argparse.Namespace) -> None:
         ).fetchone()
         if not row:
             print(
-                "Error: no RouteMine schema in this database; run extract first or use a valid --db path.",
+                "Error: no AM4 Ops Center schema in this database; run extract first or use a valid --db path.",
                 file=sys.stderr,
             )
             sys.exit(2)
@@ -319,7 +319,7 @@ def cmd_refresh_baseline(args: argparse.Namespace) -> None:
 def main() -> None:
     ensure_runtime_dirs()
     migrate_legacy_repo_db()
-    parser = argparse.ArgumentParser(description="AM4 RouteMine — bulk route data extractor")
+    parser = argparse.ArgumentParser(description="AM4 Ops Center — bulk route data extractor")
     sub = parser.add_subparsers(dest="command", required=True)
 
     ex = sub.add_parser(

@@ -11,7 +11,7 @@ DASHBOARD_TEST_TOKEN = "test-am4-ops-center-dashboard-token"
 
 
 def pytest_configure(config) -> None:
-    os.environ["AM4_ROUTEMINE_TOKEN"] = DASHBOARD_TEST_TOKEN
+    os.environ["AM4_OPS_CENTER_TOKEN"] = DASHBOARD_TEST_TOKEN
 
 
 @pytest.fixture

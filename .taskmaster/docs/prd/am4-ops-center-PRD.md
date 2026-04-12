@@ -1,4 +1,4 @@
-# AM4 RouteMine — PRD & Technical Specification
+# AM4 Ops Center — PRD & Technical Specification
 
 > **Project:** am4-ops-center
 > **Repository:** https://github.com/saqibj/am4-ops-center
@@ -29,7 +29,7 @@ The AM4 Discord bot generates route reports one hub + one aircraft at a time. Fo
 └──────────────────┬───────────────────────────────┘
                    │
           ┌────────▼────────┐
-          │  AM4 RouteMine  │  ← Python CLI (this tool)
+          │  AM4 Ops Center  │  ← Python CLI (this tool)
           │  (main.py)       │
           └────────┬────────┘
                    │
@@ -660,7 +660,7 @@ def main():
     from app.paths import db_path
 
     DEFAULT_DB_PATH = str(db_path())
-    parser = argparse.ArgumentParser(description="AM4 RouteMine — Bulk Route Data Extractor")
+    parser = argparse.ArgumentParser(description="AM4 Ops Center — Bulk Route Data Extractor")
     subparsers = parser.add_subparsers(dest="command")
 
     # Extract command

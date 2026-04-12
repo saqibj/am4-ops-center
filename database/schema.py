@@ -1,4 +1,4 @@
-"""SQLite schema definitions for AM4 RouteMine."""
+"""SQLite schema definitions for AM4 Ops Center."""
 
 from __future__ import annotations
 

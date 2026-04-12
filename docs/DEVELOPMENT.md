@@ -18,7 +18,7 @@ pip install -r requirements.txt
 ## Environment
 
 - **`AM4OPS_DATA_DIR`** — optional override for the SQLite DB and writable dirs (default: platformdirs user data).
-- **`AM4_ROUTEMINE_TOKEN`** — bearer token for dashboard mutating APIs (see README security notes).
+- **`AM4_OPS_CENTER_TOKEN`** — bearer token for dashboard mutating APIs (legacy **`AM4_ROUTEMINE_TOKEN`** still works; see README security notes).
 
 ## Run the dashboard (dev)
 

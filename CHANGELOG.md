@@ -8,11 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Environment variables:** canonical **`AM4_OPS_CENTER_DB`** and **`AM4_OPS_CENTER_TOKEN`**; legacy **`AM4_ROUTEMINE_DB`** and **`AM4_ROUTEMINE_TOKEN`** remain supported (canonical wins when both are set). Implemented in **`app/env_compat.py`**; **`docker-compose.yml`** and **`.env.example`** prefer the new names.
 - **Windows release pipeline:** `.github/workflows/release.yml` publishes a GitHub Release on semver tags `v*.*.*` with the **am4** wheel and **AM4 Ops Center** installer; `build-am4-wheel` / `build-installer` no longer auto-run on every `v*` tag to avoid duplicate wheel builds. Root **README** adds **Install (Windows 11)**; **`docs/DEVELOPMENT.md`** and **`packaging/SMOKE_TEST.md`** support developers and pre-release QA.
 
 ### Security
 
-- **Dashboard mutating API:** all **`POST /api/*`** endpoints require **`Authorization: Bearer <token>`**; set **`AM4_ROUTEMINE_TOKEN`** or use the token printed at startup; **`hx-headers`** on **`base.html`** supplies HTMX requests (SEC-01 / SEC-06).
+- **Dashboard mutating API:** all **`POST /api/*`** endpoints require **`Authorization: Bearer <token>`**; set **`AM4_OPS_CENTER_TOKEN`** (or legacy **`AM4_ROUTEMINE_TOKEN`**) or use the token printed at startup; **`hx-headers`** on **`base.html`** supplies HTMX requests (SEC-01 / SEC-06).
 - **My Fleet buy/sell:** atomic SQLite **`UPDATE`** / **`BEGIN IMMEDIATE`** sell transaction to prevent concurrent quantity races (SEC-14).
 - **Hub refresh:** non-blocking process lock so a second **`/api/hubs/refresh`** or **`/api/hubs/refresh-stale`** while extraction runs returns an **in progress** flash instead of stacking work (SEC-10).
 - **Heatmap:** Leaflet marker popups built with DOM **`textContent`** instead of HTML string interpolation (SEC-04).
@@ -41,7 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **SQLite defaults & documentation:** canonical database file **`am4ops.db`** with CLI/dashboard default path from **`app.paths.db_path()`** (and optional **`AM4OPS_DATA_DIR`** / **`AM4_ROUTEMINE_DB`**). **`.taskmaster/docs/prd/`**, **`PRD/perf-flamegraphs-phase2.md`**, and related spec snippets were updated from legacy **`am4_data.db`** wording; diagram and sample **`argparse`** blocks now use **`DEFAULT_DB_PATH = str(db_path())`** where appropriate. **README** and **SETUP-GUIDE:** **Direct SQLite Queries** spell out **`sqlite3`** with **`db_path()`** on Bash, PowerShell, **`cmd.exe`**, and Docker. **README** project tree lists **`.taskmaster/docs/prd/`** and PRD naming conventions; **Contributing** references both spec locations. **Docker** uses **`/app/data/am4ops.db`** (migration note there for volumes still named **`am4_data.db`**). Test fixtures use a nonexistent **`no_am4ops.db`** path for absent-DB cases.
+- **SQLite defaults & documentation:** canonical database file **`am4ops.db`** with CLI/dashboard default path from **`app.paths.db_path()`** (and optional **`AM4OPS_DATA_DIR`** / **`AM4_OPS_CENTER_DB`** / legacy **`AM4_ROUTEMINE_DB`**). **`.taskmaster/docs/prd/`**, **`PRD/perf-flamegraphs-phase2.md`**, and related spec snippets were updated from legacy **`am4_data.db`** wording; diagram and sample **`argparse`** blocks now use **`DEFAULT_DB_PATH = str(db_path())`** where appropriate. **README** and **SETUP-GUIDE:** **Direct SQLite Queries** spell out **`sqlite3`** with **`db_path()`** on Bash, PowerShell, **`cmd.exe`**, and Docker. **README** project tree lists **`.taskmaster/docs/prd/`** and PRD naming conventions; **Contributing** references both spec locations. **Docker** uses **`/app/data/am4ops.db`** (migration note there for volumes still named **`am4_data.db`**). Test fixtures use a nonexistent **`no_am4ops.db`** path for absent-DB cases.
 
 - **Buy Next (`/buy-next`, `/api/buy-next`):** flat sortable **route × aircraft × seat config** table with required hub and budget; columns for qty affordable, total daily profit, profit yield ($/d per $1M), and payback days; six sort options (A/C price asc/desc, profit/day asc/desc, yield, total daily profit at budget); default sort A/C price high→low; default row limit **15** with **Show all matches** (up to **500**); **`my_routes`** highlights — blue tint when you fly the route with another aircraft, dim with **✓ same** when hub+dest+aircraft already assigned; toggle to hide routes you already operate; 🏆 marks the row with the highest total daily profit at your budget regardless of sort. Implementation in **`dashboard/routes/api/recommendations.py`** and **`dashboard/templates/partials/buy_next_results.html`**.
 
@@ -99,7 +100,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Dashboard** replaced **Streamlit** with **FastAPI**, **Jinja2**, **HTMX**, and **Tailwind** (CDN). Entry module: `dashboard.server:app`; dependencies in `pyproject.toml` / `requirements.txt` (`fastapi`, `uvicorn`, `jinja2`, `python-multipart`, etc.).
 - `python main.py dashboard` now serves **uvicorn** on **`0.0.0.0:8000`** by default (was Streamlit on port **8501**). New flag **`--host`**.
 - **`v_best_routes`** view is recreated on schema apply and includes **`income_per_ac_day`** (see `database/schema.py`).
-- **README** updated for the new stack, PRD paths, dashboard routes, and `AM4_ROUTEMINE_DB`.
+- **README** updated for the new stack, PRD paths, dashboard routes, and database env overrides (`AM4_OPS_CENTER_DB` / legacy `AM4_ROUTEMINE_DB`).
 - **README:** **10** dashboard pages including **Hub Manager**; documented **`extract --refresh-hubs`**, **merge vs replace** imports, **`recommend`** CLI, **`--workers`** default **4**, and **`requirements.txt` / `pyproject.toml`** alignment for **`am4`** (`saqibj/am4` **`msvc-fix`**).
 - **`pyproject.toml`**: **`am4`** dependency URL aligned with **`requirements.txt`**.
 - **`create_schema()`** applies **`DROP TABLE IF EXISTS`** for legacy **`fleet_aircraft`** / **`fleet_route_assignment`** before **`my_fleet`** / **`my_routes`**; airline state lives in those tables only (see `database/schema.py`).

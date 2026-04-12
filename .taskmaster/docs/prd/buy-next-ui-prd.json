@@ -7,7 +7,7 @@
         "Taskmaster parse-prd"
       ],
       "repo": "am4-ops-center",
-      "repo_description": "AM4 RouteMine dashboard + CLI"
+      "repo_description": "AM4 Ops Center dashboard + CLI"
     },
     "purpose": {
       "summary": "Deliver a first-class Buy Next dashboard experience at /buy-next that answers: 'Given my cash budget at a hub, which aircraft should I consider buying next?'",

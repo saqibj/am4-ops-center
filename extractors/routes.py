@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 
 def build_am4_user(cfg: UserConfig) -> "Am4User":
-    """Map RouteMine config to am4 User (CI is optimized inside am4; not set on User)."""
+    """Map Ops Center UserConfig to am4 User (CI is optimized inside am4; not set on User)."""
     from am4.utils.game import User
     from am4.utils.route import AircraftRoute
 

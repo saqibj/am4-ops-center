@@ -9,7 +9,6 @@ Measurement-only script; not used in production.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -17,10 +16,11 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from app.env_compat import ensure_default_db_env  # noqa: E402
 from app.paths import db_path  # noqa: E402
 
 # DB before any dashboard import
-os.environ.setdefault("AM4_ROUTEMINE_DB", str(db_path()))
+ensure_default_db_env(str(db_path()))
 
 
 async def _run_inline(func, *args, **kwargs):

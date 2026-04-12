@@ -1,4 +1,4 @@
-# AM4 RouteMine — Dashboard Specification
+# AM4 Ops Center — Dashboard Specification
 
 > **Stack:** FastAPI + Tailwind CSS + HTMX
 > **Replaces:** Streamlit dashboard (dashboard/app.py)
@@ -81,13 +81,14 @@ from fastapi.templating import Jinja2Templates
 import sqlite3
 import os
 
-app = FastAPI(title="AM4 RouteMine Dashboard")
+app = FastAPI(title="AM4 Ops Center Dashboard")
 app.mount("/static", StaticFiles(directory="dashboard/static"), name="static")
 templates = Jinja2Templates(directory="dashboard/templates")
 
+from app.env_compat import effective_db_path
 from app.paths import db_path
 
-DB_PATH = os.environ.get("AM4_ROUTEMINE_DB", str(db_path()))
+DB_PATH = effective_db_path(str(db_path()))
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -256,7 +257,7 @@ GET /api/chart/haul-breakdown?hub=KHI                   → JSON {short, medium,
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AM4 RouteMine — {% block title %}Dashboard{% endblock %}</title>
+  <title>AM4 Ops Center — {% block title %}Dashboard{% endblock %}</title>
 
   <!-- Tailwind (use local file for offline) -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -276,7 +277,7 @@ GET /api/chart/haul-breakdown?hub=KHI                   → JSON {short, medium,
 
   <!-- Sidebar -->
   <nav class="w-64 bg-gray-800 border-r border-gray-700 p-4 space-y-2 hidden lg:block">
-    <h1 class="text-xl font-bold text-emerald-400 mb-6">AM4 RouteMine</h1>
+    <h1 class="text-xl font-bold text-emerald-400 mb-6">AM4 Ops Center</h1>
     <a href="/" class="block px-3 py-2 rounded hover:bg-gray-700">Overview</a>
     <a href="/hub-explorer" class="block px-3 py-2 rounded hover:bg-gray-700">Hub Explorer</a>
     <a href="/aircraft" class="block px-3 py-2 rounded hover:bg-gray-700">Aircraft</a>
@@ -316,7 +317,9 @@ Launch:
 ```python
 def cmd_dashboard(args):
     import uvicorn
-    os.environ["AM4_ROUTEMINE_DB"] = args.db
+    from app.env_compat import set_dashboard_db_from_cli
+
+    set_dashboard_db_from_cli(args.db)
     uvicorn.run("dashboard.server:app", host=args.host, port=args.port, reload=True)
 ```
 

@@ -261,7 +261,7 @@ python3 main.py extract --refresh-hubs --hubs KHI,DXB --mode easy --workers 4
 | `--ci` | `200` | Cost Index (0–200) |
 | `--reputation` | `87.0` | Player reputation (0–100) |
 | `--aircraft` | all | Filter by aircraft: `b738,a388` |
-| `--db` | `app.paths.db_path()` (`…/am4ops.db`) | SQLite path; override with `--db` or `AM4_ROUTEMINE_DB` |
+| `--db` | `app.paths.db_path()` (`…/am4ops.db`) | SQLite path; override with `--db` or **`AM4_OPS_CENTER_DB`** (legacy **`AM4_ROUTEMINE_DB`**) |
 | `--workers` | `4` | Parallel worker count (lower if you see instability) |
 | `--aircraft-id-max` | `1000` | Exclusive end of am4 aircraft ID scan (`range(0, N)`) |
 | `--airport-id-max` | `8000` | Exclusive end of am4 airport ID scan (`range(0, N)`) |
@@ -286,7 +286,7 @@ python3 main.py export --format excel --output ./exports/
 
 ### Launch Dashboard
 
-By default the dashboard binds to **127.0.0.1** only (localhost). To open it from another device on your LAN, run `python3 main.py dashboard --host 0.0.0.0` — use that only on trusted networks; set a strong **`AM4_ROUTEMINE_TOKEN`** (see below) before exposing the app. Add `--reload` for development auto-reload.
+By default the dashboard binds to **127.0.0.1** only (localhost). To open it from another device on your LAN, run `python3 main.py dashboard --host 0.0.0.0` — use that only on trusted networks; set a strong **`AM4_OPS_CENTER_TOKEN`** (legacy **`AM4_ROUTEMINE_TOKEN`** still works; see below) before exposing the app. Add `--reload` for development auto-reload.
 
 ```bash
 python3 main.py dashboard
@@ -300,7 +300,7 @@ python3 main.py dashboard --reload  # dev: auto-reload on file changes
 
 On **Windows** with an activated venv, `python` is usually correct if `python3` is not on your PATH.
 
-**Mutating API authentication:** Every **`POST /api/*`** action (fleet, routes, hubs) requires header **`Authorization: Bearer <token>`**. The HTML shell sets **`hx-headers`** on `<body>` so HTMX picks up the token automatically. If **`AM4_ROUTEMINE_TOKEN`** is not set, a random token is generated once at startup and printed to the console; set that variable in your environment to keep the same token across restarts. For scripts or `curl`, pass the header explicitly, for example: `curl -X POST -H "Authorization: Bearer YOUR_TOKEN" -d 'fleet_id=1' http://127.0.0.1:8000/api/fleet/delete`.
+**Mutating API authentication:** Every **`POST /api/*`** action (fleet, routes, hubs) requires header **`Authorization: Bearer <token>`**. The HTML shell sets **`hx-headers`** on `<body>` so HTMX picks up the token automatically. If neither **`AM4_OPS_CENTER_TOKEN`** nor legacy **`AM4_ROUTEMINE_TOKEN`** is set, a random token is generated once at startup and printed to the console; set **`AM4_OPS_CENTER_TOKEN`** in your environment to keep the same token across restarts. For scripts or `curl`, pass the header explicitly, for example: `curl -X POST -H "Authorization: Bearer YOUR_TOKEN" -d 'fleet_id=1' http://127.0.0.1:8000/api/fleet/delete`.
 
 ### Fleet Management
 
@@ -350,18 +350,20 @@ HKG,IAD,a342,2,Trans-Pacific
 
 ### Docker
 
-Multi-stage **`Dockerfile`**: build tools and **`pip install`** run in a builder stage; the runtime image copies only the virtualenv and runs as **`appuser`** (uid **1000**), without **`gcc`/`cmake`/`git`**. The dashboard defaults to **`--db /app/data/am4ops.db`**. If you still have **`am4_data.db`** in the data volume, rename it once to **`am4ops.db`** (or point **`AM4_ROUTEMINE_DB`** at the old path).
+Multi-stage **`Dockerfile`**: build tools and **`pip install`** run in a builder stage; the runtime image copies only the virtualenv and runs as **`appuser`** (uid **1000**), without **`gcc`/`cmake`/`git`**. The dashboard defaults to **`--db /app/data/am4ops.db`**. If you still have **`am4_data.db`** in the data volume, rename it once to **`am4ops.db`** (or point **`AM4_OPS_CENTER_DB`** / legacy **`AM4_ROUTEMINE_DB`** at the old path).
 
 ```bash
 docker build -t am4-ops-center .
 docker compose up --build
 ```
 
-**`docker-compose.yml`** publishes **`127.0.0.1:8000:8000`** so the dashboard is not bound on your LAN interface by default. Set **`AM4_ROUTEMINE_TOKEN`** under **`environment`** if you change the publish address or need a fixed API secret.
+The compose service and container are named **`am4-ops-center`**; the named volume is **`am4-ops-center-data`**. If you still have an older setup using **`routemine`** / **`routemine-data`**, copy data out of the old volume or recreate the stack and set **`AM4_OPS_CENTER_DB`** (or legacy **`AM4_ROUTEMINE_DB`**) to your database path.
+
+**`docker-compose.yml`** publishes **`127.0.0.1:8000:8000`** so the dashboard is not bound on your LAN interface by default. Set **`AM4_OPS_CENTER_TOKEN`** under **`environment`** if you change the publish address or need a fixed API secret (legacy **`AM4_ROUTEMINE_TOKEN`** still works).
 
 ### Direct SQLite Queries
 
-Default file is **`am4ops.db`** at **`app.paths.db_path()`** (platform user data dir unless **`AM4OPS_DATA_DIR`** / **`AM4_ROUTEMINE_DB`** overrides). Run from the **repo root** so Python can import **`app`**. **`sqlite3`** is the SQLite CLI (install separately on Windows if needed).
+Default file is **`am4ops.db`** at **`app.paths.db_path()`** (platform user data dir unless **`AM4OPS_DATA_DIR`** / **`AM4_OPS_CENTER_DB`** / legacy **`AM4_ROUTEMINE_DB`** overrides). Run from the **repo root** so Python can import **`app`**. **`sqlite3`** is the SQLite CLI (install separately on Windows if needed).
 
 **Bash / Git Bash / WSL / macOS / Linux:**
 
@@ -533,9 +535,9 @@ am4-ops-center/
 | `init()` downloads data files | Normal on first run — needs internet connection once |
 | Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |
 | SQLite locked | Close other DB connections, enable WAL mode |
-| Dashboard blank page | Check `AM4_ROUTEMINE_DB` path points to an existing `.db` file |
-| **`401`** on **`POST /api/*`** (curl, custom clients, or broken HTMX) | Send **`Authorization: Bearer <token>`** matching **`AM4_ROUTEMINE_TOKEN`** or the token printed at server startup; the HTML UI sets **`hx-headers`** on **`<body>`** automatically |
-| Can’t reach the dashboard from another device | Expected with the default bind address — use `--host 0.0.0.0` only on trusted networks; set **`AM4_ROUTEMINE_TOKEN`** and use HTTPS or a reverse proxy if exposing beyond localhost (see [Launch Dashboard](#launch-dashboard)) |
+| Dashboard blank page | Check **`AM4_OPS_CENTER_DB`** (or legacy **`AM4_ROUTEMINE_DB`**) points to an existing `.db` file |
+| **`401`** on **`POST /api/*`** (curl, custom clients, or broken HTMX) | Send **`Authorization: Bearer <token>`** matching **`AM4_OPS_CENTER_TOKEN`**, legacy **`AM4_ROUTEMINE_TOKEN`**, or the token printed at server startup; the HTML UI sets **`hx-headers`** on **`<body>`** automatically |
+| Can’t reach the dashboard from another device | Expected with the default bind address — use `--host 0.0.0.0` only on trusted networks; set **`AM4_OPS_CENTER_TOKEN`** (or legacy **`AM4_ROUTEMINE_TOKEN`**) and use HTTPS or a reverse proxy if exposing beyond localhost (see [Launch Dashboard](#launch-dashboard)) |
 | Settings / theme seem “stuck” | Preferences live in **`localStorage`** for this origin; try a hard refresh or clear site data for localhost if corrupted |
 | Aircraft shortname not found | Use am4 shortnames (e.g., `a342` not `A340-200`) |
 | WSL venv broken after move | Delete `.venv` and recreate — pip paths are hardcoded |

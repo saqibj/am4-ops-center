@@ -135,7 +135,7 @@ def convert(input_file: str):
 
     # ─── Write mapping report ────────────────────────────────────────
     with open("mapping_report.txt", "w") as f:
-        f.write("AM4 RouteMine — CSV Import Mapping Report\n")
+        f.write("AM4 Ops Center — CSV Import Mapping Report\n")
         f.write("=" * 50 + "\n\n")
 
         f.write("SUCCESSFULLY MAPPED:\n")

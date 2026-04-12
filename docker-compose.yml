@@ -11,9 +11,11 @@ services:
       # Persist SQLite (and exports) — owned by appuser after first write
       - am4-ops-center-data:/app/data
     environment:
-      - AM4_ROUTEMINE_DB=/app/data/am4ops.db
-      # Optional: set a stable secret for POST /api/* (see README)
-      # - AM4_ROUTEMINE_TOKEN=your-long-random-secret
+      - AM4_OPS_CENTER_DB=/app/data/am4ops.db
+      # Legacy alias still supported: AM4_ROUTEMINE_DB
+      # Optional: stable secret for POST /api/* (see README)
+      # - AM4_OPS_CENTER_TOKEN=your-long-random-secret
+      # Legacy: AM4_ROUTEMINE_TOKEN
     command: python main.py dashboard --host 0.0.0.0 --db /app/data/am4ops.db
     # Override CMD for different tasks:
     #   docker compose run am4-ops-center python main.py extract --hubs KHI,DXB

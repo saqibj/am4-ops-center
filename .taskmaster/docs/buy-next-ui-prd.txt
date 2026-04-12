@@ -3,7 +3,7 @@
 ## Document status
 - Phase: Next (post Taskmaster 1–10)
 - Audience: Implementers + Taskmaster `parse-prd`
-- Repo: am4-ops-center (AM4 RouteMine dashboard + CLI)
+- Repo: am4-ops-center (AM4 Ops Center dashboard + CLI)
 
 ---
 

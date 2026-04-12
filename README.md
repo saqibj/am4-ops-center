@@ -14,6 +14,34 @@
 
 AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://github.com/abc8747/am4) package to compute route economics for every valid aircraft × airport combination. It completely eliminates the need for per-hub Discord bot queries. Results are stored in an SQLite database, allowing for offline querying through a lightning-fast FastAPI + Tailwind CSS + HTMX dashboard.
 
+## Install (Windows 11)
+
+For a **prebuilt app** (no compiler, no `pip install am4`):
+
+1. Open the [**Releases**](https://github.com/saqibj/am4-ops-center/releases) page and download **`AM4OpsCenter-Setup-vX.Y.Z.exe`** for the version you want.
+2. Run the installer. If **Windows SmartScreen** warns that the app is unrecognized (typical for unsigned builds), choose **More info** → **Run anyway**.
+3. Complete the wizard. **Python 3.14** is installed per-user under `%LOCALAPPDATA%\Programs\Python\Python314` only if no suitable **Python 3.14** is already found (registry / `py -3.14`).
+4. Start **AM4 Ops Center** from the Start menu or desktop shortcut (optional task during setup).
+5. A browser opens to the app; on first run, the **setup wizard** asks for AM4 credentials, hubs, and **initial extraction** (often **10–30+ minutes** depending on hubs).
+
+**Upgrading:** Run a newer `AM4OpsCenter-Setup-*.exe` over the existing install. Your database and config stay under **`%APPDATA%\AM4OpsCenter`** (see `app/paths.py` / `AM4OPS_DATA_DIR`).
+
+**Uninstalling:** **Settings → Apps → AM4 Ops Center → Uninstall**. You will be asked whether to **remove user data**; choose **No** to keep the DB and credentials for a future reinstall.
+
+**Troubleshooting**
+
+| Issue | What to try |
+|--------|-------------|
+| App won’t start | From the install folder (e.g. `%LOCALAPPDATA%\Programs\AM4OpsCenter`), run **`AM4OpsCenter.exe --debug`** to show a console and errors. Check **`%APPDATA%\AM4OpsCenter\logs\launcher.log`**. |
+| Port already in use | **`AM4OpsCenter.exe --port 9000`** (or another free port). |
+| Extraction seems stuck | Prefer a small hub first; see logs. If it persists, open an issue with **launcher.log** and steps. |
+
+**FAQ**
+
+- **Are my AM4 credentials safe?** They are **encrypted on disk** with a **machine-derived** key, stored under **`%APPDATA%\AM4OpsCenter\credentials.json`**, and used only to talk to **AM4’s own services** — not sent to this project’s servers.
+- **Mac or Linux?** There is **no installer** for those yet; developers can run from source — see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
+- **Why does SmartScreen warn?** Public **code-signing certificates** are costly. Builds run on **GitHub Actions**; verify the **SHA-256** of the downloaded `.exe` against the value published on the release when provided.
+
 ---
 
 ## 📸 Screenshots
@@ -40,6 +68,7 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 
 ## 📑 Table of Contents
 
+- [Install (Windows 11)](#install-windows-11)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
   - [Quick Start](#quick-start-5-commands)
@@ -85,12 +114,14 @@ AM4 RouteMine is a Python CLI and web dashboard that uses the [am4](https://gith
 
 ## 🚀 Installation
 
+Developer / from-source setup (all platforms): **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
+
 ### Quick Start (5 commands)
 
 **Linux / macOS / WSL:**
 
 ```bash
-git clone https://github.com/saqibj/am4-routemine.git && cd am4-routemine
+git clone https://github.com/saqibj/am4-ops-center.git && cd am4-ops-center
 python3 -m venv .venv && source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
@@ -100,7 +131,7 @@ python3 -c "from am4.utils.db import init; init(); print('✅ am4 OK')"
 **Windows (PowerShell, after [MSVC build tools](#windows-native-with-msvc) are installed):**
 
 ```powershell
-git clone https://github.com/saqibj/am4-routemine.git; cd am4-routemine
+git clone https://github.com/saqibj/am4-ops-center.git; cd am4-ops-center
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -117,8 +148,8 @@ python -c "from am4.utils.db import init; init(); print('am4 OK')"
 
 2. **Clone the repository**
    ```bash
-   git clone https://github.com/saqibj/am4-routemine.git
-   cd am4-routemine
+   git clone https://github.com/saqibj/am4-ops-center.git
+   cd am4-ops-center
    ```
 
 3. **Create virtual environment**
@@ -153,7 +184,7 @@ python -c "from am4.utils.db import init; init(); print('am4 OK')"
 3. **Create a venv and install**
 
    ```powershell
-   cd C:\path\to\am4-routemine
+   cd C:\path\to\am4-ops-center
    py -3.12 -m venv .venv
    .\.venv\Scripts\Activate.ps1
    python -m pip install --upgrade pip
@@ -349,7 +380,7 @@ sqlite3 $db
 
 **Docker** (path from compose): `sqlite3 /app/data/am4ops.db`
 
-More detail: **`.taskmaster/docs/prd/am4-routemine-SETUP-GUIDE.md`** (Direct SQLite Queries).
+More detail: **`.taskmaster/docs/prd/am4-ops-center-SETUP-GUIDE.md`** (Direct SQLite Queries).
 
 **Example Queries:**
 
@@ -444,7 +475,7 @@ pip install -r requirements.txt
 ## 📁 Project Structure
 
 ```text
-am4-routemine/
+am4-ops-center/
 ├── main.py                  # CLI entry point
 ├── config.py                # GameMode, UserConfig
 ├── commands/

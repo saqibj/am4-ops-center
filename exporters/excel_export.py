@@ -10,7 +10,7 @@ import pandas as pd
 TABLES = ("aircraft", "airports", "route_demands", "route_aircraft")
 
 
-def export_excel(db_path: str, output_dir: str | Path, filename: str = "am4_routemine.xlsx") -> None:
+def export_excel(db_path: str, output_dir: str | Path, filename: str = "am4_ops_center.xlsx") -> None:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     target = out / filename

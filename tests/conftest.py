@@ -7,7 +7,7 @@ import os
 import pytest
 
 # Must match env before any test imports dashboard.server (which loads auth).
-DASHBOARD_TEST_TOKEN = "test-am4-routemine-dashboard-token"
+DASHBOARD_TEST_TOKEN = "test-am4-ops-center-dashboard-token"
 
 
 def pytest_configure(config) -> None:

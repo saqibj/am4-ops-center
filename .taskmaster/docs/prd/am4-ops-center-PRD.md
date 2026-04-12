@@ -1,7 +1,7 @@
 # AM4 RouteMine — PRD & Technical Specification
 
-> **Project:** am4-routemine
-> **Repository:** https://github.com/saqibj/am4-routemine
+> **Project:** am4-ops-center
+> **Repository:** https://github.com/saqibj/am4-ops-center
 
 > **Purpose:** A Python CLI tool that uses the `am4` pip package (v0.1.x) to extract ALL aircraft specs, ALL airport data, and compute route profitability for EVERY valid aircraft × airport combination — eliminating the need to query the Discord bot per-hub/per-aircraft.
 >
@@ -272,7 +272,7 @@ C = 0.4 × (d + (y × floor(0.4d + 170)) + (j × floor(0.8d + 560)) + (f × floo
 ### 5.1 Project Structure
 
 ```
-am4-routemine/
+am4-ops-center/
 ├── main.py                  # CLI entry point
 ├── config.py                # User settings (game mode, training, CI, etc.)
 ├── extractors/
@@ -834,7 +834,7 @@ rich>=13.0.0           # Pretty CLI output
 sudo apt install -y build-essential cmake python3-dev python3-venv git
 
 # 2. Clone the repo
-cd ~ && git clone https://github.com/saqibj/am4-routemine.git && cd am4-routemine
+cd ~ && git clone https://github.com/saqibj/am4-ops-center.git && cd am4-ops-center
 
 # 3. Set up venv
 python3 -m venv .venv && source .venv/bin/activate

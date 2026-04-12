@@ -1,5 +1,5 @@
 [project]
-name = "am4-routemine"
+name = "am4-ops-center"
 version = "0.1.1"
 description = "Bulk AM4 route extraction into SQLite, CSV/Excel, and FastAPI dashboard."
 readme = "README.md"

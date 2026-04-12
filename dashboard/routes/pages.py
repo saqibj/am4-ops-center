@@ -24,7 +24,7 @@ def _package_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("am4-routemine")
+        return version("am4-ops-center")
     except Exception:
         return "0.1.1"
 

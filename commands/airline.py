@@ -1,4 +1,4 @@
-"""CLI: my_fleet / my_routes CSV and recommend (see PRD/am4-routemine-FLEET-SPEC.md)."""
+"""CLI: my_fleet / my_routes CSV and recommend (see .taskmaster/docs/prd/am4-ops-center-FLEET-SPEC.md)."""
 
 from __future__ import annotations
 

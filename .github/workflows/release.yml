@@ -1,0 +1,57 @@
+# Publishes a GitHub Release with the am4 wheel + Windows installer.
+# Semver tags only (v1.2.3) so ad-hoc tags like v1 do not trigger a release.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  actions: write # reusable build-installer uploads artifacts; publish downloads them
+
+jobs:
+  package:
+    uses: ./.github/workflows/build-installer.yml
+    secrets: inherit
+
+  publish:
+    name: Publish GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download am4 wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: am4-wheel
+          path: release-assets/am4-wheel
+
+      - name: Download installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: installer
+          path: release-assets/installer
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          body: |
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for notable changes.
+
+            **Assets**
+            - **AM4OpsCenter-Setup-*.exe** — Windows installer (bundles offline wheels; installs Python 3.14 if needed).
+            - **am4-*.whl** — prebuilt `am4` engine for Python 3.14 on Windows x64.
+          files: |
+            release-assets/am4-wheel/*.whl
+            release-assets/installer/*.exe
+          fail_on_unmatched_files: true

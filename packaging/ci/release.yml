@@ -1,11 +1,12 @@
-name: Release packaging (placeholder)
+# Superseded by ../../.github/workflows/release.yml (tag push v*.*.*).
+# Kept so older docs/links that pointed here still find a pointer.
+name: Release (redirect)
 
 on:
   workflow_dispatch:
 
 jobs:
-  placeholder:
+  noop:
     runs-on: ubuntu-latest
     steps:
-      - name: TODO
-        run: echo "Implemented in Task 12"
+      - run: echo "Release automation lives in .github/workflows/release.yml — push tag v*.*.* (e.g. v1.0.0)."

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Convert AM4 route CSV export into fleet.csv and my_routes.csv
-for import into am4-routemine.
+for import into am4-ops-center.
 
 Usage:
     python scripts/convert_csv.py am4_routes.csv

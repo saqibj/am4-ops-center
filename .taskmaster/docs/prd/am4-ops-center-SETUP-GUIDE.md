@@ -1,7 +1,7 @@
 # AM4 RouteMine — Setup & Run Guide
 
-> **Repository:** https://github.com/saqibj/am4-routemine
-> **PRD:** am4-routemine-PRD.md
+> **Repository:** https://github.com/saqibj/am4-ops-center
+> **PRD:** am4-ops-center-PRD.md
 
 ---
 
@@ -59,8 +59,8 @@ python3 --version
 
 ```bash
 cd ~
-git clone https://github.com/saqibj/am4-routemine.git
-cd am4-routemine
+git clone https://github.com/saqibj/am4-ops-center.git
+cd am4-ops-center
 ```
 
 ---
@@ -176,7 +176,7 @@ touch extractors/__init__.py database/__init__.py exporters/__init__.py dashboar
 Target structure:
 
 ```
-am4-routemine/
+am4-ops-center/
 ├── main.py                  # CLI entry point
 ├── config.py                # User settings (game mode, training, CI, etc.)
 ├── extractors/
@@ -355,7 +355,7 @@ python main.py extract --hubs KHI,DXB --mode easy --ci 200
 Each time you open WSL:
 
 ```bash
-cd ~/am4-routemine
+cd ~/am4-ops-center
 source .venv/bin/activate
 ```
 
@@ -383,14 +383,14 @@ source .venv/bin/activate
 # One-time setup
 wsl
 sudo apt install -y build-essential cmake python3-dev python3-venv git
-cd ~ && git clone https://github.com/saqibj/am4-routemine.git && cd am4-routemine
+cd ~ && git clone https://github.com/saqibj/am4-ops-center.git && cd am4-ops-center
 python3 -m venv .venv && source .venv/bin/activate && pip install --upgrade pip
 pip install "am4 @ git+https://github.com/abc8747/am4.git@master"
 pip install pandas tqdm rich streamlit openpyxl
 python -c "from am4.utils.db import init; init(); print('am4 OK')"
 
 # Daily use
-cd ~/am4-routemine && source .venv/bin/activate
+cd ~/am4-ops-center && source .venv/bin/activate
 python main.py extract --hubs KHI,DXB --mode easy --ci 200
 python main.py query --hub KHI --top 20
 python main.py dashboard

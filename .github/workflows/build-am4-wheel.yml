@@ -2,9 +2,7 @@ name: Build am4 wheel
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+  # Tag releases use `.github/workflows/release.yml` (builds wheel + installer once).
 
 jobs:
   build-am4-wheel:

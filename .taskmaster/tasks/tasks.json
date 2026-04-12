@@ -2,7 +2,7 @@
   "master": {
     "metadata": {
       "created": "2026-04-09T00:00:00Z",
-      "updated": "2026-04-12T17:34:58.000Z",
+      "updated": "2026-04-12T18:06:33.000Z",
       "description": "am4-ops-center installer + launcher for public GitHub release. Targets Windows 11 x64, Python 3.14, uses Inno Setup for install, PyInstaller for launcher, and GitHub Actions to build a prebuilt am4 wheel via MSYS2/mingw-w64. Includes a first-run wizard inside the FastAPI app for AM4 credentials, hub selection, and initial extraction."
     },
     "tasks": [
@@ -50,7 +50,7 @@
         "id": 4,
         "title": "First-run wizard UI and extraction flow",
         "description": "Build the /setup wizard inside the FastAPI app using Jinja2 + HTMX, guiding a new user through AM4 credentials, hub selection, initial extraction with live progress, and optional fleet CSV upload.",
-        "details": "Routes under /setup:\n\n  GET  /setup              -> step 1 welcome\n  GET  /setup/credentials  -> step 2 form (AM4 game access token or login \u2014 match what the am4 package's auth expects; consult am4 docs)\n  POST /setup/credentials  -> validate by making a test call, store encrypted in config_dir()/credentials.json (use cryptography.fernet with a key derived from a machine-specific value; document the trust model \u2014 this is local-only, not secrets-manager-grade)\n  GET  /setup/hubs         -> step 3 \u2014 either fetch the user's actual hubs via am4 or fall back to a free-form multi-select of IATA codes\n  POST /setup/hubs         -> persist selected hubs to my_fleet or a new user_hubs table\n  GET  /setup/extract      -> step 4 \u2014 shows a progress bar, kicks off extraction via an HTMX-polled endpoint\n  GET  /setup/extract/progress -> returns HTMX partial with % complete, current hub, rows inserted\n  POST /setup/extract/start -> launches the extraction in a background task (asyncio.create_task or a ThreadPoolExecutor job) \u2014 reuse the existing extraction pipeline from am4-routemine, per-hub commits, shutdown(wait=True, cancel_futures=True)\n  GET  /setup/fleet        -> step 5 \u2014 optional my_fleet.csv upload\n  POST /setup/fleet        -> parse with existing CSV importer, report mismatched shortnames inline\n  POST /setup/complete     -> call mark_setup_complete(), redirect to /\n\nUI: reuse existing Tailwind + HTMX layout. Each step is a full page with a top progress breadcrumb (1/5, 2/5, ...) and Back/Next buttons. No JS framework \u2014 HTMX only.\n\nError handling: if am4 credential validation fails, stay on /setup/credentials with a flash message. If extraction fails mid-run, show the partial progress plus a Retry button. Do not call mark_setup_complete() until extraction finished successfully for at least one hub.\n\nCredentials storage warning: display a clear notice on the credentials screen that they are stored locally and not transmitted anywhere except AM4's own API.",
+        "details": "Routes under /setup:\n\n  GET  /setup              -> step 1 welcome\n  GET  /setup/credentials  -> step 2 form (AM4 game access token or login \u2014 match what the am4 package's auth expects; consult am4 docs)\n  POST /setup/credentials  -> validate by making a test call, store encrypted in config_dir()/credentials.json (use cryptography.fernet with a key derived from a machine-specific value; document the trust model \u2014 this is local-only, not secrets-manager-grade)\n  GET  /setup/hubs         -> step 3 \u2014 either fetch the user's actual hubs via am4 or fall back to a free-form multi-select of IATA codes\n  POST /setup/hubs         -> persist selected hubs to my_fleet or a new user_hubs table\n  GET  /setup/extract      -> step 4 \u2014 shows a progress bar, kicks off extraction via an HTMX-polled endpoint\n  GET  /setup/extract/progress -> returns HTMX partial with % complete, current hub, rows inserted\n  POST /setup/extract/start -> launches the extraction in a background task (asyncio.create_task or a ThreadPoolExecutor job) \u2014 reuse the existing extraction pipeline from am4-ops-center, per-hub commits, shutdown(wait=True, cancel_futures=True)\n  GET  /setup/fleet        -> step 5 \u2014 optional my_fleet.csv upload\n  POST /setup/fleet        -> parse with existing CSV importer, report mismatched shortnames inline\n  POST /setup/complete     -> call mark_setup_complete(), redirect to /\n\nUI: reuse existing Tailwind + HTMX layout. Each step is a full page with a top progress breadcrumb (1/5, 2/5, ...) and Back/Next buttons. No JS framework \u2014 HTMX only.\n\nError handling: if am4 credential validation fails, stay on /setup/credentials with a flash message. If extraction fails mid-run, show the partial progress plus a Retry button. Do not call mark_setup_complete() until extraction finished successfully for at least one hub.\n\nCredentials storage warning: display a clear notice on the credentials screen that they are stored locally and not transmitted anywhere except AM4's own API.",
         "testStrategy": "1. Fresh install, navigate to http://localhost:<port>/ \u2014 redirected to /setup. 2. Walk all 5 steps with valid creds + one hub \u2014 extraction completes, redirect to dashboard, dashboard shows extracted data. 3. Walk with invalid creds \u2014 stays on step 2 with error. 4. Kill extraction mid-run (ctrl-c the server) and restart \u2014 /setup/extract still works, no zombie state. 5. Verify credentials.json is encrypted on disk (not plaintext).",
         "priority": "high",
         "dependencies": [
@@ -174,8 +174,9 @@
           7,
           11
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-12T18:06:33.000Z"
       },
       {
         "id": 13,
@@ -203,8 +204,9 @@
           11,
           13
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-12T18:06:33.000Z"
       },
       {
         "id": 15,

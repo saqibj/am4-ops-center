@@ -151,14 +151,5 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*.whl
-            dist/WHEEL_METADATA.txt
-          generate_release_notes: false
-          draft: true
-          fail_on_unmatched_files: true
+      # Publishing to GitHub Releases is handled by `.github/workflows/release.yml` (wheel + installer).
 

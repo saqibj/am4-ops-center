@@ -1,7 +1,7 @@
 # AM4 RouteMine — Fleet Management Specification
 
 > **Purpose:** Track player-owned aircraft by type (`my_fleet`) and operational assignments hub→destination→aircraft (`my_routes`), with CSV/CLI and dashboard parity.
-> **UI:** FastAPI + Jinja2 + HTMX (same patterns as `am4-routemine-DASHBOARD-SPEC.md`).
+> **UI:** FastAPI + Jinja2 + HTMX (same patterns as `am4-ops-center-DASHBOARD-SPEC.md`).
 > **Data:** SQLite tables alongside extraction data in **`am4ops.db`** (default: **`app.paths.db_path()`**).
 
 ---

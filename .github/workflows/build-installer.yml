@@ -3,9 +3,7 @@ name: Build installer
 on:
   workflow_dispatch:
   workflow_call:
-  push:
-    tags:
-      - "v*"
+  # Tag pushes: use `release.yml` (calls this workflow) to avoid duplicate wheel jobs.
 
 concurrency:
   group: installer-${{ github.workflow }}-${{ github.ref }}
@@ -13,7 +11,7 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write # upload-artifact
+  actions: write # upload-artifact; callers (e.g. release.yml) may widen via workflow permissions
 
 jobs:
   am4-wheel:

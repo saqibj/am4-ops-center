@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Windows release pipeline:** `.github/workflows/release.yml` publishes a GitHub Release on semver tags `v*.*.*` with the **am4** wheel and **AM4 Ops Center** installer; `build-am4-wheel` / `build-installer` no longer auto-run on every `v*` tag to avoid duplicate wheel builds. Root **README** adds **Install (Windows 11)**; **`docs/DEVELOPMENT.md`** and **`packaging/SMOKE_TEST.md`** support developers and pre-release QA.
+
 ### Security
 
 - **Dashboard mutating API:** all **`POST /api/*`** endpoints require **`Authorization: Bearer <token>`**; set **`AM4_ROUTEMINE_TOKEN`** or use the token printed at startup; **`hx-headers`** on **`base.html`** supplies HTMX requests (SEC-01 / SEC-06).

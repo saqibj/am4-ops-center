@@ -58,6 +58,22 @@ This directory contains all packaging artifacts used to build and distribute AM4
 ## Installer CI
 
 - Workflow: `.github/workflows/build-installer.yml`.
-- Triggers: `workflow_dispatch`, `workflow_call`, and tag push `v*`.
+- Triggers: `workflow_dispatch` and `workflow_call` (not tag push — avoids duplicate jobs).
 - First job runs the reusable AM4 wheel build; the second stages `dist/app`, runs PyInstaller, `build_wheels.ps1`, downloads the pinned Python installer, and runs Inno Setup.
 - Artifact name: `installer` (the `AM4OpsCenter-Setup-*.exe` under `packaging/installer/Output/`).
+
+## Release (tags)
+
+- Workflow: `.github/workflows/release.yml`.
+- Triggers: push tags matching **`v*.*.*`** (e.g. `v1.0.0`, `v0.2.3-rc1`).
+- Calls `build-installer.yml` once, then publishes a **GitHub Release** (not draft) with the **`.whl`** and **`.exe`** assets and generated notes. Body links to root **`CHANGELOG.md`**.
+- **Tag protection (recommended):** In GitHub → Settings → Rules → Rulesets, restrict who can create matching tags, or document team process: tag only from `main` after CI is green. This is not enforced in-repo.
+
+## Uninstall (installed app)
+
+- Windows **Settings → Apps → AM4 Ops Center → Uninstall**.
+- The uninstaller removes the install directory (including the bundled venv). It **prompts** whether to delete **`%APPDATA%\AM4OpsCenter`** (database, encrypted credentials, logs); default is **keep** for reinstalls.
+
+## Legacy placeholder
+
+- `packaging/ci/release.yml` is not a GitHub Actions path; release automation is **`.github/workflows/release.yml`** only.

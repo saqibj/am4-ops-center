@@ -19,7 +19,7 @@
 
 #define AppName           "AM4 Ops Center"
 #define AppPublisher      "Saqib Jawaid"
-#define AppURL            "https://github.com/saqibjawaid/am4-ops-center"
+#define AppURL            "https://github.com/saqibj/am4-ops-center"
 #define AppExeName        "AM4OpsCenter.exe"
 #define AppStopExeName    "AM4OpsCenter-Stop.exe"
 #define PythonVersion     "3.14"

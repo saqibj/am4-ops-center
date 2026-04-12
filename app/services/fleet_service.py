@@ -2,8 +2,84 @@
 
 from __future__ import annotations
 
+import math
 import sqlite3
 from typing import Any
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in km (WGS84 sphere approximation)."""
+    r = 6371.0
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
+    return r * c
+
+
+def lookup_route_distance_km(
+    conn: sqlite3.Connection,
+    origin_id: int,
+    dest_id: int,
+) -> float | None:
+    """
+    Best-effort distance for an airport pair: demand row, then any ``route_aircraft`` row,
+    then haversine from ``airports.lat``/``lng``.
+    """
+    row = conn.execute(
+        "SELECT distance_km FROM route_demands WHERE origin_id = ? AND dest_id = ?",
+        (origin_id, dest_id),
+    ).fetchone()
+    if row is not None and row[0] is not None:
+        return float(row[0])
+
+    row = conn.execute(
+        """
+        SELECT distance_km FROM route_aircraft
+        WHERE origin_id = ? AND dest_id = ?
+        ORDER BY CASE WHEN is_valid = 1 THEN 0 ELSE 1 END,
+                 COALESCE(profit_per_ac_day, -1e12) DESC
+        LIMIT 1
+        """,
+        (origin_id, dest_id),
+    ).fetchone()
+    if row is not None and row[0] is not None:
+        return float(row[0])
+
+    a = conn.execute(
+        "SELECT lat, lng FROM airports WHERE id = ?",
+        (origin_id,),
+    ).fetchone()
+    b = conn.execute(
+        "SELECT lat, lng FROM airports WHERE id = ?",
+        (dest_id,),
+    ).fetchone()
+    if a is None or b is None:
+        return None
+    lat1, lon1, lat2, lon2 = a[0], a[1], b[0], b[1]
+    if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
+        return None
+    return _haversine_km(float(lat1), float(lon1), float(lat2), float(lon2))
+
+
+def eligible_aircraft_empty_reason(
+    conn: sqlite3.Connection,
+    hub_iata: str,
+    dest_iata: str,
+    distance_km: float,
+) -> str:
+    """Human-readable explanation when ``get_eligible_aircraft`` returns no rows."""
+    row = conn.execute("SELECT COUNT(*) FROM my_fleet").fetchone()
+    n_fleet = int(row[0] or 0) if row else 0
+    if n_fleet == 0:
+        return "Add aircraft in My Fleet first."
+    return (
+        f"No eligible aircraft at {hub_iata} for {dest_iata} ({distance_km:,.0f} km). "
+        "Check aircraft range, runway length at both airports, or planes already assigned "
+        "from this hub."
+    )
 
 
 def get_eligible_aircraft(

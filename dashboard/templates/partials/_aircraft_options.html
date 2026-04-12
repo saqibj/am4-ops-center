@@ -1,0 +1,32 @@
+<div class="space-y-2 aircraft-options-fragment">
+{% if error_message %}
+<p class="text-amber-400 text-sm">{{ error_message }}</p>
+{% endif %}
+{% if empty_reason %}
+<p class="text-sm am4-text-secondary" data-empty-reason="1">{{ empty_reason }}</p>
+{% endif %}
+{% if incomplete %}
+<select id="aircraft-select" name="aircraft_shortname" class="am4-input rounded-md px-3 py-2 text-sm font-mono min-w-[16rem] max-w-[28rem]" disabled>
+  <option value="">Select hub and destination first</option>
+</select>
+{% else %}
+<select id="aircraft-select" name="aircraft_shortname"
+        class="am4-input rounded-md px-3 py-2 text-sm font-mono min-w-[16rem] max-w-[28rem]"
+        {% if not aircraft %}disabled{% endif %}>
+  {% if aircraft %}
+  <option value="">— Choose aircraft —</option>
+  {% for a in aircraft %}
+  <option value="{{ a.shortname }}"
+          data-aircraft-id="{{ a.aircraft_id }}"
+          data-eligible-direct="{{ '1' if a.eligible_direct else '0' }}"
+          data-eligible-stopover="{{ '1' if a.eligible_with_stopover else '0' }}">
+    {{ a.shortname }} — {{ a.name }}
+    ({{ a.range_km }} km, {{ a.config_summary }}, {{ a.available_count }} available, {{ a.current_route_count }} route{% if a.current_route_count != 1 %}s{% endif %}{% if a.eligible_with_stopover and not a.eligible_direct %} · stopover{% endif %})
+  </option>
+  {% endfor %}
+  {% else %}
+  <option value="">No eligible aircraft</option>
+  {% endif %}
+</select>
+{% endif %}
+</div>

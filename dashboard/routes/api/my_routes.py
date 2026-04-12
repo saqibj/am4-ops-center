@@ -5,15 +5,217 @@ from __future__ import annotations
 import sqlite3
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
+from app.services.fleet_service import (
+    eligible_aircraft_empty_reason,
+    get_eligible_aircraft,
+    lookup_route_distance_km,
+)
 from dashboard.auth import check_auth_token
-from dashboard.db import fetch_all, fetch_one, get_db, get_read_db
+from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db, get_read_db
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_routes_rows
 
 router = APIRouter()
+
+
+def _eligible_aircraft_response_mode(request: Request) -> str:
+    if (request.query_params.get("format") or "").strip().lower() == "json":
+        return "json"
+    if request.headers.get("HX-Request", "").strip().lower() in ("true", "1"):
+        return "html"
+    accept = request.headers.get("accept", "")
+    parts = [p.strip().split(";")[0].lower() for p in accept.split(",") if p.strip()]
+    return "json" if parts and parts[0] == "application/json" else "html"
+
+
+@router.get("/routes/eligible-aircraft")
+def api_routes_eligible_aircraft(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+    hub: str = Query("", description="Origin hub IATA"),
+    dest: str = Query("", description="Destination IATA"),
+    hub_iata: str = Query("", description="Alias for hub"),
+    destination_iata: str = Query("", description="Alias for dest"),
+    distance_km: float | None = Query(
+        None,
+        description="Override route distance in km (otherwise demand, route_aircraft, or haversine)",
+    ),
+):
+    """Eligible ``my_fleet`` aircraft for a candidate hub→dest pair (HTML for HTMX, JSON with format=json)."""
+    h = (hub or hub_iata or "").strip()
+    d = (dest or destination_iata or "").strip()
+    mode = _eligible_aircraft_response_mode(request)
+    hub_u = h.upper()
+    dest_u = d.upper()
+
+    def _ctx(
+        *,
+        aircraft: list,
+        empty_reason: str | None,
+        incomplete: bool = False,
+        dist: float | None = None,
+        error_message: str | None = None,
+    ) -> dict:
+        return {
+            "hub": hub_u,
+            "dest": dest_u,
+            "distance_km": dist,
+            "aircraft": aircraft,
+            "empty_reason": empty_reason,
+            "incomplete": incomplete,
+            "error_message": error_message,
+        }
+
+    if not h or not d:
+        ctx = _ctx(aircraft=[], empty_reason=None, incomplete=True, dist=None)
+        if mode == "json":
+            return JSONResponse(
+                {
+                    "hub": hub_u,
+                    "dest": dest_u,
+                    "distance_km": None,
+                    "aircraft": [],
+                    "empty_reason": None,
+                    "incomplete": True,
+                }
+            )
+        return templates.TemplateResponse(
+            request,
+            "partials/_aircraft_options.html",
+            ctx,
+        )
+
+    if conn is None:
+        if mode == "json":
+            return JSONResponse(
+                {
+                    "hub": hub_u,
+                    "dest": dest_u,
+                    "distance_km": None,
+                    "aircraft": [],
+                    "empty_reason": None,
+                    "error": "database_unavailable",
+                    "incomplete": False,
+                },
+                status_code=503,
+            )
+        return HTMLResponse(HTML_DB_NOT_FOUND)
+
+    try:
+        hub_row = fetch_one(
+            conn,
+            "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+            [h],
+        )
+        dest_row = fetch_one(
+            conn,
+            "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+            [d],
+        )
+    except sqlite3.OperationalError:
+        hub_row = None
+        dest_row = None
+
+    if not hub_row or not dest_row:
+        msg = "Unknown hub or destination airport code."
+        if mode == "json":
+            return JSONResponse(
+                {
+                    "hub": hub_u,
+                    "dest": dest_u,
+                    "distance_km": None,
+                    "aircraft": [],
+                    "empty_reason": None,
+                    "error": msg,
+                    "incomplete": False,
+                },
+                status_code=422,
+            )
+        return templates.TemplateResponse(
+            request,
+            "partials/_aircraft_options.html",
+            _ctx(aircraft=[], empty_reason=None, dist=None, error_message=msg),
+        )
+
+    oid = int(hub_row["id"])
+    did = int(dest_row["id"])
+    dist: float | None
+    if distance_km is not None:
+        dist = float(distance_km)
+    else:
+        dist = lookup_route_distance_km(conn, oid, did)
+
+    if dist is None:
+        reason = (
+            f"Could not determine distance from {hub_u} to {dest_u}. "
+            "Extract demand or routes for this pair, or pass distance_km as a query parameter."
+        )
+        if mode == "json":
+            return JSONResponse(
+                {
+                    "hub": hub_u,
+                    "dest": dest_u,
+                    "distance_km": None,
+                    "aircraft": [],
+                    "empty_reason": reason,
+                    "incomplete": False,
+                }
+            )
+        return templates.TemplateResponse(
+            request,
+            "partials/_aircraft_options.html",
+            _ctx(aircraft=[], empty_reason=reason, dist=None),
+        )
+
+    try:
+        aircraft = get_eligible_aircraft(conn, h, d, dist)
+    except ValueError as exc:
+        msg = str(exc)
+        if mode == "json":
+            return JSONResponse(
+                {
+                    "hub": hub_u,
+                    "dest": dest_u,
+                    "distance_km": dist,
+                    "aircraft": [],
+                    "empty_reason": None,
+                    "error": msg,
+                    "incomplete": False,
+                },
+                status_code=422,
+            )
+        return templates.TemplateResponse(
+            request,
+            "partials/_aircraft_options.html",
+            _ctx(aircraft=[], empty_reason=None, dist=dist, error_message=msg),
+        )
+
+    empty_reason = (
+        None
+        if aircraft
+        else eligible_aircraft_empty_reason(conn, hub_u, dest_u, float(dist))
+    )
+
+    if mode == "json":
+        return JSONResponse(
+            {
+                "hub": hub_u,
+                "dest": dest_u,
+                "distance_km": float(dist),
+                "aircraft": aircraft,
+                "empty_reason": empty_reason,
+                "incomplete": False,
+            }
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "partials/_aircraft_options.html",
+        _ctx(aircraft=aircraft, empty_reason=empty_reason, dist=float(dist)),
+    )
 
 
 @router.get("/route-exists", response_class=HTMLResponse)

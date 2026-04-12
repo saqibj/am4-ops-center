@@ -43,4 +43,4 @@ USER appuser
 EXPOSE 8000
 
 # Bridge networking needs 0.0.0.0; bind host port to 127.0.0.1 in compose for local-only access.
-CMD ["python", "main.py", "dashboard", "--host", "0.0.0.0", "--db", "/app/data/am4_data.db"]
+CMD ["python", "main.py", "dashboard", "--host", "0.0.0.0", "--db", "/app/data/am4ops.db"]

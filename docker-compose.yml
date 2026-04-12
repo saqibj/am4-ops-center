@@ -11,10 +11,10 @@ services:
       # Persist SQLite (and exports) — owned by appuser after first write
       - routemine-data:/app/data
     environment:
-      - AM4_ROUTEMINE_DB=/app/data/am4_data.db
+      - AM4_ROUTEMINE_DB=/app/data/am4ops.db
       # Optional: set a stable secret for POST /api/* (see README)
       # - AM4_ROUTEMINE_TOKEN=your-long-random-secret
-    command: python main.py dashboard --host 0.0.0.0 --db /app/data/am4_data.db
+    command: python main.py dashboard --host 0.0.0.0 --db /app/data/am4ops.db
     # Override CMD for different tasks:
     #   docker compose run routemine python main.py extract --hubs KHI,DXB
     #   docker compose run routemine python main.py query --hub KHI --top 10

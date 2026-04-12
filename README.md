@@ -230,7 +230,7 @@ python3 main.py extract --refresh-hubs --hubs KHI,DXB --mode easy --workers 4
 | `--ci` | `200` | Cost Index (0–200) |
 | `--reputation` | `87.0` | Player reputation (0–100) |
 | `--aircraft` | all | Filter by aircraft: `b738,a388` |
-| `--db` | `am4_data.db` | SQLite output path |
+| `--db` | `app.paths.db_path()` (`…/am4ops.db`) | SQLite path; override with `--db` or `AM4_ROUTEMINE_DB` |
 | `--workers` | `4` | Parallel worker count (lower if you see instability) |
 | `--aircraft-id-max` | `1000` | Exclusive end of am4 aircraft ID scan (`range(0, N)`) |
 | `--airport-id-max` | `8000` | Exclusive end of am4 airport ID scan (`range(0, N)`) |
@@ -319,7 +319,7 @@ HKG,IAD,a342,2,Trans-Pacific
 
 ### Docker
 
-Multi-stage **`Dockerfile`**: build tools and **`pip install`** run in a builder stage; the runtime image copies only the virtualenv and runs as **`appuser`** (uid **1000**), without **`gcc`/`cmake`/`git`**. The dashboard defaults to **`--db /app/data/am4_data.db`**.
+Multi-stage **`Dockerfile`**: build tools and **`pip install`** run in a builder stage; the runtime image copies only the virtualenv and runs as **`appuser`** (uid **1000**), without **`gcc`/`cmake`/`git`**. The dashboard defaults to **`--db /app/data/am4ops.db`**. If you still have **`am4_data.db`** in the data volume, rename it once to **`am4ops.db`** (or point **`AM4_ROUTEMINE_DB`** at the old path).
 
 ```bash
 docker build -t am4-ops-center .
@@ -331,7 +331,8 @@ docker compose up --build
 ### Direct SQLite Queries
 
 ```bash
-sqlite3 am4_data.db
+# Use your real path: native default is platformdirs user data dir + am4ops.db; Docker bind mount is often /app/data/am4ops.db
+sqlite3 /app/data/am4ops.db
 ```
 
 **Example Queries:**

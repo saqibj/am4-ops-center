@@ -42,6 +42,18 @@ def test_resolved_env_token_falls_back_to_legacy(clean_db_env, monkeypatch) -> N
     assert ec.resolved_env_token() == "legacy-only"
 
 
+def test_whitespace_only_canonical_db_ignored(clean_db_env, monkeypatch) -> None:
+    monkeypatch.setenv(ec.ENV_DB_CANONICAL, "   ")
+    monkeypatch.setenv(ec.ENV_DB_LEGACY, "/from-legacy.db")
+    assert ec.resolved_env_db() == "/from-legacy.db"
+
+
+def test_whitespace_only_canonical_token_ignored(clean_db_env, monkeypatch) -> None:
+    monkeypatch.setenv(ec.ENV_TOKEN_CANONICAL, "  \t  ")
+    monkeypatch.setenv(ec.ENV_TOKEN_LEGACY, "legacy-tok")
+    assert ec.resolved_env_token() == "legacy-tok"
+
+
 def test_effective_db_path_uses_fallback_when_unset(clean_db_env) -> None:
     assert ec.effective_db_path("/fallback.db") == "/fallback.db"
 

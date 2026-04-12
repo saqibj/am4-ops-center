@@ -18,7 +18,10 @@ pip install -r requirements.txt
 ## Environment
 
 - **`AM4OPS_DATA_DIR`** — optional override for the SQLite DB and writable dirs (default: platformdirs user data).
+- **`AM4_OPS_CENTER_DB`** — optional explicit path to **`am4ops.db`** for the dashboard and CLI (legacy **`AM4_ROUTEMINE_DB`** still works). If both are set, the **`AM4_OPS_CENTER_*`** value wins. Resolution lives in **`app/env_compat.py`**.
 - **`AM4_OPS_CENTER_TOKEN`** — bearer token for dashboard mutating APIs (legacy **`AM4_ROUTEMINE_TOKEN`** still works; see README security notes).
+
+When you run **`uvicorn dashboard.server:app`** directly (not via **`main.py dashboard`**), the app still reads these variables; otherwise the default DB path comes from **`app.paths.db_path()`**.
 
 ## Run the dashboard (dev)
 

@@ -1,0 +1,183 @@
+"""Fleet helpers: eligible aircraft for a candidate route from a hub."""
+
+from __future__ import annotations
+
+import sqlite3
+from typing import Any
+
+
+def get_eligible_aircraft(
+    conn: sqlite3.Connection,
+    hub_iata: str,
+    dest_iata: str,
+    distance_km: float,
+) -> list[dict[str, Any]]:
+    """
+    Return aircraft in ``my_fleet`` that can be considered for ``hub_iata`` → ``dest_iata``.
+
+    Filters:
+
+    - Runway: ``aircraft.rwy`` must be ``<=`` both airport ``rwy`` values when those values are
+      non-null; if an airport ``rwy`` is null, that endpoint is not used to reject aircraft.
+    - Availability at the hub: ``my_fleet.quantity - SUM(my_routes.num_assigned)`` for rows with
+      ``origin_id`` = hub must be > 0 (assigned counts are per hub origin, not global).
+
+    Each dict includes ``eligible_direct`` (range covers ``distance_km``) and
+    ``eligible_with_stopover`` (true when a direct flight is out of range for the aircraft).
+    ``stopover_hint`` is filled from ``route_aircraft`` when present, else a generic message when
+    only stopover range applies.
+
+    Raises:
+        ValueError: unknown hub or destination IATA.
+    """
+    hub = hub_iata.strip().upper()
+    dest = dest_iata.strip().upper()
+    if not hub or not dest:
+        raise ValueError("hub and destination IATA are required")
+
+    hub_row = conn.execute(
+        "SELECT id, rwy FROM airports WHERE UPPER(TRIM(iata)) = ? LIMIT 1",
+        (hub,),
+    ).fetchone()
+    dest_row = conn.execute(
+        "SELECT id, rwy FROM airports WHERE UPPER(TRIM(iata)) = ? LIMIT 1",
+        (dest,),
+    ).fetchone()
+    if hub_row is None:
+        raise ValueError(f"Unknown hub IATA: {hub_iata!r}")
+    if dest_row is None:
+        raise ValueError(f"Unknown destination IATA: {dest_iata!r}")
+
+    hub_id = int(hub_row[0])
+    hub_rwy = hub_row[1]
+    dest_id = int(dest_row[0])
+    dest_rwy = dest_row[1]
+
+    ra_by_ac: dict[int, sqlite3.Row] = {}
+    for row in conn.execute(
+        """
+        SELECT aircraft_id, config_y, config_j, config_f,
+               needs_stopover, stopover_iata, total_distance, profit_per_ac_day
+        FROM route_aircraft
+        WHERE origin_id = ? AND dest_id = ? AND is_valid = 1
+        ORDER BY profit_per_ac_day DESC
+        """,
+        (hub_id, dest_id),
+    ):
+        aid = int(row["aircraft_id"])
+        if aid not in ra_by_ac:
+            ra_by_ac[aid] = row
+
+    rows = conn.execute(
+        """
+        SELECT
+            ac.id AS aircraft_id,
+            ac.shortname,
+            ac.name,
+            ac.range_km,
+            ac.rwy,
+            ac.type AS ac_type,
+            ac.capacity,
+            mf.quantity AS owned_count,
+            COALESCE(assign.assigned_at_hub, 0) AS assigned_at_hub,
+            COALESCE(rc.route_count, 0) AS current_route_count
+        FROM my_fleet mf
+        INNER JOIN aircraft ac ON ac.id = mf.aircraft_id
+        LEFT JOIN (
+            SELECT aircraft_id, SUM(num_assigned) AS assigned_at_hub
+            FROM my_routes
+            WHERE origin_id = ?
+            GROUP BY aircraft_id
+        ) assign ON assign.aircraft_id = ac.id
+        LEFT JOIN (
+            SELECT aircraft_id, COUNT(*) AS route_count
+            FROM my_routes
+            WHERE origin_id = ?
+            GROUP BY aircraft_id
+        ) rc ON rc.aircraft_id = ac.id
+        WHERE mf.quantity > COALESCE(assign.assigned_at_hub, 0)
+        ORDER BY ac.shortname COLLATE NOCASE
+        """,
+        (hub_id, hub_id),
+    ).fetchall()
+
+    out: list[dict[str, Any]] = []
+    dist = float(distance_km)
+
+    for row in rows:
+        ac_id = int(row["aircraft_id"])
+        ac_rwy = int(row["rwy"] or 0)
+        if hub_rwy is not None and ac_rwy > int(hub_rwy):
+            continue
+        if dest_rwy is not None and ac_rwy > int(dest_rwy):
+            continue
+
+        range_km = int(row["range_km"] or 0)
+        eligible_direct = range_km >= dist
+        eligible_with_stopover = not eligible_direct
+
+        ra = ra_by_ac.get(ac_id)
+        stopover_hint: str | None = None
+        if eligible_with_stopover:
+            if ra is not None and ra["stopover_iata"]:
+                stopover_hint = f"via {ra['stopover_iata']}"
+            elif ra is not None and int(ra["needs_stopover"] or 0):
+                stopover_hint = "Stopover route exists in extraction data"
+            else:
+                stopover_hint = "Direct flight out of range; stopover may be required"
+
+        cy = ra["config_y"] if ra is not None else None
+        cj = ra["config_j"] if ra is not None else None
+        cf = ra["config_f"] if ra is not None else None
+        ac_type = (row["ac_type"] or "").upper()
+        if ac_type == "CARGO":
+            seats_y = int(cy) if cy is not None else None
+            seats_j = int(cj) if cj is not None else None
+            seats_f = None
+            cargo = (
+                f"L{seats_y} H{seats_j}"
+                if seats_y is not None and seats_j is not None
+                else None
+            )
+            if cy is not None and cj is not None:
+                config_summary = f"L{int(cy)} H{int(cj)}"
+            else:
+                config_summary = "—"
+        else:
+            seats_y = int(cy) if cy is not None else None
+            seats_j = int(cj) if cj is not None else None
+            seats_f = int(cf) if cf is not None else None
+            cargo = None
+            if cy is not None or cj is not None or cf is not None:
+                config_summary = (
+                    f"Y{int(cy or 0)} J{int(cj or 0)} F{int(cf or 0)}"
+                )
+            else:
+                cap = row["capacity"]
+                config_summary = f"capacity {int(cap)}" if cap is not None else "—"
+
+        owned = int(row["owned_count"])
+        assigned = int(row["assigned_at_hub"])
+        available = owned - assigned
+
+        out.append(
+            {
+                "aircraft_id": ac_id,
+                "shortname": row["shortname"],
+                "name": row["name"],
+                "range_km": range_km,
+                "runway_m": ac_rwy,
+                "seats_y": seats_y,
+                "seats_j": seats_j,
+                "seats_f": seats_f,
+                "cargo": cargo,
+                "available_count": available,
+                "current_route_count": int(row["current_route_count"]),
+                "config_summary": config_summary,
+                "eligible_direct": eligible_direct,
+                "eligible_with_stopover": eligible_with_stopover,
+                "stopover_hint": stopover_hint,
+            }
+        )
+
+    return out

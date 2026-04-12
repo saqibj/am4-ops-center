@@ -2,21 +2,206 @@
   "master": {
     "tasks": [
       {
-        "id": 1,
-        "title": "Make my_hubs the single source of truth for hub enumeration",
-        "description": "Hub Explorer (and likely other pages) currently derives the hub list from route_aircraft, causing deleted hubs to remain visible if their extracted route data still exists. Fix by routing all hub enumeration through v_my_hubs.",
-        "details": "1. AUDIT every page/route/template that lists hubs: Hub Explorer, Buy Next dropdown, Global Buy Next, Fleet Health, Hub ROI Summary, extraction UI. Use grep: grep -rni 'DISTINCT.*origin_id\\|DISTINCT.*hub' app/ templates/\n2. Replace any 'SELECT DISTINCT origin_id FROM route_aircraft' or similar derivations with 'SELECT * FROM v_my_hubs WHERE is_active = 1'.\n3. Add a delete_hub(airport_id) service in app/services/hubs.py that runs in one transaction: DELETE FROM route_aircraft WHERE origin_id=? OR dest_id=?; DELETE FROM route_aircraft_snapshot WHERE origin_id=? OR dest_id=?; DELETE FROM my_routes WHERE origin_id=? OR dest_id=?; DELETE FROM my_hubs WHERE airport_id=?; then VACUUM.\n4. Wire the hub-delete UI button to delete_hub() instead of whatever partial delete it currently calls.\n5. On 'add hub' insert with is_active=0; flip to 1 in the extraction job only after a successful run (set last_extract_status='success' and is_active=1 in the same UPDATE).\n6. Update v_my_hubs filter usage in Hub Explorer to: WHERE is_active = 1 AND last_extract_status = 'success' — this ensures draft hubs and failed-extraction hubs don't appear.",
-        "testStrategy": "Add a hub 'TST' via UI without extracting -> verify it does NOT appear in Hub Explorer (is_active=0). Run extraction for TST -> verify it appears. Click delete on TST -> verify zero rows in my_hubs, route_aircraft, route_aircraft_snapshot, my_routes for airport_id of TST. Restart app, confirm Hub Explorer shows only the 6 real hubs.",
+        "id": "1",
+        "title": "Backend: eligible-aircraft query for a given route",
+        "description": "Add a service function returning aircraft from my_fleet that are valid for a candidate route (origin hub, range >= distance, runway compatible at both endpoints, available capacity = owned_count - assigned_count > 0).",
+        "details": "Location: app/services/fleet_service.py (new function get_eligible_aircraft(hub_iata, dest_iata, distance_km)). Join my_fleet -> aircraft -> airports. Compute assigned_count by counting my_routes rows per (hub, aircraft_shortname). Return list of dicts: {shortname, name, range_km, runway_m, seats_y/j/f, cargo, available_count, current_route_count, config_summary}. Add SQL view v_fleet_availability if it simplifies queries. Handle stopover case: if direct range insufficient, mark eligible_with_stopover=true and include stopover hint.",
+        "testStrategy": "Unit test with seeded fixture: hub with 3 aircraft (1 fully assigned, 1 partially, 1 free), one ineligible by range, one by runway. Assert correct subset returned with correct available_count.",
         "priority": "high",
         "dependencies": [],
         "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define function signature for get_eligible_aircraft",
+            "description": "Define the Python function signature with type hints and docstring.",
+            "dependencies": [],
+            "details": "Add docstring, parameter types, return type annotation. Implement logic to join my_fleet -> aircraft -> airports table.",
+            "status": "done",
+            "testStrategy": null,
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T23:40:26.885Z"
+          },
+          {
+            "id": 2,
+            "title": "Implement range and runway checks in get_eligible_aircraft",
+            "description": "Complete the function by adding logic to check range and airport compatibility at both endpoints.",
+            "dependencies": [
+              1
+            ],
+            "details": "Use distance_km parameter, query airports for compatible runways, filter aircraft based on conditions.",
+            "status": "done",
+            "testStrategy": null,
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T23:40:26.898Z"
+          },
+          {
+            "id": 3,
+            "title": "Calculate available_count and return aircraft details",
+            "description": "Compute the available_count by subtracting assigned_count from owned_count. Return aircraft data as specified in description.",
+            "dependencies": [
+              2
+            ],
+            "details": "Join my_routes to get assigned_count per aircraft, compute available_count, format output.",
+            "status": "done",
+            "testStrategy": null,
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T23:40:26.906Z"
+          },
+          {
+            "id": 4,
+            "title": "Add SQL view v_fleet_availability if beneficial",
+            "description": "Evaluate whether adding a SQL view can simplify queries and add it accordingly.",
+            "dependencies": [
+              3
+            ],
+            "details": "Design and implement the SQL view to enhance query performance. Test its impact on overall function efficiency.",
+            "status": "done",
+            "testStrategy": null,
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T23:40:26.912Z"
+          },
+          {
+            "id": 5,
+            "title": "Handle stopover cases in get_eligible_aircraft",
+            "description": "Implement logic to handle scenarios where a direct flight is not possible and mark eligible_with_stopover.",
+            "dependencies": [
+              4
+            ],
+            "details": "Update the function to check if a stopover is required and adjust the returned aircraft data accordingly.",
+            "status": "done",
+            "testStrategy": null,
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T23:40:26.920Z"
+          }
+        ],
+        "updatedAt": "2026-04-12T23:40:26.920Z"
+      },
+      {
+        "id": "2",
+        "title": "API: GET /api/routes/eligible-aircraft",
+        "description": "FastAPI endpoint returning JSON list of eligible aircraft for a candidate route. Used by HTMX to populate the dropdown when the user picks origin+destination.",
+        "details": "Location: app/api_routes.py. Query params: hub (IATA), dest (IATA). Calls fleet_service.get_eligible_aircraft. Returns 200 with list (possibly empty) plus a reason string when empty (e.g. 'No aircraft at KHI with range >= 6,234 km'). Render via Jinja partial templates/partials/_aircraft_options.html for HTMX swap.",
+        "testStrategy": "TestClient: hit endpoint with seeded DB, assert HTML partial contains expected <option> tags and includes range/seats hint text. Empty case asserts the reason message renders.",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "3",
+        "title": "Frontend: Add Route page with HTMX-driven aircraft dropdown",
+        "description": "Page at /routes/add with form fields: origin hub (select, defaults to user's primary), destination (autocomplete or IATA input), aircraft (dropdown populated via HTMX after origin+dest set).",
+        "details": "Location: app/templates/pages/add_route.html and route in pages.py. HTMX trigger: hx-get on dest blur/change calls /api/routes/eligible-aircraft with both IATAs, hx-target=#aircraft-select. Each option shows: shortname - name (range km, YxJxF, n more available, currently on m routes). When list is empty, swap in the inline fleet-entry expansion (task 4) instead of an empty select, with the empty-reason message above it.",
+        "testStrategy": "Manual: pick KHI -> JFK with a hub that has eligible aircraft (dropdown populates). Pick KHI -> a route no current aircraft can fly (form expands to inline fleet entry). Playwright optional.",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "4",
+        "title": "Frontend: inline fleet-entry expansion",
+        "description": "When no eligible aircraft exist, expand the form in-place to include the my_fleet entry fields (aircraft shortname picker, hub defaulting to route origin, quantity, Y/J/F config, cargo split if applicable, engine, mods: fuel/co2/speed).",
+        "details": "Reuse the partial from the My Fleet page (extract templates/partials/_fleet_entry_fields.html if not already). Default hub to route origin and lock it (with override toggle). Quantity default 1. Above the expansion, link to Buy Next page filtered to this hub+route distance so user can sanity-check profitability before committing. Show estimated purchase cost from aircraft table.",
+        "testStrategy": "Manual: trigger empty-eligible case, fill fields, verify all required inputs validate client-side before submit is enabled.",
+        "priority": "high",
+        "dependencies": [
+          "3"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "5",
+        "title": "Backend: validation service for candidate route",
+        "description": "Centralized validator returning structured errors/warnings: range OK, runway OK at both endpoints, seats vs daily demand sanity, duplicate route check, stopover required flag.",
+        "details": "Location: app/services/route_validator.py. Function validate_route(hub, dest, aircraft_shortname, config) -> {errors:[], warnings:[], stopover_required:bool, stopover_hint:str|None}. Used by both the dropdown filter (task 1) and the submit endpoint (task 6).",
+        "testStrategy": "Unit tests for each rule: too-short range, runway too short, duplicate (hub,dest,shortname) already in my_routes, demand << seats triggers warning not error.",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "6",
+        "title": "API: POST /api/routes/add (transactional, supports inline fleet insert)",
+        "description": "Single endpoint that accepts route fields plus optional inline fleet payload. Wraps fleet insert + route insert in one SQLite transaction.",
+        "details": "Location: app/api_routes.py. Request body: {hub, dest, aircraft_shortname, config{...}, inline_fleet: null | {hub, quantity, config, engine, mods, purchase_price}}. Logic: BEGIN; if inline_fleet: insert/upsert my_fleet row (increment count if same hub+shortname+config exists, else new row); call route_validator; if errors -> ROLLBACK and return 422 with errors; insert my_routes row; COMMIT. Decrement available_count check inside transaction to prevent race. Returns the new route row + a 'needs_extraction_refresh' flag if inline_fleet was used (no route_aircraft rows yet for this config).",
+        "testStrategy": "Tests: (a) happy path existing aircraft -> route inserted only; (b) inline fleet path -> both rows inserted, count correct; (c) validator failure -> neither row persisted (assert rollback); (d) duplicate route -> 422.",
+        "priority": "high",
+        "dependencies": [
+          "4",
+          "5"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "7",
+        "title": "UX: post-submit success and freshness flag",
+        "description": "After successful add, show toast with summary and two CTAs: 'Add another route for this aircraft' (prefills aircraft+hub) and 'Back to routes'. If inline_fleet was used, show a persistent banner on the new route's row: 'Awaiting next extraction for profitability data'.",
+        "details": "Location: pages.py redirect target /routes?highlight=<id>&fresh=1. Banner driven by needs_extraction_refresh flag stored on my_routes (add column needs_extraction_refresh BOOLEAN DEFAULT 0; cleared by extraction job when route_aircraft has matching rows for this aircraft+config).",
+        "testStrategy": "Manual: add via inline path, verify banner; run extraction; verify banner clears.",
+        "priority": "medium",
+        "dependencies": [
+          "6"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "8",
+        "title": "Schema migration",
+        "description": "Add needs_extraction_refresh column to my_routes; add v_fleet_availability view if introduced in task 1.",
+        "details": "Location: app/db/migrations/00X_add_route_with_inline_fleet.sql. Idempotent. Update schema.sql canonical file. Document in README migration section.",
+        "testStrategy": "Run on fresh DB and on existing DB copy; assert no data loss and new column defaults correctly.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "9",
+        "title": "Cancel/rollback handling on inline form abandonment",
+        "description": "Ensure that if the user expands the inline fleet form then cancels or navigates away, no partial state is persisted (form is client-side only until submit).",
+        "details": "All inline fleet data lives in the form DOM; no draft saves to server. Add explicit Cancel button that resets the form. Confirm dialog if dirty. No DB writes happen until the single POST in task 6.",
+        "testStrategy": "Manual: open form, fill inline fleet, cancel; query my_fleet and my_routes -> no new rows.",
+        "priority": "medium",
+        "dependencies": [
+          "4"
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "10",
+        "title": "Buy Next integration link",
+        "description": "From the inline fleet expansion, deep-link to /buy-next/<hub>?distance=<km>&dest=<iata> so the user can verify the aircraft they're about to buy actually ranks well for this route before committing.",
+        "details": "Location: add_route.html inline expansion. Opens in new tab. Buy Next page already exists from prior spec; just plumb the query params through (may require small enhancement to filter by distance/dest if not already supported).",
+        "testStrategy": "Manual: click link from inline expansion, verify Buy Next loads with correct filters applied.",
+        "priority": "medium",
+        "dependencies": [
+          "4"
+        ],
+        "status": "pending",
         "subtasks": []
       }
     ],
     "metadata": {
-      "created": "2026-04-13T00:00:00Z",
-      "updated": "2026-04-13T00:00:00Z",
-      "description": "Fix ghost hub bug where deleted hubs remain visible in Hub Explorer due to leftover route_aircraft rows."
+      "version": "1.0.0",
+      "lastModified": "2026-04-12T23:40:26.920Z",
+      "taskCount": 10,
+      "completedCount": 1,
+      "tags": [
+        "master"
+      ]
     }
   }
 }

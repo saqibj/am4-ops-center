@@ -21,6 +21,18 @@ from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_
 router = APIRouter()
 
 
+def _aircraft_catalog_for_options(conn: sqlite3.Connection | None) -> list[dict]:
+    if conn is None:
+        return []
+    try:
+        return fetch_all(
+            conn,
+            "SELECT shortname, name FROM aircraft ORDER BY shortname COLLATE NOCASE",
+        )
+    except sqlite3.OperationalError:
+        return []
+
+
 def _eligible_aircraft_response_mode(request: Request) -> str:
     if (request.query_params.get("format") or "").strip().lower() == "json":
         return "json"
@@ -50,6 +62,7 @@ def api_routes_eligible_aircraft(
     mode = _eligible_aircraft_response_mode(request)
     hub_u = h.upper()
     dest_u = d.upper()
+    catalog = _aircraft_catalog_for_options(conn)
 
     def _ctx(
         *,
@@ -58,6 +71,8 @@ def api_routes_eligible_aircraft(
         incomplete: bool = False,
         dist: float | None = None,
         error_message: str | None = None,
+        aircraft_catalog: list[dict] | None = None,
+        form_id: str = "add-route-main",
     ) -> dict:
         return {
             "hub": hub_u,
@@ -67,6 +82,8 @@ def api_routes_eligible_aircraft(
             "empty_reason": empty_reason,
             "incomplete": incomplete,
             "error_message": error_message,
+            "aircraft_catalog": aircraft_catalog if aircraft_catalog is not None else catalog,
+            "form_id": form_id,
         }
 
     if not h or not d:

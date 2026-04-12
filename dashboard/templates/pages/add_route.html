@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Add route{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-bold mb-2">Add route</h2>
+<p class="am4-text-secondary mb-2">
+    Pick a managed hub and destination. Eligible aircraft from <span class="font-mono">My Fleet</span> load automatically (range, runway, and what is still free at that hub).
+    Saving merges the same hub–destination–aircraft row like on <a href="/my-routes" class="am4-accent hover:underline">My Routes</a>.
+</p>
+
+<div id="add-route-routes-summary" class="mb-6"
+     hx-get="/api/routes/summary"
+     hx-trigger="load">
+</div>
+
+<div class="am4-card rounded-lg shadow-lg p-6 mb-8">
+    <h3 class="text-lg font-semibold mb-4">Route &amp; aircraft</h3>
+
+    <form id="add-route-main" class="contents"
+          hx-post="/api/routes/add"
+          hx-target="#add-route-inventory"
+          hx-swap="innerHTML"
+          hx-indicator="#add-route-save-spinner"
+          hx-on::after-request="if (event.detail.elt !== event.currentTarget) return; if (event.detail.successful &amp;&amp; event.detail.xhr.responseText.indexOf('data-routes-error') === -1) { var d=document.getElementById('add-route-dest'); if (d) d.value=''; var h=document.getElementById('add-route-hub'); if (h) { htmx.ajax('GET', '/api/routes/eligible-aircraft', {target:'#aircraft-select-target', swap:'innerHTML', values:{hub:h.value.trim(), dest:''}}); } htmx.ajax('GET', '/api/routes/summary', {target:'#add-route-routes-summary', swap:'innerHTML'}); }"></form>
+
+    <div class="flex flex-wrap gap-4 items-end mb-4">
+        <div class="min-w-[11rem]">
+            <label class="block text-xs am4-text-secondary mb-1">Origin hub</label>
+            <select name="hub_iata" id="add-route-hub" form="add-route-main" required
+                    class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono uppercase w-full">
+                <option value="" disabled {% if not default_hub %}selected{% endif %}>Select hub…</option>
+                {% for hi in hubs %}
+                <option value="{{ hi }}" {% if hi == default_hub %}selected{% endif %}>{{ hi }}</option>
+                {% endfor %}
+            </select>
+            {% if not hubs %}
+            <p class="text-amber-400 text-xs mt-1">No explorer hubs yet — add hubs in <a href="/my-hubs" class="underline">Hub Manager</a> and run extract.</p>
+            {% endif %}
+        </div>
+        <div class="relative min-w-[11rem] flex-1 max-w-md">
+            <label class="block text-xs am4-text-secondary mb-1">Destination (IATA)</label>
+            <input type="text" id="add-route-dest" name="destination_iata" form="add-route-main" required
+                   placeholder="JFK"
+                   autocomplete="off"
+                   list="add-route-airport-list"
+                   class="am4-input rounded-md px-3 py-2 min-w-[8rem] font-mono uppercase w-full"
+                   hx-indicator="false"
+                   hx-get="/api/search/airports"
+                   hx-trigger="keyup changed delay:400ms from:#add-route-dest, focus from:#add-route-dest"
+                   hx-target="#add-route-dest-search-panel"
+                   hx-include="#add-route-dest"
+                   hx-vals='{"field_id": "add-route-dest"}'>
+            <div id="add-route-dest-search-panel" class="search-ac-panel absolute z-30 left-0 right-0 top-full mt-1"></div>
+        </div>
+    </div>
+
+    <div class="mb-2">
+        <label class="block text-xs am4-text-secondary mb-1">Aircraft</label>
+        <span id="add-route-ac-spinner" class="htmx-indicator am4-accent text-xs">Loading…</span>
+        <div id="aircraft-select-target"
+             hx-get="/api/routes/eligible-aircraft"
+             hx-trigger="load, change from:#add-route-hub, change from:#add-route-dest, blur from:#add-route-dest"
+             hx-vals="js:{hub: (document.getElementById('add-route-hub')||{value:''}).value.trim(), dest: (document.getElementById('add-route-dest')||{value:''}).value.trim()}"
+             hx-swap="innerHTML"
+             hx-indicator="#add-route-ac-spinner">
+            <p class="text-sm am4-text-secondary">Choose hub and destination…</p>
+        </div>
+    </div>
+
+    <div class="flex flex-wrap gap-4 items-end mt-4">
+        <div>
+            <label class="block text-xs am4-text-secondary mb-1">Num assigned</label>
+            <input type="number" name="num_assigned" form="add-route-main" value="1" min="1" max="999" step="1"
+                   class="am4-input rounded-md px-3 py-2 w-24 font-mono">
+        </div>
+        <div>
+            <label class="block text-xs am4-text-secondary mb-1">Notes</label>
+            <input type="text" name="notes" form="add-route-main" placeholder="Optional"
+                   class="am4-input rounded-md px-3 py-2 min-w-[10rem]">
+        </div>
+        <button type="submit" form="add-route-main"
+                class="bg-emerald-600 hover:bg-emerald-500 rounded-md px-4 py-2 text-sm font-medium">
+            Save route
+        </button>
+        <span id="add-route-save-spinner" class="htmx-indicator am4-accent text-sm pb-2">Saving…</span>
+    </div>
+
+    <div id="add-route-dup-hint"
+         class="mt-4 min-h-[0.5rem]"
+         hx-get="/api/route-exists"
+         hx-trigger="input delay:350ms from:#add-route-main, change from:#add-route-main"
+         hx-include="[form='add-route-main']"
+         hx-target="this">
+    </div>
+    <div id="add-route-pair-coverage"
+         class="mt-2"
+         hx-get="/api/routes/pair-coverage"
+         hx-trigger="input delay:350ms from:#add-route-main, change from:#add-route-main"
+         hx-include="[form='add-route-main']"
+         hx-target="this">
+    </div>
+    <datalist id="add-route-airport-list">
+        {% for ap in airports %}
+        <option value="{{ ap.iata }}">{{ ap.iata }} — {{ ap.name }}</option>
+        {% endfor %}
+    </datalist>
+</div>
+
+<div class="mb-8">
+    <h3 class="text-lg font-semibold mb-2">Your routes</h3>
+    <span id="add-route-inv-load-spinner" class="htmx-indicator am4-accent text-sm mb-2 inline-block">Loading…</span>
+    <div id="add-route-inventory"
+         hx-get="/api/routes/inventory"
+         hx-trigger="load"
+         hx-indicator="#add-route-inv-load-spinner">
+        <p class="am4-text-secondary">Loading…</p>
+    </div>
+</div>
+{% endblock %}

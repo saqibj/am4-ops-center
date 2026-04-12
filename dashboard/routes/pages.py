@@ -428,6 +428,21 @@ def page_my_routes(request: Request):
     return templates.TemplateResponse(request, "my_routes.html", ctx)
 
 
+@router.get("/routes/add", response_class=HTMLResponse)
+def page_add_route(request: Request):
+    hubs = _origin_hub_iatas_for_fleet_plan()
+    default_hub = hubs[0] if hubs else ""
+    ctx = base_context(request, None)
+    ctx.update(
+        {
+            "hubs": hubs,
+            "default_hub": default_hub,
+            "airports": _airports_with_iata(),
+        }
+    )
+    return templates.TemplateResponse(request, "pages/add_route.html", ctx)
+
+
 @router.get("/contributions", response_class=HTMLResponse)
 def page_contributions(request: Request):
     try:

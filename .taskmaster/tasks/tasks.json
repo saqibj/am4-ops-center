@@ -3,219 +3,216 @@
     "tasks": [
       {
         "id": "1",
-        "title": "Scaffold installer and launcher directories",
-        "description": "Create the top-level directories and placeholder files for the installer, launcher, and CI build scripts so subsequent tasks have a stable layout.",
-        "details": "Create the following structure at the repo root:\n\n- packaging/\n  - installer/\n    - am4opscenter.iss            (Inno Setup script, task 8)\n    - assets/                     (icons, license.txt, banner bmp)\n    - bootstrap/                  (python installer bootstrapper, task 9)\n    - wheels/                     (bundled offline wheels, task 10)\n  - launcher/\n    - am4opscenter_launcher.py    (task 5)\n    - launcher.spec               (PyInstaller spec, task 6)\n    - icon.ico\n  - ci/\n    - build_am4_wheel.yml         (task 7)\n    - build_installer.yml         (task 11)\n    - release.yml                 (task 12)\n\nAdd a packaging/README.md explaining the layout. Add packaging/installer/wheels/, packaging/installer/bootstrap/, and dist/ to .gitignore (built artifacts should never be committed). Do not add real binaries yet — placeholder .gitkeep files only.",
-        "testStrategy": "git status shows the new tree. packaging/README.md renders on GitHub. .gitignore correctly excludes wheels/, bootstrap/, and dist/. No binary files in the commit.",
+        "title": "Canonicalize database filename to am4ops.db",
+        "description": "Rename the production database from am4_data.db to am4ops.db so it matches app/paths.py DB_FILENAME and the default resolution path works without setting AM4_ROUTEMINE_DB. Delete the orphaned 0-byte am4_ops.db stub. Update all hardcoded references across the codebase.",
+        "details": "## Background\n\nThe project currently has three DB filenames in play:\n- `am4_data.db` (2.2 GB, real data — legacy name from am4-routemine)\n- `am4ops.db` (the intended default per `app/paths.py` line 13: `DB_FILENAME = \"am4ops.db\"`)\n- `am4_ops.db` (0-byte stub created by `_schema_check2.py`)\n\nThe dashboard's default path resolution (`app/paths.py` → `db_path()`) returns `<data_dir>/am4ops.db`, but the real data lives in `am4_data.db`. This mismatch means the dashboard opens an empty DB unless `AM4_ROUTEMINE_DB` is explicitly set or `--db am4_data.db` is passed.\n\n## Steps\n\n1. **Delete `am4_ops.db`** (0-byte stub in project root). Confirm it is 0 bytes first.\n2. **Rename `am4_data.db` → `am4ops.db`** in the project root.\n3. **Update `main.py` help/docstring references** (lines 10, 15-18) — change `am4_data.db` → `am4ops.db` in the usage examples.\n4. **Update `PRD/_profile_direct_pages.py`** line 16: change `\"am4_data.db\"` → `\"am4ops.db\"`.\n5. **Update `PRD/_profile_inline_threadpool.py`** line 21: change `\"am4_data.db\"` → `\"am4ops.db\"`.\n6. **Update test references**: `tests/test_backup_cmd.py` lines 14, 24 — change `\"am4_data.db\"` → `\"am4ops.db\"`. `tests/test_safe_error_message.py` lines 12, 20 — change path strings referencing `am4_data.db`.\n7. **Verify `app/paths.py`** line 13 already reads `DB_FILENAME = \"am4ops.db\"` — no change needed, just confirm.\n8. **Verify dashboard launches correctly** with no env var set: `python main.py dashboard` (no `--db` flag). Confirm footer shows `DB: am4ops.db` and data is present.\n9. **Remove `AM4_ROUTEMINE_DB` from user environment** if previously set, since the default now resolves correctly.\n\n## Important\n\n- The `db_path()` function in `app/paths.py` uses a managed data directory (possibly `AM4OPS_DATA_DIR` or a platform default). The renamed `am4ops.db` must be placed where `db_path()` resolves to. If `db_path()` returns the project root, rename in place. If it returns an XDG/AppData path, move the file there instead. Check `app/paths.py` lines 28-42 to determine the exact resolution.\n- If `db_path()` does NOT resolve to the project root, consider changing `app/paths.py` to prefer a project-local `am4ops.db` when it exists (fallback to managed dir). This keeps the workflow simple for development.",
+        "testStrategy": "1. Delete any `AM4_ROUTEMINE_DB` env var. Run `python main.py dashboard` with no `--db` flag. Confirm the dashboard loads with all 7 hubs, 336 aircraft, and route data visible.\n2. Confirm `am4_ops.db` (0-byte stub) no longer exists in the project root.\n3. Confirm `am4_data.db` no longer exists in the project root.\n4. Run `python -c \"from app.paths import db_path; print(db_path())\"` and verify it points to the renamed file.\n5. Run `grep -rn 'am4_data\\.db' --include='*.py' .` from the project root (excluding `.venv`) — should return zero matches in non-test, non-PRD files. Test/PRD files should reference `am4ops.db`.\n6. Run the test suite: `python -m pytest tests/ -x` — all tests pass.",
         "priority": "high",
         "dependencies": [],
         "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-09T08:23:53.580Z"
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Delete 0-byte am4_ops.db stub",
+            "description": "Verify am4_ops.db is 0 bytes, then delete it from the project root.",
+            "details": "",
+            "testStrategy": "Confirm file no longer exists: `Test-Path .\\am4_ops.db` returns False.",
+            "priority": "high",
+            "dependencies": [],
+            "status": "done",
+            "subtasks": [],
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:02:28.890Z"
+          },
+          {
+            "id": 2,
+            "title": "Rename am4_data.db to am4ops.db and place at resolved db_path()",
+            "description": "Rename the 2.2 GB production database. Determine where app/paths.py db_path() resolves to and place the file there so the default works with no env var.",
+            "details": "Check `app/paths.py` lines 28-42 for the data directory logic. If it uses a managed dir (e.g. `%LOCALAPPDATA%\\am4-ops-center`), move the file there. If it resolves to the project root, rename in place.",
+            "testStrategy": "Run `python -c \"from app.paths import db_path; p=db_path(); print(p, p.exists(), p.stat().st_size)\"` — should show the path, True, and ~2.2 GB size.",
+            "priority": "high",
+            "dependencies": [
+              1
+            ],
+            "status": "done",
+            "subtasks": [],
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:02:38.530Z"
+          },
+          {
+            "id": 3,
+            "title": "Update all hardcoded am4_data.db references in application code",
+            "description": "Update main.py help text, PRD profiling scripts, and test fixtures to reference am4ops.db instead of am4_data.db.",
+            "details": "Files to update:\n- `main.py` lines 10, 15, 16, 17, 18 (usage examples in docstring)\n- `PRD/_profile_direct_pages.py` line 16\n- `PRD/_profile_inline_threadpool.py` line 21\n- `tests/test_backup_cmd.py` lines 14, 24\n- `tests/test_safe_error_message.py` lines 12, 20",
+            "testStrategy": "Run `Get-ChildItem -Recurse -Include *.py | Where-Object { $_.FullName -notmatch '\\\\.venv\\\\' } | Select-String 'am4_data\\.db'` — only scratch scripts (handled in Task 2) should remain.",
+            "priority": "medium",
+            "dependencies": [
+              2
+            ],
+            "status": "done",
+            "subtasks": [],
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:03:40.276Z"
+          },
+          {
+            "id": 4,
+            "title": "Verify dashboard launches with default path",
+            "description": "Launch the dashboard with no --db flag and no AM4_ROUTEMINE_DB env var. Confirm it finds the renamed database and displays all data correctly.",
+            "details": "Unset AM4_ROUTEMINE_DB if present: `Remove-Item Env:\\AM4_ROUTEMINE_DB -ErrorAction SilentlyContinue`. Then run `python main.py dashboard` and check the footer shows `DB: am4ops.db` with the correct route count.",
+            "testStrategy": "Manual verification: footer shows DB name and nonzero route count. Hub Manager shows all 7 hubs with extraction timestamps (not 'never'). My Fleet shows aircraft.",
+            "priority": "high",
+            "dependencies": [
+              2,
+              3
+            ],
+            "status": "done",
+            "subtasks": [],
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:03:40.282Z"
+          }
+        ],
+        "updatedAt": "2026-04-12T07:03:40.282Z"
       },
       {
         "id": "2",
-        "title": "Split user data directory from code directory",
-        "description": "Refactor the app so all writable state (SQLite DB, config, logs, uploaded fleet CSVs) lives under a per-user data directory independent of the install location. Required so installs can be replaced on upgrade without losing data.",
-        "details": "Introduce a central path module (e.g. app/paths.py) with:\n\n- APP_NAME = 'AM4OpsCenter'\n- data_dir()  -> Path  # %APPDATA%\\AM4OpsCenter on Windows, ~/.local/share/am4opscenter elsewhere\n- config_dir() -> Path\n- log_dir()   -> Path\n- db_path()   -> Path  # data_dir() / 'am4ops.db'\n\nUse platformdirs (add to requirements.txt) rather than hand-rolling %APPDATA% logic. Create directories on first access with parents=True, exist_ok=True.\n\nGrep the codebase for every hardcoded reference to am4ops.db, sqlite:///, data/, logs/ in pages.py, api_routes.py, extraction scripts, and Jinja templates. Replace with calls to the paths module. Update the FastAPI startup hook to ensure the data dir exists before any SQLite connection opens.\n\nAdd an AM4OPS_DATA_DIR environment variable override for dev use — if set, paths module uses it instead of platformdirs. Document in packaging/README.md.\n\nMigration: on startup, if an old ./data/am4ops.db exists in the repo working directory but data_dir()/am4ops.db does not, copy it over and log a one-time INFO.",
-        "testStrategy": "1. Run the app with no prior state — verify %APPDATA%\\AM4OpsCenter is created and contains an empty am4ops.db after first query. 2. Set AM4OPS_DATA_DIR=C:\\temp\\am4ops_test, run, verify DB appears there instead. 3. grep -rni 'am4ops.db\\|./data/' app/ returns zero hits outside paths.py. 4. Existing views (v_best_routes etc.) still work against the relocated DB.",
-        "priority": "high",
+        "title": "Clean up root-level scratch scripts",
+        "description": "Move or delete the ad-hoc _*.py scratch scripts from the project root. These are one-off DB manipulation scripts that hardcode am4_data.db and clutter the root directory. Archive them under scripts/scratch/ for reference or delete outright.",
+        "details": "## Scripts to handle\n\nAll in project root, all hardcode `sqlite3.connect(r\"am4_data.db\")` (or `am4_ops.db`):\n\n- `_add_ra_unique.py` — adds unique constraint to route_aircraft\n- `_check_dupes.py` — checks for duplicate rows\n- `_clear_errors.py` — clears hub error states\n- `_dedupe_ra.py` — deduplicates route_aircraft\n- `_fix_airports_index.py` — fixes airports index\n- `_hub_errors.py` — inspects hub errors\n- `_schema_airports.py` — inspects airports schema\n- `_schema_check.py` — inspects schema (uses am4_data.db)\n- `_schema_check2.py` — inspects schema (uses am4_ops.db)\n- `_schema_routes.py` — inspects routes schema\n- `_upsert_test.py` — tests upsert logic\n- `_vacuum.py` — vacuums the database\n- `convert_csv.py` — converts AM4 route CSV format\n\n## Recommended approach\n\n1. Create `scripts/scratch/` directory.\n2. Move all `_*.py` files from root into `scripts/scratch/`.\n3. In each moved file, replace the hardcoded DB path with a relative import or env-var lookup:\n   ```python\n   import os\n   DB = os.environ.get(\"AM4_ROUTEMINE_DB\", \"am4ops.db\")\n   ```\n4. Decide whether `convert_csv.py` belongs in `scripts/` (it's a utility, not a scratch script) or stays in root.\n5. Add `scripts/scratch/` to `.gitignore` if these are truly throwaway, or commit them as archival reference.\n6. Update `.gitignore` to prevent future root-level scratch scripts: add a comment noting that scratch scripts go in `scripts/scratch/`.",
+        "testStrategy": "1. Confirm no `_*.py` files remain in the project root: `Get-ChildItem -Path . -Filter '_*.py' -File` returns empty.\n2. Confirm `scripts/scratch/` exists and contains the moved files.\n3. Spot-check one moved script — run it and verify it connects to the correct DB (via env var fallback).\n4. Run `python -m pytest tests/ -x` — no test regressions (tests don't import these scripts).\n5. Run `git status` — moved files show as rename, not delete+add (use `git mv`).",
+        "priority": "low",
         "dependencies": [
           "1"
         ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-09T08:28:52.292Z"
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create scripts/scratch/ directory and move _*.py files",
+            "description": "Use git mv to move all _*.py files from project root to scripts/scratch/ so git tracks the rename.",
+            "details": "```powershell\nNew-Item -ItemType Directory -Path scripts\\scratch -Force\nGet-ChildItem -Path . -Filter '_*.py' -File | ForEach-Object { git mv $_.Name \"scripts/scratch/$($_.Name)\" }\n```",
+            "testStrategy": "Run `git status` and confirm files show as 'renamed' not 'deleted/added'.",
+            "priority": "low",
+            "dependencies": [],
+            "status": "pending",
+            "subtasks": [],
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Update hardcoded DB paths in moved scripts",
+            "description": "Replace all hardcoded am4_data.db / am4_ops.db references in the moved scripts with an env-var lookup defaulting to am4ops.db.",
+            "details": "Pattern to apply in each file:\n```python\nimport os\nDB = os.environ.get(\"AM4_ROUTEMINE_DB\", \"am4ops.db\")\nc = sqlite3.connect(DB)\n```",
+            "testStrategy": "Run `Select-String -Path scripts\\scratch\\*.py -Pattern 'am4_data\\.db|am4_ops\\.db'` — returns zero matches.",
+            "priority": "low",
+            "dependencies": [
+              1
+            ],
+            "status": "pending",
+            "subtasks": [],
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Decide placement for convert_csv.py",
+            "description": "convert_csv.py is a CSV conversion utility, not a scratch script. Move it to scripts/ (not scripts/scratch/) or leave in root if it's part of the user-facing CLI.",
+            "details": "Check if main.py references convert_csv.py or if it's standalone. If standalone, move to scripts/. If it's wired into the CLI, leave it.",
+            "testStrategy": "Run `Select-String -Path main.py -Pattern 'convert_csv'` — if no matches, it's standalone and safe to move.",
+            "priority": "low",
+            "dependencies": [],
+            "status": "pending",
+            "subtasks": [],
+            "parentId": "undefined"
+          }
+        ]
       },
       {
         "id": "3",
-        "title": "First-run detection and setup_complete flag",
-        "description": "Add a mechanism to detect whether the app has completed initial setup, so the launcher can route users to the wizard instead of the dashboard on first launch.",
-        "details": "Create a small app_state table in the DB (or a JSON file at config_dir()/state.json — pick one and document why). Schema:\n\n  CREATE TABLE IF NOT EXISTS app_state (\n    key TEXT PRIMARY KEY,\n    value TEXT NOT NULL,\n    updated_at TEXT NOT NULL\n  );\n\nExpose two helpers in app/state.py:\n\n  def is_setup_complete() -> bool\n  def mark_setup_complete() -> None\n  def reset_setup() -> None  # for --reset flag, test use\n\nAdd a FastAPI middleware (or startup route guard) that intercepts GET / when is_setup_complete() is False and 307-redirects to /setup. Exempt /setup/*, /health, /static/*, /favicon.ico. /health must always return 200 with {'status':'ok','setup_complete':<bool>} — the launcher will poll it.\n\nAdd a CLI flag to the main entry point: python -m app --reset-setup clears the flag (for dev + support).",
-        "testStrategy": "1. Fresh DB — GET / returns 307 to /setup. 2. After mark_setup_complete(), GET / returns the dashboard. 3. /health returns 200 in both states with correct setup_complete value. 4. --reset-setup clears the flag and GET / goes back to /setup.",
-        "priority": "high",
-        "dependencies": [
-          "2"
-        ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-09T08:46:36.469Z"
-      },
-      {
-        "id": "4",
-        "title": "First-run wizard UI and extraction flow",
-        "description": "Build the /setup wizard inside the FastAPI app using Jinja2 + HTMX, guiding a new user through AM4 credentials, hub selection, initial extraction with live progress, and optional fleet CSV upload.",
-        "details": "Routes under /setup:\n\n  GET  /setup              -> step 1 welcome\n  GET  /setup/credentials  -> step 2 form (AM4 game access token or login — match what the am4 package's auth expects; consult am4 docs)\n  POST /setup/credentials  -> validate by making a test call, store encrypted in config_dir()/credentials.json (use cryptography.fernet with a key derived from a machine-specific value; document the trust model — this is local-only, not secrets-manager-grade)\n  GET  /setup/hubs         -> step 3 — either fetch the user's actual hubs via am4 or fall back to a free-form multi-select of IATA codes\n  POST /setup/hubs         -> persist selected hubs to my_fleet or a new user_hubs table\n  GET  /setup/extract      -> step 4 — shows a progress bar, kicks off extraction via an HTMX-polled endpoint\n  GET  /setup/extract/progress -> returns HTMX partial with % complete, current hub, rows inserted\n  POST /setup/extract/start -> launches the extraction in a background task (asyncio.create_task or a ThreadPoolExecutor job) — reuse the existing extraction pipeline from am4-routemine, per-hub commits, shutdown(wait=True, cancel_futures=True)\n  GET  /setup/fleet        -> step 5 — optional my_fleet.csv upload\n  POST /setup/fleet        -> parse with existing CSV importer, report mismatched shortnames inline\n  POST /setup/complete     -> call mark_setup_complete(), redirect to /\n\nUI: reuse existing Tailwind + HTMX layout. Each step is a full page with a top progress breadcrumb (1/5, 2/5, ...) and Back/Next buttons. No JS framework — HTMX only.\n\nError handling: if am4 credential validation fails, stay on /setup/credentials with a flash message. If extraction fails mid-run, show the partial progress plus a Retry button. Do not call mark_setup_complete() until extraction finished successfully for at least one hub.\n\nCredentials storage warning: display a clear notice on the credentials screen that they are stored locally and not transmitted anywhere except AM4's own API.",
-        "testStrategy": "1. Fresh install, navigate to http://localhost:<port>/ — redirected to /setup. 2. Walk all 5 steps with valid creds + one hub — extraction completes, redirect to dashboard, dashboard shows extracted data. 3. Walk with invalid creds — stays on step 2 with error. 4. Kill extraction mid-run (ctrl-c the server) and restart — /setup/extract still works, no zombie state. 5. Verify credentials.json is encrypted on disk (not plaintext).",
-        "priority": "high",
-        "dependencies": [
-          "3"
-        ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-09T08:57:36.751Z"
-      },
-      {
-        "id": "5",
-        "title": "Launcher Python script",
-        "description": "Write the Python launcher that starts uvicorn on a free port, waits for readiness, opens the default browser, and writes a PID file for the stop shortcut.",
-        "details": "File: packaging/launcher/am4opscenter_launcher.py\n\nBehavior:\n1. Parse args: --debug (show console, verbose logs), --port N (override), --no-browser (for CI tests).\n2. Determine port: if --port given use it; else try 8765, 8766, ... up to 8775, pick first free (socket bind test).\n3. Compute paths: data_dir from platformdirs, log file at log_dir()/launcher.log.\n4. Write PID file at config_dir()/launcher.pid containing os.getpid() and the chosen port.\n5. Spawn uvicorn as a subprocess (not in-process) so the launcher can supervise it:\n     subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port), '--log-config', log_cfg_path])\n   On Windows, use CREATE_NO_WINDOW unless --debug.\n6. Poll http://127.0.0.1:<port>/health every 200ms up to 30s. On 200, proceed. On timeout, show a friendly error dialog (use ctypes.windll.user32.MessageBoxW on Windows, print on others) and exit non-zero.\n7. Unless --no-browser, open webbrowser.open(f'http://127.0.0.1:{port}/').\n8. Wait on the uvicorn subprocess. On SIGINT/SIGTERM, send terminate(), then kill() after 5s grace.\n9. On exit, remove the PID file.\n\nAlso write packaging/launcher/am4opscenter_stop.py:\n- Read PID file, send terminate to that PID via os.kill (or taskkill /PID on Windows), wait, remove PID file. If no PID file, print 'Not running' and exit 0.\n\nBoth scripts must import only stdlib + platformdirs so they can run before any heavy deps are loaded.",
-        "testStrategy": "1. python packaging/launcher/am4opscenter_launcher.py --debug --no-browser — server starts, /health returns 200, PID file is correct. 2. Ctrl-C — uvicorn stops, PID file removed. 3. python packaging/launcher/am4opscenter_stop.py while running — process exits cleanly. 4. Start twice — second run picks a different port. 5. Kill uvicorn externally — launcher exits with non-zero and cleans up PID file.",
-        "priority": "high",
-        "dependencies": [
-          "3"
-        ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-09T08:59:19.452Z"
-      },
-      {
-        "id": "6",
-        "title": "Compile launcher to AM4OpsCenter.exe with PyInstaller",
-        "description": "Produce standalone AM4OpsCenter.exe and AM4OpsCenter-Stop.exe binaries from the launcher scripts so the installer can drop them as shortcut targets without requiring Python to be on PATH.",
-        "details": "File: packaging/launcher/launcher.spec (PyInstaller spec, not .bat wrapping)\n\nBuild two executables:\n- AM4OpsCenter.exe    (windowed=True, icon=icon.ico, from am4opscenter_launcher.py) — no console window except with --debug\n- AM4OpsCenter-Stop.exe (console=False, from am4opscenter_stop.py)\n\nImportant: these .exes are only launchers. They do NOT embed the whole app. They must exec the venv's python.exe (shipped by the installer) and run uvicorn from there. So the launcher code must locate python.exe relative to its own install location:\n\n  exe_dir = Path(sys.executable).parent  # where AM4OpsCenter.exe lives\n  python_exe = exe_dir / 'runtime' / 'python.exe'  # installer will place venv here\n\nFall back to shutil.which('python') only in --debug dev mode.\n\nBuild with: pyinstaller --clean --noconfirm packaging/launcher/launcher.spec\nOutput goes to dist/launcher/. The installer task will pick them up from there.\n\nDo NOT use --onefile — it unpacks to temp on every launch and is slow. Use --onedir, which produces a folder the installer copies in full.",
-        "testStrategy": "1. Build on dev machine, run dist/launcher/AM4OpsCenter/AM4OpsCenter.exe --debug — console appears, server starts. 2. Without --debug — no console, browser opens. 3. AM4OpsCenter-Stop.exe — kills the running instance. 4. File size sanity check: launcher dir should be < 30 MB (just stdlib + platformdirs).",
+        "title": "Guard ensure_route_aircraft_baseline_prices against missing table",
+        "description": "Add a table-existence check to ensure_route_aircraft_baseline_prices() and apply_route_aircraft_baseline_prices_at_path() so they skip gracefully on a fresh database where route_aircraft has not been created yet (no extraction run).",
+        "details": "## Problem\n\nOn a fresh DB (or when pointing at an empty DB), the dashboard lifespan handler in `dashboard/server.py` line 84 calls `apply_route_aircraft_baseline_prices_at_path()`, which calls `ensure_route_aircraft_baseline_prices()`. This function immediately tries `ALTER TABLE route_aircraft ADD COLUMN fuel_price REAL` without checking if the table exists, causing:\n\n```\nsqlite3.OperationalError: no such table: route_aircraft\n```\n\nThe error is caught and logged as \"Baseline price update failed\" but it's noisy and confusing on first setup.\n\n## Fix\n\n### In `database/schema.py`, function `ensure_route_aircraft_baseline_prices` (line 778):\n\nAdd a table-existence guard at the top of the function, before any ALTER/UPDATE statements:\n\n```python\ndef ensure_route_aircraft_baseline_prices(conn: sqlite3.Connection) -> None:\n    # Skip if route_aircraft hasn't been created yet (no extraction run)\n    row = conn.execute(\n        \"SELECT name FROM sqlite_master WHERE type='table' AND name='route_aircraft'\"\n    ).fetchone()\n    if not row:\n        return\n\n    # ... existing ALTER TABLE and UPDATE logic unchanged ...\n```\n\nNote: `database/extraction_runs.py` already has a `_table_exists()` helper (line 11) that does exactly this check. Consider importing and reusing it:\n```python\nfrom database.extraction_runs import _table_exists\n```\nOr move `_table_exists` to a shared location like `database/queries.py`.\n\n### In `database/schema.py`, function `apply_route_aircraft_baseline_prices_at_path` (line 795):\n\nAdd an info-level log when skipping instead of letting the caller catch an exception:\n\n```python\ndef apply_route_aircraft_baseline_prices_at_path(db_path: str | Path) -> float:\n    p = Path(db_path)\n    if not p.exists():\n        return 0.0\n    conn = sqlite3.connect(str(p), check_same_thread=False)\n    # Check table existence before attempting migration\n    row = conn.execute(\n        \"SELECT name FROM sqlite_master WHERE type='table' AND name='route_aircraft'\"\n    ).fetchone()\n    if not row:\n        conn.close()\n        return 0.0\n    # ... existing logic ...\n```\n\n### In `dashboard/server.py` lifespan handler (around line 84):\n\nUpdate the log message when elapsed is 0 to distinguish \"skipped\" from \"failed\":\n\n```python\nelapsed = apply_route_aircraft_baseline_prices_at_path(p)\nif elapsed > 0:\n    logger.info(\"Baseline prices updated in %.1fms\", elapsed * 1000)\nelse:\n    logger.info(\"Baseline price update skipped (route_aircraft not present yet)\")\n```\n\n## Scope note\n\nThis is purely a guard/robustness fix. It does NOT change behavior when route_aircraft exists — all ALTER TABLE and UPDATE logic runs exactly as before.",
+        "testStrategy": "1. **Fresh DB test**: Create an empty DB with only my_hubs/my_fleet tables (no route_aircraft). Run `python main.py dashboard`. Confirm:\n   - No traceback in terminal output\n   - Log shows \"Baseline price update skipped\" (not \"failed\")\n   - Dashboard boots and serves pages normally\n2. **Populated DB test**: Run `python main.py dashboard --db am4ops.db` with the full production DB. Confirm:\n   - Baseline prices are applied (log shows \"updated in Xms\")\n   - No regression in route data or pricing columns\n3. **Unit test**: Add a test in `tests/test_schema.py`:\n   ```python\n   def test_baseline_prices_skip_when_no_route_aircraft(tmp_path):\n       db = tmp_path / \"empty.db\"\n       conn = sqlite3.connect(str(db))\n       conn.execute(\"CREATE TABLE my_hubs (id INTEGER PRIMARY KEY)\")\n       conn.commit()\n       # Should return 0.0, not raise\n       elapsed = apply_route_aircraft_baseline_prices_at_path(str(db))\n       assert elapsed == 0.0\n       conn.close()\n   ```\n4. Run full test suite: `python -m pytest tests/ -x` — all tests pass.",
         "priority": "medium",
-        "dependencies": [
-          "5"
-        ],
+        "dependencies": [],
         "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": "7",
-        "title": "GitHub Actions workflow to build am4 wheel for Python 3.14 on Windows",
-        "description": "Build a prebuilt Windows x64 wheel of the am4 package using MSYS2/mingw-w64 in CI, so public users never have to compile C++ themselves. Upload as a release asset and/or build artifact.",
-        "details": "File: .github/workflows/build-am4-wheel.yml\n\nTriggers: workflow_dispatch, and on push of tags matching 'v*'.\n\nJob: build-am4-wheel\n  runs-on: windows-latest\n  steps:\n    1. actions/checkout@v4\n    2. Set up MSYS2 via msys2/setup-msys2@v2 with:\n         msystem: MINGW64\n         install: mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-python mingw-w64-x86_64-python-pip mingw-w64-x86_64-python-build make git\n    3. Clone abc8747/am4 at a pinned commit (record the SHA in the workflow — do not float on master for reproducibility). Add a repository variable AM4_COMMIT_SHA.\n    4. In an msys2 shell, run: python -m build --wheel (inside the am4 repo)\n    5. The resulting wheel will be tagged for the MSYS2 Python. We need it for the stock python.org Python 3.14 that the installer will ship. Options:\n       a) Use setup-python@v5 with python-version '3.14' and build with that interpreter, invoking the mingw gcc via a CMAKE_TOOLCHAIN / CC=gcc env. This is the preferred path — investigate and document whether the am4 build system honors CC.\n       b) If (a) fails, fall back to delvewheel repair to produce a redistributable wheel.\n    6. Run a smoke test: pip install the wheel in a fresh venv, then python -c 'from am4.utils.db import init; init(); from am4.utils.aircraft import Aircraft; print(\"ok\")'.\n    7. actions/upload-artifact@v4 with name 'am4-wheel' and path '*.whl'.\n    8. If the trigger is a tag push, softprops/action-gh-release@v2 to attach the wheel to the GitHub Release.\n\nDocument in packaging/README.md: the exact MSYS2 package versions, the am4 commit SHA, and instructions for bumping.",
-        "testStrategy": "1. workflow_dispatch run succeeds on a clean windows-latest runner. 2. Artifact contains exactly one .whl named am4-*-cp314-*-win_amd64.whl (or similar). 3. Smoke test step passes. 4. On a real tag push, the wheel appears in the GitHub Release. 5. Download the wheel, pip install on a clean Windows 11 VM with stock python.org 3.14 — import works, Aircraft.suggest works.",
-        "priority": "high",
-        "dependencies": [
-          "1"
-        ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-09T09:49:59.427Z"
-      },
-      {
-        "id": "8",
-        "title": "Inno Setup script for AM4OpsCenter installer",
-        "description": "Write the Inno Setup .iss script that installs the app, creates a venv, installs dependencies from bundled wheels, places shortcuts, and registers an uninstaller.",
-        "details": "File: packaging/installer/am4opscenter.iss\n\nKey settings:\n- AppName=AM4 Ops Center\n- AppVersion read from a #define that CI populates from the tag\n- DefaultDirName={localappdata}\\Programs\\AM4OpsCenter  (per-user, no admin)\n- PrivilegesRequired=lowest\n- DisableDirPage=no\n- OutputBaseFilename=AM4OpsCenter-Setup-{#AppVersion}\n- ArchitecturesAllowed=x64\n- ArchitecturesInstallIn64BitMode=x64\n- UninstallDisplayIcon={app}\\AM4OpsCenter.exe\n- WizardStyle=modern\n- LicenseFile=packaging\\installer\\assets\\license.txt\n\nFiles section:\n- Source: 'dist\\app\\*'; DestDir: '{app}\\app'; Flags: recursesubdirs  — the FastAPI app code\n- Source: 'dist\\launcher\\*'; DestDir: '{app}'; Flags: recursesubdirs   — AM4OpsCenter.exe, AM4OpsCenter-Stop.exe\n- Source: 'packaging\\installer\\wheels\\*'; DestDir: '{tmp}\\wheels'; Flags: deleteafterinstall  — bundled wheels including am4\n- Source: 'packaging\\installer\\bootstrap\\python-installer.exe'; DestDir: '{tmp}'; Flags: deleteafterinstall; Check: NeedsPython\n\nIcons section:\n- Start Menu: 'AM4 Ops Center' -> {app}\\AM4OpsCenter.exe\n- Start Menu: 'Stop AM4 Ops Center' -> {app}\\AM4OpsCenter-Stop.exe\n- Desktop (Tasks=desktopicon): 'AM4 Ops Center' -> {app}\\AM4OpsCenter.exe\n\n[Run] section (post-install, ordered):\n1. {tmp}\\python-installer.exe with silent flags (task 9) — only if NeedsPython returns True\n2. {code:GetPythonExe} -m venv '{app}\\runtime'\n3. '{app}\\runtime\\Scripts\\python.exe' -m pip install --upgrade pip\n4. '{app}\\runtime\\Scripts\\python.exe' -m pip install --no-index --find-links='{tmp}\\wheels' -r '{app}\\app\\requirements.txt'\n5. '{app}\\runtime\\Scripts\\python.exe' -m pip install --no-index --find-links='{tmp}\\wheels' am4\n\n[Code] section:\n- function NeedsPython(): Boolean — checks registry + py launcher for Python 3.14 x64; if present, returns False and skips step 1\n- function GetPythonExe(): String — returns path to python.exe (either the just-installed one or the pre-existing one)\n\n[UninstallDelete] section:\n- Type: filesandordirs; Name: '{app}\\runtime'\n- Do NOT delete {userappdata}\\AM4OpsCenter here — handled by task 13\n\nAdd a wizard page AFTER install asking 'Launch AM4 Ops Center now?' with a checkbox that runs AM4OpsCenter.exe on finish.",
-        "testStrategy": "1. iscc packaging/installer/am4opscenter.iss compiles without errors or warnings. 2. Run the resulting setup.exe on a clean Windows 11 VM without Python — full flow completes. 3. Run on a VM that already has Python 3.14 — NeedsPython returns False, bootstrapper step skipped. 4. Installed shortcuts launch correctly. 5. Uninstaller removes {app} entirely but preserves %APPDATA%\\AM4OpsCenter.",
-        "priority": "high",
-        "dependencies": [
-          "1"
-        ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-09T09:50:10.145Z"
-      },
-      {
-        "id": "9",
-        "title": "Python 3.14 bootstrapper for installer",
-        "description": "Bundle the official python.org Python 3.14 Windows x64 installer and invoke it silently from Inno Setup when Python is not already present, so public users get a working Python without manual steps.",
-        "details": "Download the official python-3.14.X-amd64.exe from python.org into packaging/installer/bootstrap/python-installer.exe as part of the CI install build (see task 11). Pin the exact version in a file packaging/installer/bootstrap/PYTHON_VERSION.txt and document how to bump.\n\nInvocation from Inno Setup (task 8 [Run] section):\n\n  python-installer.exe /quiet InstallAllUsers=0 PrependPath=0 Include_launcher=1 Include_test=0 Include_pip=1 Include_doc=0 Include_dev=0 Shortcuts=0 AssociateFiles=0 TargetDir={localappdata}\\Programs\\Python\\Python314\n\nRationale for flags:\n- InstallAllUsers=0: matches our per-user install\n- PrependPath=0: don't pollute PATH — we locate python.exe via the known TargetDir\n- Include_launcher=1: install py.exe for future use but not required\n- Shortcuts=0, AssociateFiles=0: don't create shortcuts or take over .py\n\nImplement the NeedsPython() Pascal function in am4opscenter.iss. Check order:\n1. RegQueryStringValue HKCU\\Software\\Python\\PythonCore\\3.14\\InstallPath default value — if exists and python.exe is there, return False.\n2. Same under HKLM (for cases where admin already installed it).\n3. Run 'py -3.14 -c \"import sys; print(sys.version_info[:2])\"' and parse.\n4. Otherwise return True.\n\nGetPythonExe() returns the TargetDir python.exe if we just installed it, else the one discovered in NeedsPython checks.\n\nLicense compliance: python.org installer is PSF-licensed, redistribution is fine. Include a note in license.txt.",
-        "testStrategy": "1. On a clean Windows 11 VM with no Python — installer runs, Python 3.14 appears under %LOCALAPPDATA%\\Programs\\Python\\Python314, not added to PATH. 2. On a VM with Python 3.14 already installed via python.org — NeedsPython returns False, bootstrapper skipped, GetPythonExe returns the existing path. 3. On a VM with Python 3.12 but not 3.14 — NeedsPython returns True, 3.14 installed alongside. 4. On a VM with conda Python 3.14 — behavior is documented (probably still installs python.org version since PythonCore registry key is absent).",
-        "priority": "high",
-        "dependencies": [
-          "8"
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": "10",
-        "title": "Bundle offline wheels for all dependencies",
-        "description": "Pre-download every pip dependency (including the prebuilt am4 wheel) into packaging/installer/wheels/ so the installer can pip install offline, with no network access on the user's machine.",
-        "details": "Add packaging/installer/build_wheels.ps1 (PowerShell) that runs as a build step before iscc:\n\n1. Clear packaging/installer/wheels/.\n2. Run: pip download --dest packaging/installer/wheels/ --python-version 3.14 --platform win_amd64 --only-binary=:all: -r app/requirements.txt\n3. Download the am4 wheel artifact from the latest successful build-am4-wheel workflow run (use gh CLI: gh run download -n am4-wheel -D packaging/installer/wheels/) OR from the tagged release asset if building from a tag.\n4. Also download pip wheel itself (for the --upgrade pip step in the installer): pip download pip --dest packaging/installer/wheels/ --python-version 3.14 --platform win_amd64 --only-binary=:all:\n5. Verify: every entry in requirements.txt has a corresponding .whl in the dir, no .tar.gz sdists. Fail the script if any sdist is present — the installer must not try to compile anything on user machines.\n6. Emit packaging/installer/wheels/MANIFEST.txt listing every wheel + sha256.\n\nHandle pure-python deps (like jinja2, htmx, platformdirs) correctly — they should still come as .whl (they do, since they're pure py3-none-any).\n\nHandle uvicorn[standard] — its optional deps include watchfiles, httptools, uvloop. uvloop is Unix-only; make sure requirements.txt does NOT pin uvicorn[standard] but a curated minimal set for Windows (uvicorn, h11, httptools is optional, watchfiles for --reload dev only).\n\nRun build_wheels.ps1 locally once to seed; document in packaging/README.md. CI will also run it fresh.",
-        "testStrategy": "1. Run build_wheels.ps1 from clean — wheels/ populates, no sdists. 2. MANIFEST.txt lists every entry with sha256. 3. In a clean venv with no network: python -m pip install --no-index --find-links=packaging/installer/wheels/ -r app/requirements.txt am4 — installs successfully. 4. python -c 'from am4.utils.db import init; init()' works after install.",
-        "priority": "high",
-        "dependencies": [
-          "7",
-          "8"
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": "11",
-        "title": "GitHub Actions workflow to build the installer",
-        "description": "CI job that builds the launcher, downloads the am4 wheel, bundles all wheels, and compiles the Inno Setup installer into a single .exe artifact.",
-        "details": "File: .github/workflows/build-installer.yml\n\nTriggers: workflow_dispatch, push of tags 'v*', and workflow_call from release.yml.\n\nJob: build-installer\n  runs-on: windows-latest\n  needs: build-am4-wheel (from task 7's workflow, via workflow_call or artifact dependency)\n  steps:\n    1. actions/checkout@v4\n    2. actions/setup-python@v5 with python-version: '3.14'\n    3. pip install pyinstaller platformdirs + app requirements\n    4. Build the launcher: pyinstaller --clean --noconfirm packaging/launcher/launcher.spec\n    5. Stage the app code: robocopy app dist/app /E /XD __pycache__ .pytest_cache /XF *.pyc (ignore robocopy exit codes 0-3)\n    6. Download am4-wheel artifact from the build-am4-wheel workflow run: actions/download-artifact@v4 with name 'am4-wheel' path 'packaging/installer/wheels/'\n    7. Run packaging/installer/build_wheels.ps1 to pull remaining deps into the same dir\n    8. Download Python 3.14 installer: Invoke-WebRequest to the pinned URL from PYTHON_VERSION.txt, save to packaging/installer/bootstrap/python-installer.exe. Verify sha256 against a pinned hash in the workflow (hard-coded or stored alongside PYTHON_VERSION.txt).\n    9. Compile Inno Setup: use actions/setup-inno-setup or install via chocolatey, then: iscc /DAppVersion=${{ github.ref_name }} packaging/installer/am4opscenter.iss\n   10. actions/upload-artifact@v4 with name 'installer' and path 'packaging/installer/Output/AM4OpsCenter-Setup-*.exe'\n   11. If tag push, softprops/action-gh-release@v2 to attach.\n\nAdd a concurrency group so overlapping tag pushes don't race.",
-        "testStrategy": "1. workflow_dispatch run produces a single AM4OpsCenter-Setup-vX.Y.Z.exe artifact. 2. The installer .exe is signed (if a cert is configured) — otherwise at least has correct version metadata visible in File Properties. 3. Download from artifact, run on a clean Windows 11 VM with no Python — full install + launch works. 4. File size is reasonable (< 100 MB).",
-        "priority": "high",
-        "dependencies": [
-          "6",
-          "7",
-          "8",
-          "9",
-          "10"
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": "12",
-        "title": "Release workflow — tag push to published GitHub Release",
-        "description": "Orchestrate the full build pipeline on tag push: build am4 wheel, build installer, publish both as assets on a GitHub Release with auto-generated notes.",
-        "details": "File: .github/workflows/release.yml\n\nTriggers: push of tags matching 'v*.*.*'\n\nJobs:\n1. build-am4-wheel — uses workflow_call to .github/workflows/build-am4-wheel.yml (task 7)\n2. build-installer — needs: build-am4-wheel, uses workflow_call to build-installer.yml (task 11)\n3. publish:\n   - needs: build-installer\n   - runs-on: ubuntu-latest\n   - steps:\n     a. actions/download-artifact@v4 for 'am4-wheel' and 'installer'\n     b. softprops/action-gh-release@v2 with:\n          files: |\n            am4-wheel/*.whl\n            installer/*.exe\n          generate_release_notes: true\n          draft: false\n          prerelease: ${{ contains(github.ref_name, '-') }}  # v1.0.0-rc1 → prerelease\n\nAdd a CHANGELOG.md at repo root; release notes should link to it.\n\nAdd a tag protection rule (documented in packaging/README.md, not enforced in code) — only push tags from main after all CI is green.",
-        "testStrategy": "1. Push a test tag v0.0.1-test — full pipeline runs, a draft-less prerelease appears with both .whl and .exe attached. 2. Release notes are auto-generated from commits. 3. Delete the test release + tag. 4. Real v0.1.0 tag produces a non-prerelease.",
-        "priority": "medium",
-        "dependencies": [
-          "7",
-          "11"
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": "13",
-        "title": "Uninstaller with user data preservation prompt",
-        "description": "Extend the Inno Setup uninstaller to ask the user whether to also delete %APPDATA%\\AM4OpsCenter (the DB, credentials, logs) when uninstalling, defaulting to keep.",
-        "details": "In packaging/installer/am4opscenter.iss, add to the [Code] section:\n\n  procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);\n  var\n    UserDataDir: String;\n    Response: Integer;\n  begin\n    if CurUninstallStep = usPostUninstall then\n    begin\n      UserDataDir := ExpandConstant('{userappdata}\\AM4OpsCenter');\n      if DirExists(UserDataDir) then\n      begin\n        Response := MsgBox(\n          'Do you also want to delete your AM4 Ops Center data (database, credentials, logs)?' + #13#10 + #13#10 +\n          'Location: ' + UserDataDir + #13#10 + #13#10 +\n          'Click No to keep your data for future reinstalls.',\n          mbConfirmation, MB_YESNO or MB_DEFBUTTON2);\n        if Response = IDYES then\n          DelTree(UserDataDir, True, True, True);\n      end;\n    end;\n  end;\n\nAlso: before uninstall begins, check if AM4OpsCenter.exe is running (via FindWindow or tasklist) and if so, prompt the user to close it or auto-run AM4OpsCenter-Stop.exe.\n\nDocument this behavior in packaging/README.md under 'Uninstall'.",
-        "testStrategy": "1. Install, run the app once, exit. Uninstall — prompt appears, click No — %APPDATA%\\AM4OpsCenter still exists. 2. Reinstall — old DB is picked up automatically, dashboard shows previous data. 3. Uninstall again, click Yes — %APPDATA%\\AM4OpsCenter is gone. 4. Uninstall with app running — prompt or auto-stop works.",
-        "priority": "medium",
-        "dependencies": [
-          "8"
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": "14",
-        "title": "Installation and usage documentation",
-        "description": "Write user-facing docs for public GitHub release: README install section, troubleshooting, upgrading, uninstalling, and a short FAQ about AM4 credentials trust model.",
-        "details": "Update README.md at repo root with a new 'Install' section near the top:\n\n  ## Install (Windows 11)\n  1. Download AM4OpsCenter-Setup-vX.Y.Z.exe from the latest release.\n  2. Double-click. If SmartScreen warns (unsigned binary), click More info → Run anyway.\n  3. Follow the installer. Python 3.14 will be installed automatically if missing.\n  4. Launch AM4 Ops Center from the Start Menu or desktop shortcut.\n  5. On first launch the setup wizard will ask for AM4 credentials, hubs, and run the initial extraction (can take 10–30 minutes).\n\nAdd sections:\n- Upgrading: just run the new installer over the top; your data in %APPDATA%\\AM4OpsCenter is preserved.\n- Uninstalling: Settings → Apps → AM4 Ops Center → Uninstall. You'll be asked whether to keep data.\n- Troubleshooting:\n  - 'The app won't start' → run AM4OpsCenter.exe --debug from {install dir} to see the console.\n  - 'Port in use' → pass --port 9000\n  - 'Extraction hangs' → per-hub commits + cancel_futures already fixed this; if it recurs, file an issue with launcher.log\n- FAQ:\n  - 'Is my AM4 password safe?' — credentials are encrypted locally using a machine-derived key, stored in %APPDATA%\\AM4OpsCenter\\credentials.json, and only ever sent to AM4's own API.\n  - 'Does this work on Mac/Linux?' — no installer, but the Python app itself is cross-platform; see the dev install notes.\n  - 'SmartScreen says the installer is unsigned' — yes, code signing certs are expensive; the installer is built in public on GitHub Actions and you can verify the sha256.\n\nAlso create docs/DEVELOPMENT.md with the manual install flow for developers (git clone, pip install -e, run extraction CLI).",
-        "testStrategy": "1. Have someone unfamiliar with the project follow README install steps on a clean Windows 11 VM — they reach the dashboard without asking questions. 2. All links in the install section resolve. 3. Troubleshooting commands actually work as written.",
-        "priority": "medium",
-        "dependencies": [
-          "4",
-          "11",
-          "13"
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": "15",
-        "title": "End-to-end smoke test on clean Windows 11 VM",
-        "description": "Run a full install → first-run wizard → extraction → dashboard → uninstall cycle on a clean Windows 11 VM before tagging the first public release.",
-        "details": "Manual test checklist (document in packaging/SMOKE_TEST.md):\n\nEnvironment: fresh Windows 11 x64 VM, no Python, no dev tools. Snapshot before each run so it can be reverted.\n\nSteps:\n1. Download AM4OpsCenter-Setup-vX.Y.Z.exe from the release.\n2. Verify file sha256 matches what the release notes claim.\n3. Double-click. Confirm SmartScreen behavior is documented.\n4. Walk the installer wizard. Accept defaults.\n5. Confirm post-install: %LOCALAPPDATA%\\Programs\\AM4OpsCenter exists, contains AM4OpsCenter.exe, runtime\\, app\\. Python 3.14 is at %LOCALAPPDATA%\\Programs\\Python\\Python314.\n6. Launch via Start Menu shortcut. Browser opens to /setup.\n7. Enter a real test AM4 credential. Validation passes.\n8. Pick one hub (e.g. a small test hub). Run extraction. Progress bar advances. Extraction completes.\n9. Redirect to dashboard. Verify v_best_routes has rows.\n10. Close browser. AM4OpsCenter.exe is still running in the background — verify via Task Manager. Run 'Stop AM4 Ops Center' shortcut. Process is gone.\n11. Relaunch — goes straight to dashboard (not /setup).\n12. Reboot the VM. Relaunch from Start Menu. Everything still works.\n13. Uninstall via Settings → Apps. Choose Keep data. %APPDATA%\\AM4OpsCenter still exists.\n14. Reinstall. Dashboard still has previous data.\n15. Uninstall. Choose Delete data. %APPDATA%\\AM4OpsCenter is gone.\n\nFile any bug found as a blocking issue before public release. Record VM image hash + test date + installer sha256 in SMOKE_TEST.md.",
-        "testStrategy": "All 15 steps pass on a clean VM. Document any skipped step with reason. This task is 'done' only when a full pass has been completed and signed off.",
-        "priority": "high",
-        "dependencies": [
-          "12",
-          "14"
-        ],
-        "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Extract _table_exists helper to shared location",
+            "description": "Move the _table_exists helper from database/extraction_runs.py line 11 to database/queries.py so it can be reused by schema.py without circular imports.",
+            "details": "The helper is simple:\n```python\ndef _table_exists(conn: sqlite3.Connection, name: str) -> bool:\n    row = conn.execute(\n        \"SELECT name FROM sqlite_master WHERE type='table' AND name=?\", (name,)\n    ).fetchone()\n    return row is not None\n```\nAfter moving, update the import in `database/extraction_runs.py` to use the shared version.",
+            "testStrategy": "Run `python -c \"from database.queries import _table_exists; print('OK')\"` — imports without error. Run `python -m pytest tests/ -x` — no regressions.",
+            "priority": "medium",
+            "dependencies": [],
+            "status": "pending",
+            "subtasks": [],
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Add table guard to ensure_route_aircraft_baseline_prices",
+            "description": "Add a _table_exists('route_aircraft') check at the top of ensure_route_aircraft_baseline_prices in database/schema.py. Return early if the table does not exist.",
+            "details": "",
+            "testStrategy": "Create an in-memory DB with no route_aircraft table. Call ensure_route_aircraft_baseline_prices(conn). Confirm it returns without error.",
+            "priority": "high",
+            "dependencies": [
+              1
+            ],
+            "status": "pending",
+            "subtasks": [],
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Add table guard to apply_route_aircraft_baseline_prices_at_path",
+            "description": "Add a table-existence check in apply_route_aircraft_baseline_prices_at_path so it returns 0.0 instead of raising when route_aircraft is absent.",
+            "details": "",
+            "testStrategy": "Call apply_route_aircraft_baseline_prices_at_path with a DB path that has no route_aircraft table. Confirm it returns 0.0.",
+            "priority": "high",
+            "dependencies": [
+              1
+            ],
+            "status": "pending",
+            "subtasks": [],
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Update server.py lifespan to log skip vs failure",
+            "description": "In dashboard/server.py lifespan handler, distinguish between 'baseline prices updated' (elapsed > 0) and 'skipped' (elapsed == 0) in log output. Remove the generic 'Baseline price update failed' catch if the guard makes it unreachable.",
+            "details": "",
+            "testStrategy": "Start dashboard with empty DB — log shows 'skipped' not 'failed'. Start with populated DB — log shows 'updated in Xms'.",
+            "priority": "medium",
+            "dependencies": [
+              2,
+              3
+            ],
+            "status": "pending",
+            "subtasks": [],
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Add unit test for baseline price skip on empty DB",
+            "description": "Add a test in tests/test_schema.py that creates a DB with no route_aircraft table and confirms apply_route_aircraft_baseline_prices_at_path returns 0.0 without raising.",
+            "details": "",
+            "testStrategy": "Run `python -m pytest tests/test_schema.py -k baseline -v` — test passes.",
+            "priority": "medium",
+            "dependencies": [
+              2,
+              3
+            ],
+            "status": "pending",
+            "subtasks": [],
+            "parentId": "undefined"
+          }
+        ]
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-09T09:50:10.145Z",
-      "taskCount": 15,
-      "completedCount": 6,
+      "lastModified": "2026-04-12T07:03:40.283Z",
+      "taskCount": 3,
+      "completedCount": 1,
       "tags": [
         "master"
       ]

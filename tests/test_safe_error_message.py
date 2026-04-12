@@ -9,7 +9,7 @@ from dashboard.errors import safe_error_message
 
 def test_strips_unix_style_path() -> None:
     exc = sqlite3.OperationalError(
-        "unable to open database file: /home/user/secrets/am4_data.db"
+        "unable to open database file: /home/user/secrets/am4ops.db"
     )
     out = safe_error_message(exc)
     assert "/home" not in out
@@ -17,7 +17,7 @@ def test_strips_unix_style_path() -> None:
 
 
 def test_strips_windows_style_path() -> None:
-    exc = Exception(r"failed C:\Users\me\data\am4_data.db")
+    exc = Exception(r"failed C:\Users\me\data\am4ops.db")
     out = safe_error_message(exc)
     assert "Users" not in out
     assert "<path>" in out

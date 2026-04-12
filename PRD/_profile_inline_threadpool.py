@@ -17,8 +17,10 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from app.paths import db_path  # noqa: E402
+
 # DB before any dashboard import
-os.environ.setdefault("AM4_ROUTEMINE_DB", str(_ROOT / "am4_data.db"))
+os.environ.setdefault("AM4_ROUTEMINE_DB", str(db_path()))
 
 
 async def _run_inline(func, *args, **kwargs):

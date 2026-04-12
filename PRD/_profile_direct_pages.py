@@ -13,7 +13,10 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
-os.environ.setdefault("AM4_ROUTEMINE_DB", str(_ROOT / "am4_data.db"))
+
+from app.paths import db_path  # noqa: E402
+
+os.environ.setdefault("AM4_ROUTEMINE_DB", str(db_path()))
 
 from starlette.requests import Request
 

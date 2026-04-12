@@ -7,15 +7,15 @@ Usage:
     python main.py extract --refresh-hubs --hubs KHI,DXB
     python main.py export --format csv --output ./exports/
     python main.py query --hub KHI --aircraft b738 --top 20
-    python main.py dashboard --db am4_data.db --port 8000
+    python main.py dashboard --db am4ops.db --port 8000
     python main.py fleet import --file fleet.csv
     python main.py fleet import --replace --file fleet.csv
     python main.py routes import --file my_routes.csv
     python main.py recommend --hub KHI --budget 500000000
-    python main.py extract-info --db am4_data.db
-    python main.py backup --db am4_data.db
-    python main.py backup --db am4_data.db --output ./my-backups
-    python main.py refresh-baseline --db am4_data.db
+    python main.py extract-info --db am4ops.db
+    python main.py backup --db am4ops.db
+    python main.py backup --db am4ops.db --output ./my-backups
+    python main.py refresh-baseline --db am4ops.db
 """
 
 from __future__ import annotations

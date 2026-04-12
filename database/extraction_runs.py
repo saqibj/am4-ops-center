@@ -6,14 +6,7 @@ import sqlite3
 from typing import Any
 
 from config import UserConfig
-
-
-def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
-    row = conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
-        (name,),
-    ).fetchone()
-    return row is not None
+from database.queries import _table_exists
 
 
 def _route_aircraft_has_column(conn: sqlite3.Connection, col: str) -> bool:

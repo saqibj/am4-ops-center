@@ -9,6 +9,7 @@ from dataclasses import asdict, fields
 from pathlib import Path
 
 from config import GameMode, UserConfig
+from database.queries import _table_exists
 
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
@@ -780,6 +781,8 @@ def ensure_route_aircraft_baseline_prices(conn: sqlite3.Connection) -> None:
 
     Idempotent. Call after extraction/import or at dashboard startup — not on every HTTP request.
     """
+    if not _table_exists(conn, "route_aircraft"):
+        return
     if not _route_aircraft_has_column(conn, "fuel_price"):
         conn.execute("ALTER TABLE route_aircraft ADD COLUMN fuel_price REAL")
     if not _route_aircraft_has_column(conn, "co2_price"):
@@ -801,11 +804,13 @@ def apply_route_aircraft_baseline_prices_at_path(db_path: str | Path) -> float:
 
     p = Path(db_path)
     if not p.is_file():
-        raise FileNotFoundError(p)
+        return 0.0
     t0 = time.perf_counter()
     conn = sqlite3.connect(str(p), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
+        if not _table_exists(conn, "route_aircraft"):
+            return 0.0
         ensure_route_aircraft_baseline_prices(conn)
         ensure_route_aircraft_indexes(conn)
         conn.commit()

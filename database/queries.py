@@ -72,6 +72,14 @@ ORDER BY haul_type, profit_per_ac_day DESC;
 """
 
 
+def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (name,),
+    ).fetchone()
+    return row is not None
+
+
 def fetch_all(conn: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
     cur = conn.execute(sql, params)
     return cur.fetchall()

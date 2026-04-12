@@ -83,7 +83,7 @@
         "dependencies": [
           "1"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -93,9 +93,10 @@
             "testStrategy": "Run `git status` and confirm files show as 'renamed' not 'deleted/added'.",
             "priority": "low",
             "dependencies": [],
-            "status": "pending",
+            "status": "done",
             "subtasks": [],
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:10:36.760Z"
           },
           {
             "id": 2,
@@ -107,9 +108,10 @@
             "dependencies": [
               1
             ],
-            "status": "pending",
+            "status": "done",
             "subtasks": [],
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:10:36.769Z"
           },
           {
             "id": 3,
@@ -119,11 +121,13 @@
             "testStrategy": "Run `Select-String -Path main.py -Pattern 'convert_csv'` — if no matches, it's standalone and safe to move.",
             "priority": "low",
             "dependencies": [],
-            "status": "pending",
+            "status": "done",
             "subtasks": [],
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:10:36.778Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-12T07:10:36.778Z"
       },
       {
         "id": "3",
@@ -133,7 +137,7 @@
         "testStrategy": "1. **Fresh DB test**: Create an empty DB with only my_hubs/my_fleet tables (no route_aircraft). Run `python main.py dashboard`. Confirm:\n   - No traceback in terminal output\n   - Log shows \"Baseline price update skipped\" (not \"failed\")\n   - Dashboard boots and serves pages normally\n2. **Populated DB test**: Run `python main.py dashboard --db am4ops.db` with the full production DB. Confirm:\n   - Baseline prices are applied (log shows \"updated in Xms\")\n   - No regression in route data or pricing columns\n3. **Unit test**: Add a test in `tests/test_schema.py`:\n   ```python\n   def test_baseline_prices_skip_when_no_route_aircraft(tmp_path):\n       db = tmp_path / \"empty.db\"\n       conn = sqlite3.connect(str(db))\n       conn.execute(\"CREATE TABLE my_hubs (id INTEGER PRIMARY KEY)\")\n       conn.commit()\n       # Should return 0.0, not raise\n       elapsed = apply_route_aircraft_baseline_prices_at_path(str(db))\n       assert elapsed == 0.0\n       conn.close()\n   ```\n4. Run full test suite: `python -m pytest tests/ -x` — all tests pass.",
         "priority": "medium",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -143,9 +147,10 @@
             "testStrategy": "Run `python -c \"from database.queries import _table_exists; print('OK')\"` — imports without error. Run `python -m pytest tests/ -x` — no regressions.",
             "priority": "medium",
             "dependencies": [],
-            "status": "pending",
+            "status": "done",
             "subtasks": [],
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:12:19.657Z"
           },
           {
             "id": 2,
@@ -157,9 +162,10 @@
             "dependencies": [
               1
             ],
-            "status": "pending",
+            "status": "done",
             "subtasks": [],
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:12:19.662Z"
           },
           {
             "id": 3,
@@ -171,9 +177,10 @@
             "dependencies": [
               1
             ],
-            "status": "pending",
+            "status": "done",
             "subtasks": [],
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:12:19.666Z"
           },
           {
             "id": 4,
@@ -186,9 +193,10 @@
               2,
               3
             ],
-            "status": "pending",
+            "status": "done",
             "subtasks": [],
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:12:19.673Z"
           },
           {
             "id": 5,
@@ -201,18 +209,20 @@
               2,
               3
             ],
-            "status": "pending",
+            "status": "done",
             "subtasks": [],
-            "parentId": "undefined"
+            "parentId": "undefined",
+            "updatedAt": "2026-04-12T07:12:19.677Z"
           }
-        ]
+        ],
+        "updatedAt": "2026-04-12T07:12:19.677Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-12T07:03:40.283Z",
+      "lastModified": "2026-04-12T07:12:19.677Z",
       "taskCount": 3,
-      "completedCount": 1,
+      "completedCount": 3,
       "tags": [
         "master"
       ]

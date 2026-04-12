@@ -61,4 +61,6 @@ node_modules/
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
+
+# One-off DB scratch scripts: keep under scripts/scratch/, not the repo root. 

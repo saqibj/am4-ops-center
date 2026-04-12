@@ -9,6 +9,7 @@ import pytest
 
 from config import UserConfig
 from database.schema import (
+    apply_route_aircraft_baseline_prices_at_path,
     clear_route_tables,
     create_schema,
     derived_total_planes,
@@ -259,3 +260,13 @@ def test_derived_total_planes_none_when_fleet_empty(tmp_path) -> None:
     conn.commit()
     assert derived_total_planes(conn) == 10
     conn.close()
+
+
+def test_baseline_prices_skip_when_no_route_aircraft(tmp_path) -> None:
+    db = tmp_path / "empty.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute("CREATE TABLE my_hubs (id INTEGER PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+    elapsed = apply_route_aircraft_baseline_prices_at_path(str(db))
+    assert elapsed == 0.0

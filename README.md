@@ -460,7 +460,7 @@ am4-routemine/
 ├── exports/                 # CSV/Excel output
 ├── fleet.csv                # Fleet import data
 ├── my_routes.csv            # Routes import data
-├── convert_csv.py           # AM4 CSV → import format converter
+├── scripts/convert_csv.py   # AM4 CSV → import format converter
 ├── requirements.in          # direct deps (edit)
 ├── requirements.txt         # pinned, no hashes (generated)
 ├── requirements.lock        # pinned + hashes for Docker (generated)

@@ -1,9 +1,22 @@
-import sqlite3, time, os
-p = r"am4_data.db"
-print("Before:", os.path.getsize(p)/1e9, "GB")
-c = sqlite3.connect(p)
+from __future__ import annotations
+
+import os
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+_REPO = Path(__file__).resolve().parent.parent.parent
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
+
+from app.paths import db_path  # noqa: E402
+
+DB = os.environ.get("AM4_ROUTEMINE_DB", str(db_path()))
+print("Before:", os.path.getsize(DB) / 1e9, "GB")
+c = sqlite3.connect(DB)
 t0 = time.time()
 c.execute("VACUUM")
 c.close()
-print("After:", os.path.getsize(p)/1e9, "GB")
-print(f"Elapsed: {time.time()-t0:.1f}s")
+print("After:", os.path.getsize(DB) / 1e9, "GB")
+print(f"Elapsed: {time.time() - t0:.1f}s")

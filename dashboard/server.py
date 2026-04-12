@@ -82,7 +82,12 @@ async def _app_lifespan(app: FastAPI):
 
         try:
             elapsed = apply_route_aircraft_baseline_prices_at_path(p)
-            logger.info("Baseline prices updated in %.1fs", elapsed)
+            if elapsed > 0:
+                logger.info("Baseline prices updated in %.1fs", elapsed)
+            else:
+                logger.info(
+                    "Baseline price update skipped (route_aircraft not present yet)"
+                )
         except Exception:
             logger.exception("Baseline price update failed")
         else:

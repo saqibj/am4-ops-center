@@ -4,7 +4,7 @@ Convert AM4 route CSV export into fleet.csv and my_routes.csv
 for import into am4-routemine.
 
 Usage:
-    python convert_csv.py am4_routes.csv
+    python scripts/convert_csv.py am4_routes.csv
 
 Outputs:
     fleet.csv       — aircraft you own (type + count)

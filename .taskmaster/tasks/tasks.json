@@ -2,7 +2,7 @@
   "master": {
     "metadata": {
       "created": "2026-04-09T00:00:00Z",
-      "updated": "2026-04-12T17:07:07.000Z",
+      "updated": "2026-04-12T17:34:58.000Z",
       "description": "am4-ops-center installer + launcher for public GitHub release. Targets Windows 11 x64, Python 3.14, uses Inno Setup for install, PyInstaller for launcher, and GitHub Actions to build a prebuilt am4 wheel via MSYS2/mingw-w64. Includes a first-run wizard inside the FastAPI app for AM4 credentials, hub selection, and initial extraction."
     },
     "tasks": [
@@ -126,8 +126,9 @@
         "dependencies": [
           8
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-12T17:34:58.000Z"
       },
       {
         "id": 10,
@@ -140,8 +141,9 @@
           7,
           8
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-12T17:34:58.000Z"
       },
       {
         "id": 11,
@@ -157,8 +159,9 @@
           9,
           10
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-12T17:34:58.000Z"
       },
       {
         "id": 12,

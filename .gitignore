@@ -6,7 +6,8 @@ dist/
 build/
 .venv/
 packaging/installer/wheels/
-packaging/installer/bootstrap/
+# Downloaded python.org installer (CI); keep PYTHON_VERSION.txt & hashes in git
+packaging/installer/bootstrap/python-installer.exe
 
 # Data
 backups/

@@ -1,0 +1,108 @@
+name: Build installer
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: installer-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write # upload-artifact
+
+jobs:
+  am4-wheel:
+    uses: ./.github/workflows/_build-am4-wheel-reusable.yml
+
+  build-installer:
+    needs: am4-wheel
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          architecture: x64
+
+      - name: Install Python build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller platformdirs
+          pip install -r requirements.txt
+
+      - name: Build launcher (PyInstaller)
+        run: pyinstaller --clean --noconfirm packaging/launcher/launcher.spec
+
+      - name: Stage application for Inno (dist/app)
+        run: |
+          New-Item -ItemType Directory -Force dist/app | Out-Null
+          $dirs = @('app', 'dashboard', 'database', 'extractors', 'commands')
+          foreach ($d in $dirs) {
+            if (Test-Path $d) {
+              robocopy $d "dist/app/$d" /E /XD __pycache__ .pytest_cache /XF *.pyc /NFL /NDL /NJH /NJS /nc /ns /np
+              if ($LASTEXITCODE -gt 7) { throw "robocopy failed for $d with exit code $LASTEXITCODE" }
+            }
+          }
+          Copy-Item requirements.txt dist/app/
+          Copy-Item config.py dist/app/
+
+      - name: Download am4-wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: am4-wheel
+          path: ${{ runner.temp }}/am4-wheel
+
+      - name: Build offline wheels (pip + deps + am4)
+        run: |
+          $whl = Get-ChildItem -Path "${{ runner.temp }}/am4-wheel" -Filter *.whl -File | Select-Object -First 1
+          if (-not $whl) { throw "No .whl file in am4-wheel artifact" }
+          Write-Host "Using am4 wheel: $($whl.Name)"
+          & ./packaging/installer/build_wheels.ps1 -Am4WheelPath $whl.FullName
+
+      - name: Download pinned Python.org installer
+        run: |
+          $ver = (Get-Content packaging/installer/bootstrap/PYTHON_VERSION.txt -Raw).Trim()
+          $expect = (Get-Content packaging/installer/bootstrap/PYTHON_INSTALLER_SHA256.txt -Raw).Trim().ToLowerInvariant()
+          $url = "https://www.python.org/ftp/python/$ver/python-$ver-amd64.exe"
+          $out = "packaging/installer/bootstrap/python-installer.exe"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
+          $hash = (Get-FileHash $out -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne $expect) {
+            throw "SHA256 mismatch for python installer: got $hash expected $expect"
+          }
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Compile installer (iscc)
+        run: |
+          $ver = if ("${{ github.ref }}".StartsWith("refs/tags/")) { "${{ github.ref_name }}" } else { "0.0.0-ci" }
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found after Inno Setup install" }
+          Write-Host "Using $iscc /DAppVersion=$ver"
+          & $iscc /DAppVersion=$ver packaging/installer/am4opscenter.iss
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: packaging/installer/Output/AM4OpsCenter-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 30

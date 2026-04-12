@@ -41,3 +41,23 @@ This directory contains all packaging artifacts used to build and distribute AM4
   1. Update repository variable `AM4_COMMIT_SHA`.
   2. Run workflow manually.
   3. Confirm smoke test passes and artifact wheel imports cleanly.
+
+## Python.org bootstrap (installer)
+
+- Pinned version: `packaging/installer/bootstrap/PYTHON_VERSION.txt` (e.g. `3.14.3`).
+- SHA-256 of `python-<version>-amd64.exe`: `packaging/installer/bootstrap/PYTHON_INSTALLER_SHA256.txt` (lowercase hex).
+- The actual `python-installer.exe` is **not** committed; CI downloads it before `iscc`.
+- Bump procedure: see `packaging/installer/bootstrap/README.txt`.
+
+## Offline wheels (`build_wheels.ps1`)
+
+- Script: `packaging/installer/build_wheels.ps1` (run from repo root or any cwd; paths are resolved from the script location).
+- Populates `packaging/installer/wheels/` and writes `MANIFEST.txt`.
+- `am4` is copied from `-Am4WheelPath` or fetched via `gh` from the latest successful `build-am4-wheel` run; other deps come from root `requirements.txt` (the `am4` VCS line is skipped for `pip download`).
+
+## Installer CI
+
+- Workflow: `.github/workflows/build-installer.yml`.
+- Triggers: `workflow_dispatch`, `workflow_call`, and tag push `v*`.
+- First job runs the reusable AM4 wheel build; the second stages `dist/app`, runs PyInstaller, `build_wheels.ps1`, downloads the pinned Python installer, and runs Inno Setup.
+- Artifact name: `installer` (the `AM4OpsCenter-Setup-*.exe` under `packaging/installer/Output/`).

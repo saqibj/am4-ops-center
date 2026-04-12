@@ -54,14 +54,13 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 # ---------------------------------------------------------------------------
-# Resolve paths relative to the repo root, assuming this script lives at
-# packaging/installer/build_wheels.ps1
+# Resolve paths: this script lives at packaging/installer/build_wheels.ps1
 # ---------------------------------------------------------------------------
-$ScriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $InstallerDir = $ScriptDir
-$RepoRoot    = Resolve-Path (Join-Path $ScriptDir '..\..')
-$WheelsDir   = Join-Path $InstallerDir 'wheels'
-$RequirementsPath = Join-Path $RepoRoot 'app\requirements.txt'
+$RepoRoot     = Resolve-Path (Join-Path $ScriptDir '..\..')
+$WheelsDir    = Join-Path $InstallerDir 'wheels'
+$RequirementsPath = Join-Path $RepoRoot 'requirements.txt'
 
 Write-Host "============================================================"
 Write-Host "  am4-ops-center offline wheel builder"
@@ -79,8 +78,6 @@ if (-not (Test-Path $RequirementsPath)) {
     throw "requirements.txt not found at $RequirementsPath"
 }
 
-# Verify we're running a compatible Python — pip download honors --python-version
-# but needs a local pip to do the resolution. Any Python 3.10+ with pip works.
 try {
     $pyVer = (python --version) 2>&1
     Write-Host "Using local pip from: $pyVer"
@@ -100,28 +97,32 @@ New-Item -ItemType Directory -Path $WheelsDir | Out-Null
 
 # ---------------------------------------------------------------------------
 # Step 2: Download app requirements as wheels
-# --only-binary=:all: is critical — any sdist means user-side compile
+# am4 is installed from the prebuilt wheel in step 4 — skip VCS lines here
+# because pip download --only-binary cannot satisfy git+https://...
 # ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "[2/6] Downloading requirements.txt dependencies..."
+Write-Host "[2/6] Downloading requirements.txt dependencies (excluding am4 VCS pin)..."
+$tempReq = Join-Path $env:TEMP "am4ops-pip-download-requirements.txt"
+Get-Content $RequirementsPath | Where-Object { $_ -notmatch '^\s*am4\s' } | Set-Content -Encoding utf8 $tempReq
+$abi = "cp$($PythonVersion -replace '\.','')"
 $pipArgs = @(
     '-m', 'pip', 'download',
     '--dest', $WheelsDir,
     '--python-version', $PythonVersion,
     '--platform', 'win_amd64',
     '--implementation', 'cp',
-    '--abi', "cp$($PythonVersion -replace '\.','')",
+    '--abi', $abi,
     '--only-binary=:all:',
-    '-r', $RequirementsPath
+    '-r', $tempReq
 )
 Write-Host "pip $($pipArgs -join ' ')"
 & python @pipArgs
 if ($LASTEXITCODE -ne 0) {
-    throw "pip download failed for requirements.txt. Check that every dependency has a Windows x64 cp$($PythonVersion -replace '\.','') wheel on PyPI."
+    throw "pip download failed for requirements.txt. Check that every dependency has a Windows x64 $abi wheel on PyPI."
 }
 
 # ---------------------------------------------------------------------------
-# Step 3: Download pip itself (pure-python wheel, no platform constraint)
+# Step 3: Download pip itself
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "[3/6] Downloading pip wheel..."
@@ -147,7 +148,6 @@ elseif ($Am4WheelPath) {
     Copy-Item $Am4WheelPath -Destination $WheelsDir
 }
 else {
-    # Try gh CLI to pull the latest build-am4-wheel workflow artifact
     $ghAvailable = $null -ne (Get-Command gh -ErrorAction SilentlyContinue)
     if (-not $ghAvailable) {
         throw @"
@@ -163,7 +163,6 @@ Either:
     Write-Host "  Fetching latest am4-wheel artifact via gh CLI..."
     Push-Location $RepoRoot
     try {
-        # Find most recent successful run of the build-am4-wheel workflow
         $runIdJson = gh run list --workflow 'build-am4-wheel.yml' --status success --limit 1 --json databaseId
         if ($LASTEXITCODE -ne 0 -or -not $runIdJson) {
             throw "No successful build-am4-wheel workflow run found. Run it once via 'gh workflow run build-am4-wheel.yml' first."
@@ -200,12 +199,6 @@ if ($sdists.Count -gt 0) {
     Write-Host ""
     Write-Host "ERROR: Source distributions found in wheels/:" -ForegroundColor Red
     $sdists | ForEach-Object { Write-Host "  $($_.Name)" -ForegroundColor Red }
-    Write-Host ""
-    Write-Host "These indicate a dependency has no prebuilt Windows wheel for Python $PythonVersion." -ForegroundColor Red
-    Write-Host "The installer cannot compile on user machines. Fix by:" -ForegroundColor Red
-    Write-Host "  - Finding a different package version that ships wheels" -ForegroundColor Red
-    Write-Host "  - Pinning to an older version in requirements.txt" -ForegroundColor Red
-    Write-Host "  - Building the wheel yourself in a separate CI job (like am4)" -ForegroundColor Red
     throw "Sdist present in wheels dir"
 }
 
@@ -215,7 +208,6 @@ if ($wheels.Count -eq 0) {
 }
 Write-Host "  OK: $($wheels.Count) wheels, no sdists"
 
-# Optional: warn if am4 isn't present (unless -SkipAm4)
 if (-not $SkipAm4) {
     $am4Wheels = @($wheels | Where-Object { $_.Name -like 'am4-*' })
     if ($am4Wheels.Count -eq 0) {
@@ -237,7 +229,7 @@ $lines = @(
     ""
 )
 foreach ($w in ($wheels | Sort-Object Name)) {
-    $hash = (Get-FileHash -Algorithm SHA256 $w.FullName).Hash
+    $hash = (Get-FileHash -Algorithm SHA256 $w.FullName).Hash.ToLowerInvariant()
     $size = $w.Length
     $lines += "{0}  {1}  {2} bytes" -f $hash, $w.Name, $size
 }

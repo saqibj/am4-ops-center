@@ -147,12 +147,39 @@ var
   LaunchCheckbox: TNewCheckBox;
 
 // ---------------------------------------------------------------------------
+// TryPythonLauncher314
+// Uses the Windows "py.exe" launcher: py -3.14 -c "import sys; print(sys.executable)"
+// so python.org installs that registered the launcher but not PythonCore are found.
+// ---------------------------------------------------------------------------
+function TryPythonLauncher314: String;
+var
+  Lines: TArrayOfString;
+  ResultCode: Integer;
+  TmpFile: String;
+begin
+  Result := '';
+  TmpFile := ExpandConstant('{tmp}\am4_py314_exe.txt');
+  if Exec(ExpandConstant('{cmd}'),
+     '/C py -3.14 -c "import sys; print(sys.executable)" > "' + TmpFile + '" 2>nul',
+     '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    if LoadStringsFromFile(TmpFile, Lines) and (GetArrayLength(Lines) > 0) then
+    begin
+      Result := Trim(Lines[0]);
+      if not FileExists(Result) then
+        Result := '';
+    end;
+  end;
+end;
+
+// ---------------------------------------------------------------------------
 // FindExistingPython
 // Returns the full path to a usable python.exe for version 3.14, or ''
 // if not found. Checks in order:
 //   1. HKCU\Software\Python\PythonCore\3.14\InstallPath
 //   2. HKLM\Software\Python\PythonCore\3.14\InstallPath (64-bit view)
-//   3. The target dir we'll install to (in case Step 1 already ran this session)
+//   3. py.exe launcher: py -3.14 (prints sys.executable)
+//   4. The target dir we'll install to (in case Step 1 already ran this session)
 // ---------------------------------------------------------------------------
 function FindExistingPython(): String;
 var
@@ -183,6 +210,13 @@ begin
       Result := Candidate;
       Exit;
     end;
+  end;
+
+  Candidate := TryPythonLauncher314;
+  if Candidate <> '' then
+  begin
+    Result := Candidate;
+    Exit;
   end;
 
   // Check the target dir we would install to — if a prior run of this installer

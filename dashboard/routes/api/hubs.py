@@ -15,6 +15,8 @@ from dashboard.errors import safe_error_message
 from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
 from dashboard.server import templates
 
+from app.services.hubs import delete_hub
+
 from dashboard.routes.api.shared import (
     _EXTRACTION_BUSY_MSG,
     _release_extraction_lock,
@@ -212,9 +214,8 @@ def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form(
                 conn.execute(
                     """
                     INSERT INTO my_hubs (airport_id, notes, is_active, updated_at)
-                    VALUES (?, ?, 1, datetime('now'))
+                    VALUES (?, ?, 0, datetime('now'))
                     ON CONFLICT(airport_id) DO UPDATE SET
-                        is_active = 1,
                         notes = CASE
                             WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
                             THEN excluded.notes
@@ -390,8 +391,14 @@ def api_hubs_delete(request: Request, hub_id: int = Form(...)):
         conn = get_db()
         try:
             _hubs_ensure_schema(conn)
-            conn.execute("DELETE FROM my_hubs WHERE id = ?", (int(hub_id),))
-            conn.commit()
+            row = fetch_one(
+                conn,
+                "SELECT airport_id FROM my_hubs WHERE id = ? LIMIT 1",
+                [int(hub_id)],
+            )
+            if not row or row.get("airport_id") is None:
+                return _hub_inventory_response(request, flash_err="Hub not found.")
+            delete_hub(conn, int(row["airport_id"]))
         finally:
             conn.close()
     except FileNotFoundError:
@@ -399,4 +406,4 @@ def api_hubs_delete(request: Request, hub_id: int = Form(...)):
     except sqlite3.OperationalError as exc:
         return _hub_inventory_response(request, flash_err=safe_error_message(exc))
 
-    return _hub_inventory_response(request, flash="Removed hub from manager.")
+    return _hub_inventory_response(request, flash="Removed hub and deleted related route data.")

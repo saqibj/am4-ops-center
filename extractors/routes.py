@@ -384,7 +384,8 @@ def _my_hubs_mark_ok(conn: sqlite3.Connection, airport_id: int) -> None:
         """
         UPDATE my_hubs
         SET last_extract_status = 'ok', last_extract_error = NULL,
-            last_extracted_at = datetime('now'), updated_at = datetime('now')
+            last_extracted_at = datetime('now'), updated_at = datetime('now'),
+            is_active = 1
         WHERE airport_id = ?
         """,
         (airport_id,),

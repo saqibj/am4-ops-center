@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
+from app.services.hubs import SQL_EXPLORER_HUBS_WITH_NAMES
+
 from dashboard.db import DB_PATH, fetch_all, fetch_one, get_read_db
 from dashboard.server import templates
 
@@ -100,11 +102,12 @@ def api_stats(
         row = fetch_one(
             conn,
             """
-            SELECT COUNT(*) AS routes,
-                   COUNT(DISTINCT origin_id) AS hubs,
-                   COUNT(DISTINCT aircraft_id) AS aircraft,
-                   MAX(extracted_at) AS last_extract
-            FROM route_aircraft WHERE is_valid = 1
+            SELECT
+                (SELECT COUNT(*) FROM route_aircraft WHERE is_valid = 1) AS routes,
+                (SELECT COUNT(*) FROM v_my_hubs h
+                 WHERE h.is_active = 1 AND h.last_extract_status = 'ok') AS hubs,
+                (SELECT COUNT(DISTINCT aircraft_id) FROM route_aircraft WHERE is_valid = 1) AS aircraft,
+                (SELECT MAX(extracted_at) FROM route_aircraft WHERE is_valid = 1) AS last_extract
             """,
         )
         if not row:
@@ -126,16 +129,7 @@ def api_hubs(
 ) -> list[dict]:
     if conn is None:
         return []
-    rows = fetch_all(
-        conn,
-        """
-        SELECT DISTINCT a.iata AS iata, a.name AS name
-        FROM route_aircraft ra
-        JOIN airports a ON ra.origin_id = a.id
-        WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
-        ORDER BY a.iata
-        """,
-    )
+    rows = fetch_all(conn, SQL_EXPLORER_HUBS_WITH_NAMES)
     return rows
 
 

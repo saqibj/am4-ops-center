@@ -7,6 +7,8 @@ import json
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
+from app.services.hubs import SQL_EXPLORER_HUB_IATAS
+
 from commands.fleet_recommend import fleet_recommend_rows
 from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db
 from dashboard.server import templates
@@ -196,30 +198,8 @@ def _finalize_buy_next_rows(
 
 
 def _allocation_hub_iatas(conn) -> list[str]:
-    """Hubs the user operates (My Routes origins); else any extracted origin IATA."""
-    rows = fetch_all(
-        conn,
-        """
-        SELECT DISTINCT a.iata AS iata
-        FROM my_routes mr
-        JOIN airports a ON mr.origin_id = a.id
-        WHERE a.iata IS NOT NULL AND TRIM(a.iata) != ''
-        ORDER BY a.iata
-        """,
-    )
-    out = [str(r["iata"]).strip() for r in rows if r.get("iata")]
-    if out:
-        return out
-    rows = fetch_all(
-        conn,
-        """
-        SELECT DISTINCT a.iata AS iata
-        FROM route_aircraft ra
-        JOIN airports a ON ra.origin_id = a.id
-        WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
-        ORDER BY a.iata
-        """,
-    )
+    """Managed hubs with a successful extract (same scope as Hub Explorer)."""
+    rows = fetch_all(conn, SQL_EXPLORER_HUB_IATAS)
     return [str(r["iata"]).strip() for r in rows if r.get("iata")]
 
 
@@ -257,7 +237,7 @@ def _greedy_multi_hub_allocate(
     if not scope:
         scope = _allocation_hub_iatas(conn)
     if not scope:
-        return [], ["No hub scope: add My Routes or run an extract with origins."]
+        return [], ["No hub scope: add hubs under Hub Manager and run a successful extract."]
 
     queues: dict[int, list[dict]] = {}
     for raw_iata in scope:

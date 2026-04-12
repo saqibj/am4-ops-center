@@ -7,6 +7,12 @@ import sqlite3
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
+from app.services.hubs import (
+    SQL_EXPLORER_HUB_IATAS,
+    SQL_EXPLORER_HUBS_WITH_META,
+    SQL_EXPLORER_HUBS_WITH_NAMES,
+)
+
 from config import UserConfig
 from dashboard.db import base_context, fetch_all, fetch_one, get_db
 from database.extraction_runs import list_completed_runs
@@ -30,19 +36,11 @@ def _package_version() -> str:
 
 
 def _origin_hub_iatas_for_fleet_plan() -> list[str]:
-    """Distinct origin IATA codes present in extracted route_aircraft (valid rows)."""
+    """Managed hubs with a successful extract (v_my_hubs), for planner / Buy Next."""
     try:
         conn = get_db()
         try:
-            hubs = fetch_all(
-                conn,
-                """
-                SELECT DISTINCT a.iata AS iata FROM route_aircraft ra
-                JOIN airports a ON ra.origin_id = a.id
-                WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
-                ORDER BY a.iata
-                """,
-            )
+            hubs = fetch_all(conn, SQL_EXPLORER_HUB_IATAS)
         finally:
             conn.close()
     except (FileNotFoundError, sqlite3.OperationalError):
@@ -73,16 +71,7 @@ def _hubs_with_names() -> list[dict]:
     try:
         conn = get_db()
         try:
-            return fetch_all(
-                conn,
-                """
-                SELECT DISTINCT a.iata AS iata, COALESCE(a.name, '') AS name
-                FROM route_aircraft ra
-                JOIN airports a ON ra.origin_id = a.id
-                WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
-                ORDER BY a.iata
-                """,
-            )
+            return fetch_all(conn, SQL_EXPLORER_HUBS_WITH_NAMES)
         finally:
             conn.close()
     except (FileNotFoundError, sqlite3.OperationalError):
@@ -99,11 +88,12 @@ def page_index(request: Request):
             stats = fetch_one(
                 conn,
                 """
-                SELECT COUNT(*) AS routes,
-                       COUNT(DISTINCT origin_id) AS hubs,
-                       COUNT(DISTINCT aircraft_id) AS aircraft,
-                       MAX(extracted_at) AS last_extract
-                FROM route_aircraft WHERE is_valid = 1
+                SELECT
+                    (SELECT COUNT(*) FROM route_aircraft WHERE is_valid = 1) AS routes,
+                    (SELECT COUNT(*) FROM v_my_hubs h
+                     WHERE h.is_active = 1 AND h.last_extract_status = 'ok') AS hubs,
+                    (SELECT COUNT(DISTINCT aircraft_id) FROM route_aircraft WHERE is_valid = 1) AS aircraft,
+                    (SELECT MAX(extracted_at) FROM route_aircraft WHERE is_valid = 1) AS last_extract
                 """,
             )
             top_routes = fetch_all(
@@ -123,11 +113,12 @@ def page_index(request: Request):
             top_hubs = fetch_all(
                 conn,
                 """
-                SELECT a.iata AS hub, AVG(ra.profit_per_ac_day) AS avg_profit
+                SELECT h.iata AS hub, AVG(ra.profit_per_ac_day) AS avg_profit
                 FROM route_aircraft ra
-                JOIN airports a ON ra.origin_id = a.id
+                JOIN v_my_hubs h ON h.airport_id = ra.origin_id
                 WHERE ra.is_valid = 1
-                GROUP BY ra.origin_id
+                  AND h.is_active = 1 AND h.last_extract_status = 'ok'
+                GROUP BY ra.origin_id, h.iata
                 ORDER BY avg_profit DESC
                 LIMIT 5
                 """,
@@ -182,18 +173,7 @@ def page_route_analyzer(request: Request):
     try:
         conn = get_db()
         try:
-            origins = fetch_all(
-                conn,
-                """
-                SELECT DISTINCT a.iata AS iata,
-                       COALESCE(a.name, '') AS name,
-                       COALESCE(a.country, '') AS country
-                FROM route_aircraft ra
-                JOIN airports a ON ra.origin_id = a.id
-                WHERE ra.is_valid = 1 AND a.iata IS NOT NULL AND TRIM(a.iata) != ''
-                ORDER BY a.iata
-                """,
-            )
+            origins = fetch_all(conn, SQL_EXPLORER_HUBS_WITH_META)
         finally:
             conn.close()
     except FileNotFoundError:
@@ -270,20 +250,12 @@ def page_my_hubs(request: Request):
     return templates.TemplateResponse(request, "my_hubs.html", ctx)
 
 
-def _hub_iatas_from_my_routes() -> list[str]:
+def _explorer_hub_iatas() -> list[str]:
+    """Hub filter dropdowns: same set as Hub Explorer (managed + successful extract)."""
     try:
         conn = get_db()
         try:
-            rows = fetch_all(
-                conn,
-                """
-                SELECT DISTINCT a.iata AS iata
-                FROM my_routes mr
-                JOIN airports a ON mr.origin_id = a.id
-                WHERE a.iata IS NOT NULL AND TRIM(a.iata) != ''
-                ORDER BY a.iata
-                """,
-            )
+            rows = fetch_all(conn, SQL_EXPLORER_HUB_IATAS)
         finally:
             conn.close()
     except FileNotFoundError:
@@ -294,7 +266,7 @@ def _hub_iatas_from_my_routes() -> list[str]:
 @router.get("/fleet-health", response_class=HTMLResponse)
 def page_fleet_health(request: Request):
     ctx = base_context(request, None)
-    ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    ctx.update({"hubs": _explorer_hub_iatas()})
     ctx.update(_saved_filters_bar_context("fleet-health"))
     return templates.TemplateResponse(request, "fleet_health.html", ctx)
 
@@ -302,7 +274,7 @@ def page_fleet_health(request: Request):
 @router.get("/demand-utilization", response_class=HTMLResponse)
 def page_demand_utilization(request: Request):
     ctx = base_context(request, None)
-    ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    ctx.update({"hubs": _explorer_hub_iatas()})
     ctx.update(_saved_filters_bar_context("demand-utilization"))
     return templates.TemplateResponse(request, "demand_utilization.html", ctx)
 
@@ -310,7 +282,7 @@ def page_demand_utilization(request: Request):
 @router.get("/extraction-deltas", response_class=HTMLResponse)
 def page_extraction_deltas(request: Request):
     ctx = base_context(request, None)
-    ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    ctx.update({"hubs": _explorer_hub_iatas()})
     try:
         conn = get_db()
         try:
@@ -411,7 +383,7 @@ def page_hub_roi(request: Request):
 @router.get("/scenarios", response_class=HTMLResponse)
 def page_scenarios(request: Request):
     ctx = base_context(request, None)
-    ctx.update({"hubs": _hub_iatas_from_my_routes()})
+    ctx.update({"hubs": _explorer_hub_iatas()})
     try:
         conn = get_db()
         try:
@@ -461,7 +433,15 @@ def page_contributions(request: Request):
     try:
         conn = get_db()
         try:
-            hubs = fetch_all(conn, "SELECT DISTINCT hub FROM v_best_routes ORDER BY hub")
+            hubs = fetch_all(
+                conn,
+                """
+                SELECT h.iata AS hub FROM v_my_hubs h
+                WHERE h.is_active = 1 AND h.last_extract_status = 'ok'
+                  AND h.iata IS NOT NULL AND TRIM(h.iata) != ''
+                ORDER BY h.iata COLLATE NOCASE
+                """,
+            )
         finally:
             conn.close()
     except FileNotFoundError:

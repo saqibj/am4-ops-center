@@ -31,9 +31,11 @@ def _conn() -> sqlite3.Connection:
 def _hub_options(conn: sqlite3.Connection) -> pd.DataFrame:
     return pd.read_sql_query(
         """
-        SELECT iata AS hub, name, country FROM airports
-        WHERE iata IS NOT NULL AND TRIM(iata) != ''
-        ORDER BY iata
+        SELECT h.iata AS hub, h.name, h.country
+        FROM v_my_hubs h
+        WHERE h.is_active = 1 AND h.last_extract_status = 'ok'
+          AND h.iata IS NOT NULL AND TRIM(h.iata) != ''
+        ORDER BY h.iata COLLATE NOCASE
         """,
         conn,
     )

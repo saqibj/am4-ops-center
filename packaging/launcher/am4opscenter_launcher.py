@@ -80,6 +80,78 @@ def _message_box(text: str) -> None:
     print(text, file=sys.stderr)
 
 
+def _is_frozen() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
+def _install_root() -> Path:
+    return Path(sys.executable).resolve().parent
+
+
+def _bundled_venv_python() -> Path | None:
+    """Python from the installer's venv (Windows: runtime\\Scripts\\python.exe)."""
+    root = _install_root()
+    if os.name == "nt":
+        cand = root / "runtime" / "Scripts" / "python.exe"
+    else:
+        cand = root / "runtime" / "bin" / "python3"
+        if not cand.is_file():
+            cand = root / "runtime" / "bin" / "python"
+    return cand if cand.is_file() else None
+
+
+def _dev_source_root() -> Path | None:
+    """Repo root (directory that contains ``dashboard``) when running from source."""
+    here = Path(__file__).resolve().parent
+    for base in (here, *here.parents):
+        if (base / "dashboard").is_dir():
+            return base
+    return None
+
+
+def _python_for_uvicorn(debug: bool) -> Path | None:
+    if _is_frozen():
+        v = _bundled_venv_python()
+        if v is None:
+            _message_box(
+                "The bundled Python environment is missing (expected "
+                "runtime\\Scripts\\python.exe next to this program). "
+                "Reinstall AM4 Ops Center."
+            )
+            return None
+        return v
+    if debug:
+        import shutil
+
+        w = shutil.which("python")
+        if w:
+            return Path(w)
+    return Path(sys.executable)
+
+
+def _uvicorn_subprocess_env() -> dict[str, str]:
+    env = dict(os.environ)
+    if _is_frozen():
+        app_src = _install_root() / "app"
+        if app_src.is_dir():
+            extra = str(app_src)
+            prev = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = extra + (os.pathsep + prev if prev else "")
+    else:
+        root = _dev_source_root()
+        if root is not None:
+            extra = str(root)
+            prev = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = extra + (os.pathsep + prev if prev else "")
+    return env
+
+
+def _uvicorn_cwd() -> Path | None:
+    if _is_frozen():
+        return _install_root()
+    return _dev_source_root()
+
+
 def _wait_for_health(port: int, timeout_s: float = 30.0) -> bool:
     url = f"http://127.0.0.1:{port}/health"
     deadline = time.monotonic() + timeout_s
@@ -96,9 +168,12 @@ def _wait_for_health(port: int, timeout_s: float = 30.0) -> bool:
     return False
 
 
-def _spawn_uvicorn(port: int, debug: bool, log_file: Path) -> subprocess.Popen:
+def _spawn_uvicorn(port: int, debug: bool, log_file: Path) -> subprocess.Popen | None:
+    py = _python_for_uvicorn(debug)
+    if py is None:
+        return None
     cmd = [
-        sys.executable,
+        str(py),
         "-m",
         "uvicorn",
         "dashboard.server:app",
@@ -111,17 +186,23 @@ def _spawn_uvicorn(port: int, debug: bool, log_file: Path) -> subprocess.Popen:
     if os.name == "nt" and not debug:
         creationflags = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
 
+    env = _uvicorn_subprocess_env()
+    cwd = _uvicorn_cwd()
+    popen_kw: dict = {
+        "env": env,
+        "creationflags": creationflags,
+    }
+    if cwd is not None:
+        popen_kw["cwd"] = str(cwd)
+
     if debug:
-        return subprocess.Popen(cmd, creationflags=creationflags)
+        return subprocess.Popen(cmd, **popen_kw)
 
     log_file.parent.mkdir(parents=True, exist_ok=True)
     fh = log_file.open("a", encoding="utf-8")
-    return subprocess.Popen(
-        cmd,
-        stdout=fh,
-        stderr=subprocess.STDOUT,
-        creationflags=creationflags,
-    )
+    popen_kw["stdout"] = fh
+    popen_kw["stderr"] = subprocess.STDOUT
+    return subprocess.Popen(cmd, **popen_kw)
 
 
 def main() -> int:
@@ -136,6 +217,8 @@ def main() -> int:
     proc: subprocess.Popen | None = None
     try:
         proc = _spawn_uvicorn(port=port, debug=bool(args.debug), log_file=_log_dir() / "launcher.log")
+        if proc is None:
+            return 1
         if not _wait_for_health(port):
             _message_box("AM4 Ops Center failed to start within 30 seconds.")
             if proc.poll() is None:

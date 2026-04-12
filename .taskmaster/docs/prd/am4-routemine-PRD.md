@@ -37,7 +37,7 @@ The AM4 Discord bot generates route reports one hub + one aircraft at a time. Fo
      │             │             │
      ▼             ▼             ▼
   SQLite DB    CSV exports    Web UI
-  (am4_data.db)  (exports/)   (Flask/Streamlit)
+  (am4ops.db)  (exports/)   (FastAPI dashboard)
 ```
 
 ---
@@ -657,6 +657,9 @@ Usage:
 import argparse
 
 def main():
+    from app.paths import db_path
+
+    DEFAULT_DB_PATH = str(db_path())
     parser = argparse.ArgumentParser(description="AM4 RouteMine — Bulk Route Data Extractor")
     subparsers = parser.add_subparsers(dest="command")
 
@@ -668,14 +671,14 @@ def main():
     extract.add_argument("--ci", type=int, default=200, help="Cost Index (0-200)")
     extract.add_argument("--reputation", type=float, default=87.0)
     extract.add_argument("--aircraft", type=str, help="Filter aircraft (e.g. b738,a388)")
-    extract.add_argument("--db", type=str, default="am4_data.db", help="SQLite output path")
+    extract.add_argument("--db", type=str, default=DEFAULT_DB_PATH, help="SQLite database path")
     extract.add_argument("--workers", type=int, default=4)
 
     # Export command
     export = subparsers.add_parser("export", help="Export DB to CSV/Excel")
     export.add_argument("--format", choices=["csv", "excel"], default="csv")
     export.add_argument("--output", type=str, default="./exports/")
-    export.add_argument("--db", type=str, default="am4_data.db")
+    export.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
 
     # Query command (quick CLI queries)
     query = subparsers.add_parser("query", help="Quick query against extracted data")
@@ -684,12 +687,12 @@ def main():
     query.add_argument("--type", choices=["pax", "cargo", "vip"])
     query.add_argument("--top", type=int, default=20)
     query.add_argument("--sort", choices=["profit", "contribution", "income"], default="profit")
-    query.add_argument("--db", type=str, default="am4_data.db")
+    query.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
 
     # Dashboard command
-    dash = subparsers.add_parser("dashboard", help="Launch Streamlit dashboard")
-    dash.add_argument("--db", type=str, default="am4_data.db")
-    dash.add_argument("--port", type=int, default=8501)
+    dash = subparsers.add_parser("dashboard", help="Launch FastAPI dashboard")
+    dash.add_argument("--db", type=str, default=DEFAULT_DB_PATH)
+    dash.add_argument("--port", type=int, default=8000)
 
     args = parser.parse_args()
     # Route to appropriate handler

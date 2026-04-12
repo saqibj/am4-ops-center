@@ -457,7 +457,8 @@ am4-routemine/
 │   └── static/              # favicon; css/ (theme, settings); js/ (theme, settings store, branding, shell)
 ├── docs/                    # Design notes (e.g. UIPRO brief / visual spec)
 ├── tests/                   # pytest (UI settings + dashboard HTTP smoke)
-├── PRD/                     # Product specs
+├── PRD/                     # Product specs (SQLite naming matches app: am4ops.db / db_path())
+├── .taskmaster/docs/prd/    # Archived PRD copies (same DB naming conventions)
 ├── exports/                 # CSV/Excel output
 ├── fleet.csv                # Fleet import data
 ├── my_routes.csv            # Routes import data
@@ -496,7 +497,7 @@ am4-routemine/
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request, report issues, or suggest new features. You can reference the product specs in the `/PRD` folder for guidance.
+Contributions are welcome! Please feel free to submit a Pull Request, report issues, or suggest new features. Use **`PRD/`** and **`.taskmaster/docs/prd/`** for product context; both follow the same SQLite conventions as the code (**`am4ops.db`**, default **`app.paths.db_path()`**).
 
 ---
 

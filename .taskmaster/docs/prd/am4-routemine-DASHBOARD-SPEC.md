@@ -2,7 +2,7 @@
 
 > **Stack:** FastAPI + Tailwind CSS + HTMX
 > **Replaces:** Streamlit dashboard (dashboard/app.py)
-> **Data source:** SQLite database (`am4_data.db`) produced by the extractor
+> **Data source:** SQLite database (**`am4ops.db`**, default path from **`app.paths.db_path()`**) produced by the extractor
 
 ---
 
@@ -22,8 +22,8 @@
 └──────────────────┬──────────────────────────────┘
                    │
             ┌──────▼──────┐
-            │  am4_data.db │
-            │   (SQLite)   │
+            │  am4ops.db  │
+            │  (SQLite)   │
             └─────────────┘
 ```
 
@@ -85,7 +85,9 @@ app = FastAPI(title="AM4 RouteMine Dashboard")
 app.mount("/static", StaticFiles(directory="dashboard/static"), name="static")
 templates = Jinja2Templates(directory="dashboard/templates")
 
-DB_PATH = os.environ.get("AM4_ROUTEMINE_DB", "am4_data.db")
+from app.paths import db_path
+
+DB_PATH = os.environ.get("AM4_ROUTEMINE_DB", str(db_path()))
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -300,9 +302,11 @@ GET /api/chart/haul-breakdown?hub=KHI                   → JSON {short, medium,
 Update `main.py` dashboard command:
 
 ```python
+from app.paths import db_path
+
 # dashboard command
 dash = subparsers.add_parser("dashboard", help="Launch web dashboard")
-dash.add_argument("--db", type=str, default="am4_data.db")
+dash.add_argument("--db", type=str, default=str(db_path()))
 dash.add_argument("--port", type=int, default=8000)
 dash.add_argument("--host", type=str, default="0.0.0.0")
 ```

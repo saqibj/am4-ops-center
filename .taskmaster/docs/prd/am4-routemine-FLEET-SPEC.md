@@ -2,7 +2,7 @@
 
 > **Purpose:** Track player-owned aircraft by type (`my_fleet`) and operational assignments hub→destination→aircraft (`my_routes`), with CSV/CLI and dashboard parity.
 > **UI:** FastAPI + Jinja2 + HTMX (same patterns as `am4-routemine-DASHBOARD-SPEC.md`).
-> **Data:** SQLite tables alongside extraction data in `am4_data.db`.
+> **Data:** SQLite tables alongside extraction data in **`am4ops.db`** (default: **`app.paths.db_path()`**).
 
 ---
 
@@ -100,14 +100,14 @@ Import **upserts**: same aircraft in `fleet.csv` replaces quantity/notes for tha
 ## 7. CLI (`main.py`)
 
 ```bash
-python main.py fleet import --file fleet.csv [--db am4_data.db]
-python main.py fleet export --output fleet.csv [--db am4_data.db]
-python main.py fleet list [--db am4_data.db]
+python main.py fleet import --file fleet.csv [--db /path/to/am4ops.db]
+python main.py fleet export --output fleet.csv [--db /path/to/am4ops.db]
+python main.py fleet list [--db /path/to/am4ops.db]
 
-python main.py routes import --file my_routes.csv [--db am4_data.db]
-python main.py routes export --output my_routes.csv [--db am4_data.db]
+python main.py routes import --file my_routes.csv [--db /path/to/am4ops.db]
+python main.py routes export --output my_routes.csv [--db /path/to/am4ops.db]
 
-python main.py recommend --hub KHI --budget 500000000 [--db am4_data.db] [--top 25]
+python main.py recommend --hub KHI --budget 500000000 [--db /path/to/am4ops.db] [--top 25]
 ```
 
 - **`recommend`** prints TSV of aircraft types flyable from `--hub` with `cost <= budget`, ranked by average `profit_per_ac_day` over valid extracted routes (same logic as dashboard fleet planner).

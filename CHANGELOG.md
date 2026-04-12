@@ -37,11 +37,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **SQLite defaults & documentation:** canonical database file **`am4ops.db`** with CLI/dashboard default path from **`app.paths.db_path()`** (and optional **`AM4OPS_DATA_DIR`** / **`AM4_ROUTEMINE_DB`**). **`.taskmaster/docs/prd/`**, **`PRD/perf-flamegraphs-phase2.md`**, and related spec snippets were updated from legacy **`am4_data.db`** wording; diagram and sample **`argparse`** blocks now use **`DEFAULT_DB_PATH = str(db_path())`** where appropriate. **README:** project tree lists **`.taskmaster/docs/prd/`** and PRD naming conventions; **Contributing** references both spec locations. **Docker** uses **`/app/data/am4ops.db`** (migration note there for volumes still named **`am4_data.db`**). Test fixtures use a nonexistent **`no_am4ops.db`** path for absent-DB cases.
+
 - **Buy Next (`/buy-next`, `/api/buy-next`):** flat sortable **route × aircraft × seat config** table with required hub and budget; columns for qty affordable, total daily profit, profit yield ($/d per $1M), and payback days; six sort options (A/C price asc/desc, profit/day asc/desc, yield, total daily profit at budget); default sort A/C price high→low; default row limit **15** with **Show all matches** (up to **500**); **`my_routes`** highlights — blue tint when you fly the route with another aircraft, dim with **✓ same** when hub+dest+aircraft already assigned; toggle to hide routes you already operate; 🏆 marks the row with the highest total daily profit at your budget regardless of sort. Implementation in **`dashboard/routes/api/recommendations.py`** and **`dashboard/templates/partials/buy_next_results.html`**.
 
 - **Dashboard API:** monolithic **`dashboard/routes/api_routes.py`** split into **`dashboard/routes/api/`** (`shared`, `meta`, `analytics`, `recommendations`, `fleet`, `my_routes`, `hubs`); **`api_routes.py`** re-exports **`router`** for compatibility.
 
-- **`convert_csv.py`:** **`AIRCRAFT_MAP`** shortnames aligned with am4 **`Aircraft.search`** canonical ids.
+- **`scripts/convert_csv.py`:** **`AIRCRAFT_MAP`** shortnames aligned with am4 **`Aircraft.search`** canonical ids.
 - **Airport bulk extract:** stores **every** valid am4 airport; **`min_runway`** applies only when adding a hub through **`upsert_airport_from_am4`**, not during full **`extract_all_airports`**.
 - **Dashboard default bind:** **`python main.py dashboard`** uses **`127.0.0.1`** unless **`--host 0.0.0.0`** (see README).
 - **README:** Docker section, auth / token documentation, extract option table (id max, runway note), breakeven and troubleshooting updates; **Windows (native)** install with **Visual Studio Build Tools** / MSVC (pinned **saqibj/am4** fork), PowerShell quick start, and **WSL** as optional.

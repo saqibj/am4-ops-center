@@ -17,7 +17,7 @@ def client() -> TestClient:
 @pytest.fixture
 def absent_am4_db(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Point dashboard at a non-existent DB so routes that use get_db() stay fast and deterministic."""
-    p = tmp_path / "no_am4_data.db"
+    p = tmp_path / "no_am4ops.db"
     assert not p.exists()
     monkeypatch.setattr(dashboard_db, "DB_PATH", str(p))
 

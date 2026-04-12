@@ -21,7 +21,7 @@ No static PNG is checked in: the pyinstrument HTML is interactive. Open `PRD/fla
 
 ## Summary table
 
-Values in **Total / DB / Non-DB** are from **`ProfilingMiddleware` logs** on warm **profile** requests (`?profile=1`) on 2026-04-07 against the local `am4_data.db` (session `909491` in the capture run). **Non-DB** is `total_ms - db_ms` as reported by the middleware.
+Values in **Total / DB / Non-DB** are from **`ProfilingMiddleware` logs** on warm **profile** requests (`?profile=1`) on 2026-04-07 against the local extraction SQLite file (`am4ops.db` / `db_path()`; session `909491` in the capture run). **Non-DB** is `total_ms - db_ms` as reported by the middleware.
 
 | Page | Total (ms) | DB (ms) | Non-DB (ms) | Top bottleneck (direct pyinstrument) | Category |
 |------|------------|---------|-------------|--------------------------------------|----------|

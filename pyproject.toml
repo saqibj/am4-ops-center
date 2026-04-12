@@ -1,9 +1,13 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "am4-ops-center"
 version = "0.1.1"
 description = "Bulk AM4 route extraction into SQLite, CSV/Excel, and FastAPI dashboard."
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10,<3.15"
 dependencies = [
   "am4 @ git+https://github.com/saqibj/am4.git@af2ddf7cd433b0e61c1732fbdd4780136d46aa29",
   "fastapi>=0.115.0",
@@ -18,3 +22,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+
+[tool.setuptools]
+py-modules = ["config", "main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "commands*", "dashboard*", "database*", "exporters*", "extractors*"]

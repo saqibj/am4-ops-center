@@ -2,100 +2,105 @@
   "master": {
     "tasks": [
       {
-        "id": 1,
+        "id": "1",
         "title": "Create feature branch and verify clean working tree",
         "description": "Hard gate: create a dedicated git branch for the game_mode feature before any other work begins. No subsequent task may proceed without this branch being checked out.",
-        "details": "Run these commands one at a time and verify each before continuing:\n\ngit status\n\ngit checkout main\n\ngit pull --ff-only\n\ngit checkout -b feature/game-mode-setting\n\ngit branch --show-current\n\nThe final command must output exactly: feature/game-mode-setting\n\nIf `git status` shows uncommitted changes at the start, STOP and surface them to the user. Do not stash or discard. Reference the Superpowers skill `using-git-worktrees` if parallel work is needed.\n\nNote: base branch was changed from `update-002` to `main` \u2014 `update-002` no longer exists in this repo; `main` is the active integration branch.",
+        "details": "Run these commands one at a time and verify each before continuing:\n\ngit status\n\ngit checkout main\n\ngit pull --ff-only\n\ngit checkout -b feature/game-mode-setting\n\ngit branch --show-current\n\nThe final command must output exactly: feature/game-mode-setting\n\nIf `git status` shows uncommitted changes at the start, STOP and surface them to the user. Do not stash or discard. Reference the Superpowers skill `using-git-worktrees` if parallel work is needed.\n\nNote: base branch was changed from `update-002` to `main` — `update-002` no longer exists in this repo; `main` is the active integration branch.",
         "testStrategy": "Run `git branch --show-current` and confirm output is `feature/game-mode-setting`. Run `git status` and confirm working tree is clean.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-04-13T23:02:44.003Z"
       },
       {
-        "id": 2,
+        "id": "2",
         "title": "Add settings table, DAO, and migration",
-        "description": "Introduce a single-row `app_settings` table with a `game_mode` column (default 'easy'). This is the persistence layer only \u2014 no UI yet.",
-        "details": "Files touched (max 3):\n1. `database/schema.py` \u2014 add `app_settings` table DDL with columns: `id INTEGER PRIMARY KEY CHECK (id = 1)`, `game_mode TEXT NOT NULL DEFAULT 'easy' CHECK (game_mode IN ('easy', 'realism'))`, `updated_at TEXT NOT NULL`. Add an idempotent `INSERT OR IGNORE INTO app_settings (id, game_mode, updated_at) VALUES (1, 'easy', datetime('now'))` to seed the row.\n2. `database/settings_dao.py` (new) \u2014 expose `get_game_mode() -> str` and `set_game_mode(mode: str) -> None`. Both must validate mode is in {'easy', 'realism'} and use the shared SQLite connection.\n3. `tests/test_settings_dao.py` (new) \u2014 unit tests for get/set, default value, invalid mode rejection.\n\nUse the existing connection pattern (WAL mode, shared connection). Do NOT add any new env vars. Keep changes idempotent \u2014 running schema init twice must not error.\n\nReference Superpowers skill: `test-driven-development` \u2014 write the DAO tests first, then implement.",
-        "testStrategy": "Run `pytest tests/test_settings_dao.py -v` \u2014 all tests pass. Manually: delete `am4_data.db`, run `python main.py dashboard --db am4_data.db`, then `sqlite3 am4_data.db \"SELECT * FROM app_settings;\"` \u2014 confirm one row with game_mode='easy'. Run init a second time, confirm no error and row unchanged.",
+        "description": "Introduce a single-row `app_settings` table with a `game_mode` column (default 'easy'). This is the persistence layer only — no UI yet.",
+        "details": "Files touched (max 3):\n1. `database/schema.py` — add `app_settings` table DDL with columns: `id INTEGER PRIMARY KEY CHECK (id = 1)`, `game_mode TEXT NOT NULL DEFAULT 'easy' CHECK (game_mode IN ('easy', 'realism'))`, `updated_at TEXT NOT NULL`. Add an idempotent `INSERT OR IGNORE INTO app_settings (id, game_mode, updated_at) VALUES (1, 'easy', datetime('now'))` to seed the row.\n2. `database/settings_dao.py` (new) — expose `get_game_mode() -> str` and `set_game_mode(mode: str) -> None`. Both must validate mode is in {'easy', 'realism'} and use the shared SQLite connection.\n3. `tests/test_settings_dao.py` (new) — unit tests for get/set, default value, invalid mode rejection.\n\nUse the existing connection pattern (WAL mode, shared connection). Do NOT add any new env vars. Keep changes idempotent — running schema init twice must not error.\n\nReference Superpowers skill: `test-driven-development` — write the DAO tests first, then implement.",
+        "testStrategy": "Run `pytest tests/test_settings_dao.py -v` — all tests pass. Manually: delete `am4_data.db`, run `python main.py dashboard --db am4_data.db`, then `sqlite3 am4_data.db \"SELECT * FROM app_settings;\"` — confirm one row with game_mode='easy'. Run init a second time, confirm no error and row unchanged.",
         "priority": "high",
         "dependencies": [
-          1
+          "1"
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 3,
+        "id": "3",
         "title": "Add /settings page with game_mode dropdown",
         "description": "Create a Settings page route and template exposing the game_mode selector as a dropdown (Easy / Realism). Save via HTMX, no full page reload.",
-        "details": "Files touched (max 3):\n1. `routes/settings.py` (new) \u2014 FastAPI router with `GET /settings` (renders page) and `POST /settings/game-mode` (HTMX endpoint, accepts form field `game_mode`, calls `settings_dao.set_game_mode`, returns the updated dropdown fragment). Mount router in `main.py` (single-line addition).\n2. `templates/settings.html` (new) \u2014 extends base layout. Section titled \"Game Mode\" with a `<select>` bound to `hx-post=\"/settings/game-mode\"`, `hx-trigger=\"change\"`, `hx-swap=\"outerHTML\"`. Include a short helper text: \"Easy mode disables runway-length validation and uses the easy-mode contribution multiplier (1.0). Realism mode enforces runway constraints and uses contribution multiplier 1.5.\"\n3. `templates/_partials/game_mode_select.html` (new) \u2014 extracted dropdown partial so the HTMX swap returns just the select element with the new selected value.\n\nAdd a nav entry for Settings if one does not exist (treat as a fourth file ONLY if base nav template needs editing \u2014 otherwise skip).\n\nDo not gate any behavior yet \u2014 that is Task 4. This task is purely the persistence-backed UI.",
+        "details": "Files touched (max 3):\n1. `routes/settings.py` (new) — FastAPI router with `GET /settings` (renders page) and `POST /settings/game-mode` (HTMX endpoint, accepts form field `game_mode`, calls `settings_dao.set_game_mode`, returns the updated dropdown fragment). Mount router in `main.py` (single-line addition).\n2. `templates/settings.html` (new) — extends base layout. Section titled \"Game Mode\" with a `<select>` bound to `hx-post=\"/settings/game-mode\"`, `hx-trigger=\"change\"`, `hx-swap=\"outerHTML\"`. Include a short helper text: \"Easy mode disables runway-length validation and uses the easy-mode contribution multiplier (1.0). Realism mode enforces runway constraints and uses contribution multiplier 1.5.\"\n3. `templates/_partials/game_mode_select.html` (new) — extracted dropdown partial so the HTMX swap returns just the select element with the new selected value.\n\nAdd a nav entry for Settings if one does not exist (treat as a fourth file ONLY if base nav template needs editing — otherwise skip).\n\nDo not gate any behavior yet — that is Task 4. This task is purely the persistence-backed UI.",
         "testStrategy": "Smoke test: start dashboard with `python main.py dashboard --db am4_data.db`, navigate to `/settings`, confirm dropdown shows current mode. Change to 'realism', confirm no full page reload, confirm SQL `SELECT game_mode FROM app_settings` returns 'realism'. Reload page, confirm dropdown still reads 'realism'. Change back to 'easy'.",
         "priority": "high",
         "dependencies": [
-          2
+          "2"
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 4,
+        "id": "4",
         "title": "Gate runway validation on /my-routes by game_mode",
         "description": "Skip the 'Aircraft runway requirement exceeds destination runway length' validation when game_mode is 'easy'. Show it only in 'realism'.",
-        "details": "Files touched (max 2):\n1. `routes/my_routes.py` (or wherever the runway check currently lives \u2014 locate by grepping for the exact warning string \"Aircraft runway requirement exceeds destination runway length\"). Wrap the check in `if settings_dao.get_game_mode() == 'realism':`. Cache the mode lookup per-request if the check runs in a hot loop.\n2. `templates/my_routes.html` \u2014 if the warning is rendered template-side, ensure the template branch is also mode-aware (pass `game_mode` into the template context once via `base_context`).\n\nDo NOT remove the validation logic \u2014 only gate it. Realism users must still see the warning.\n\nReference Superpowers skill: `verification-before-completion` \u2014 after the change, manually exercise BOTH modes before marking done.",
-        "testStrategy": "1. Set mode='easy' via /settings. Open /my-routes, enter Hub=LHR, Dest=OUA, Aircraft=b748. Click Save. Confirm no runway warning appears and the row saves successfully. 2. Set mode='realism' via /settings. Repeat the same input. Confirm the red 'Aircraft runway requirement exceeds destination runway length.' warning appears and the save is blocked. 3. Confirm existing valid route entries (e.g. LHR\u2192JFK with b748) save in both modes.",
+        "details": "Files touched (max 2):\n1. `routes/my_routes.py` (or wherever the runway check currently lives — locate by grepping for the exact warning string \"Aircraft runway requirement exceeds destination runway length\"). Wrap the check in `if settings_dao.get_game_mode() == 'realism':`. Cache the mode lookup per-request if the check runs in a hot loop.\n2. `templates/my_routes.html` — if the warning is rendered template-side, ensure the template branch is also mode-aware (pass `game_mode` into the template context once via `base_context`).\n\nDo NOT remove the validation logic — only gate it. Realism users must still see the warning.\n\nReference Superpowers skill: `verification-before-completion` — after the change, manually exercise BOTH modes before marking done.",
+        "testStrategy": "1. Set mode='easy' via /settings. Open /my-routes, enter Hub=LHR, Dest=OUA, Aircraft=b748. Click Save. Confirm no runway warning appears and the row saves successfully. 2. Set mode='realism' via /settings. Repeat the same input. Confirm the red 'Aircraft runway requirement exceeds destination runway length.' warning appears and the save is blocked. 3. Confirm existing valid route entries (e.g. LHR→JFK with b748) save in both modes.",
         "priority": "high",
         "dependencies": [
-          3
+          "3"
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 5,
+        "id": "5",
         "title": "Audit am4 package calls and thread game_mode through profit calculations",
-        "description": "Find every call site that invokes the `am4` package for route/profit calculation and ensure the `realism` (and `fourx` where applicable) flag matches the user's game_mode setting. The contribution multiplier differs by 1.5x between modes \u2014 wrong mode = wrong profit numbers everywhere.",
-        "details": "This is an investigation + targeted edit task. Steps:\n\n1. Grep the codebase for `am4.utils`, `AircraftRoute`, `FAPIReqUser`, `realism=`, and any function that returns profit/contribution. Produce a short inventory in a scratch markdown file under `scripts/scratch/am4-mode-audit.md` listing each call site with file:line.\n\n2. For each call site, determine the correct mode-aware parameter (typically `realism: bool`). The am4 docs confirm `realism` is on `FAPIReqUser` and the contribution formula uses `k_gm = 1.5 if realism else 1`.\n\n3. Replace hardcoded mode assumptions with `settings_dao.get_game_mode() == 'realism'`. Add a thin helper `core/game_mode.py` (new file) exposing `is_realism() -> bool` and `as_am4_kwargs() -> dict` returning `{'realism': bool, 'fourx': bool}` to keep call sites tidy.\n\n4. Re-run extraction or recompute on a known route (e.g. LHR\u2192JFK b748) in both modes and confirm the contribution component differs by 1.5x as expected.\n\nFiles touched: `core/game_mode.py` (new) plus 1-2 call-site files. If the audit reveals more than 3 call sites need editing, STOP and split into a follow-up task \u2014 do not exceed the 3-file budget in one commit.\n\nReference: am4 formulae doc \u2014 contribution multiplier k_gm = 1.5 (realism) vs 1 (easy).",
-        "testStrategy": "1. Pick a known route like LHR\u2192JFK with b748. Note current profit/AC/day on /my-routes in easy mode. 2. Switch to realism via /settings. Hard-refresh /my-routes. 3. Profit number must change (typically increase due to 1.5x contribution multiplier in realism). 4. Switch back to easy, confirm number returns to original. 5. Spot-check the new number against in-game profit on a single live route to confirm the math now matches what the user actually sees in AM4.",
+        "description": "Find every call site that invokes the `am4` package for route/profit calculation and ensure the `realism` (and `fourx` where applicable) flag matches the user's game_mode setting. The contribution multiplier differs by 1.5x between modes — wrong mode = wrong profit numbers everywhere.",
+        "details": "This is an investigation + targeted edit task. Steps:\n\n1. Grep the codebase for `am4.utils`, `AircraftRoute`, `FAPIReqUser`, `realism=`, and any function that returns profit/contribution. Produce a short inventory in a scratch markdown file under `scripts/scratch/am4-mode-audit.md` listing each call site with file:line.\n\n2. For each call site, determine the correct mode-aware parameter (typically `realism: bool`). The am4 docs confirm `realism` is on `FAPIReqUser` and the contribution formula uses `k_gm = 1.5 if realism else 1`.\n\n3. Replace hardcoded mode assumptions with `settings_dao.get_game_mode() == 'realism'`. Add a thin helper `core/game_mode.py` (new file) exposing `is_realism() -> bool` and `as_am4_kwargs() -> dict` returning `{'realism': bool, 'fourx': bool}` to keep call sites tidy.\n\n4. Re-run extraction or recompute on a known route (e.g. LHR→JFK b748) in both modes and confirm the contribution component differs by 1.5x as expected.\n\nFiles touched: `core/game_mode.py` (new) plus 1-2 call-site files. If the audit reveals more than 3 call sites need editing, STOP and split into a follow-up task — do not exceed the 3-file budget in one commit.\n\nReference: am4 formulae doc — contribution multiplier k_gm = 1.5 (realism) vs 1 (easy).",
+        "testStrategy": "1. Pick a known route like LHR→JFK with b748. Note current profit/AC/day on /my-routes in easy mode. 2. Switch to realism via /settings. Hard-refresh /my-routes. 3. Profit number must change (typically increase due to 1.5x contribution multiplier in realism). 4. Switch back to easy, confirm number returns to original. 5. Spot-check the new number against in-game profit on a single live route to confirm the math now matches what the user actually sees in AM4.",
         "priority": "high",
         "dependencies": [
-          4
+          "4"
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 6,
+        "id": "6",
         "title": "Add game_mode badge to base layout nav",
         "description": "Show the active mode in the top nav so the user always knows which constraints/multipliers are in effect. Avoids silent confusion when profit numbers shift after a mode change.",
-        "details": "Files touched (max 2):\n1. `templates/base.html` (or wherever the top nav lives) \u2014 add a small badge near the page title: `EASY` (green) or `REALISM` (amber). Tailwind classes: `bg-emerald-900 text-emerald-200` for easy, `bg-amber-900 text-amber-200` for realism. Make the badge a link to `/settings`.\n2. `core/context.py` (or wherever `base_context` is defined) \u2014 add `game_mode` to the default context dict so every template has access without per-route changes.\n\nNote: the `base_context(request, None)` stub mentioned in known issues is the natural place to do this. Do NOT fix the hub freshness banners in this task \u2014 keep scope tight.",
-        "testStrategy": "1. Navigate to /my-routes, /my-fleet, /my-hubs, / \u2014 badge appears on every page with current mode. 2. Click badge \u2014 lands on /settings. 3. Change mode in /settings, navigate to any other page \u2014 badge reflects new mode. 4. Confirm badge does not break layout on narrow viewports.",
+        "details": "Files touched (max 2):\n1. `templates/base.html` (or wherever the top nav lives) — add a small badge near the page title: `EASY` (green) or `REALISM` (amber). Tailwind classes: `bg-emerald-900 text-emerald-200` for easy, `bg-amber-900 text-amber-200` for realism. Make the badge a link to `/settings`.\n2. `core/context.py` (or wherever `base_context` is defined) — add `game_mode` to the default context dict so every template has access without per-route changes.\n\nNote: the `base_context(request, None)` stub mentioned in known issues is the natural place to do this. Do NOT fix the hub freshness banners in this task — keep scope tight.",
+        "testStrategy": "1. Navigate to /my-routes, /my-fleet, /my-hubs, / — badge appears on every page with current mode. 2. Click badge — lands on /settings. 3. Change mode in /settings, navigate to any other page — badge reflects new mode. 4. Confirm badge does not break layout on narrow viewports.",
         "priority": "medium",
         "dependencies": [
-          3
+          "3"
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 7,
+        "id": "7",
         "title": "Final verification, commit hygiene check, and merge prep",
         "description": "Walk the full feature end-to-end in both modes, confirm all commits are clean and atomic, and prepare the branch for merge into update-002.",
-        "details": "Reference Superpowers skill: `finishing-a-development-branch`.\n\nSteps:\n\n1. End-to-end smoke in EASY mode: start dashboard, /settings shows easy, /my-routes accepts LHR\u2192OUA b748 save, profit numbers visible, badge shows EASY.\n\n2. End-to-end smoke in REALISM mode: switch via /settings, /my-routes blocks LHR\u2192OUA b748 with runway warning, profit numbers on existing routes shift (contribution multiplier kicked in), badge shows REALISM.\n\n3. Commit hygiene: run `git log --oneline main..HEAD` and confirm one commit per task (Tasks 2-6 = 5 commits minimum). Squash only if commits are clearly broken intermediate states.\n\n4. Run full test suite: `pytest tests/ -v` \u2014 all green.\n\n5. Run `git diff main --stat` and visually scan for unintended changes (stray prints, commented code, scratch files outside `scripts/scratch/`).\n\n6. Push branch: `git push -u origin feature/game-mode-setting`\n\n7. Surface to user: report pass/fail of every step above, list any deferred items (e.g. \"Top Extracted panel still does not filter by runway in realism mode \u2014 separate task recommended\"), and recommend merge or further work.\n\nDo NOT auto-merge. Surface and wait for user direction.",
+        "details": "Reference Superpowers skill: `finishing-a-development-branch`.\n\nSteps:\n\n1. End-to-end smoke in EASY mode: start dashboard, /settings shows easy, /my-routes accepts LHR→OUA b748 save, profit numbers visible, badge shows EASY.\n\n2. End-to-end smoke in REALISM mode: switch via /settings, /my-routes blocks LHR→OUA b748 with runway warning, profit numbers on existing routes shift (contribution multiplier kicked in), badge shows REALISM.\n\n3. Commit hygiene: run `git log --oneline main..HEAD` and confirm one commit per task (Tasks 2-6 = 5 commits minimum). Squash only if commits are clearly broken intermediate states.\n\n4. Run full test suite: `pytest tests/ -v` — all green.\n\n5. Run `git diff main --stat` and visually scan for unintended changes (stray prints, commented code, scratch files outside `scripts/scratch/`).\n\n6. Push branch: `git push -u origin feature/game-mode-setting`\n\n7. Surface to user: report pass/fail of every step above, list any deferred items (e.g. \"Top Extracted panel still does not filter by runway in realism mode — separate task recommended\"), and recommend merge or further work.\n\nDo NOT auto-merge. Surface and wait for user direction.",
         "testStrategy": "All 7 steps above must pass. The verification report given to the user must explicitly state the easy-mode profit number and realism-mode profit number for one identical route, demonstrating the multiplier is now active.",
         "priority": "high",
         "dependencies": [
-          5,
-          6
+          "5",
+          "6"
         ],
         "status": "pending",
         "subtasks": []
       }
     ],
     "metadata": {
-      "created": "2026-04-14T12:00:00Z",
-      "updated": "2026-04-14T15:20:00Z",
-      "description": "Add game_mode (easy/realism) setting to am4-ops-center. Persists in app_settings table, exposed via /settings page dropdown, gates runway validation on /my-routes, threads through am4 package calls so profit calculations use the correct contribution multiplier (1.0 easy / 1.5 realism), and surfaces active mode as a badge in the top nav. Resolves false-positive 'runway exceeds length' warnings for easy-mode players (the actual game does not enforce runway in easy mode)."
+      "version": "1.0.0",
+      "lastModified": "2026-04-13T23:02:44.004Z",
+      "taskCount": 7,
+      "completedCount": 1,
+      "tags": [
+        "master"
+      ]
     }
   }
 }

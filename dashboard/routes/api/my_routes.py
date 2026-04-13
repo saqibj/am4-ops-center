@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -27,10 +29,46 @@ def _aircraft_catalog_for_options(conn: sqlite3.Connection | None) -> list[dict]
     try:
         return fetch_all(
             conn,
-            "SELECT shortname, name FROM aircraft ORDER BY shortname COLLATE NOCASE",
+            """
+            SELECT shortname, name, type, cost,
+                   COALESCE(fuel_mod, 0) AS fuel_mod,
+                   COALESCE(co2_mod, 0) AS co2_mod,
+                   COALESCE(speed_mod, 0) AS speed_mod
+            FROM aircraft
+            ORDER BY shortname COLLATE NOCASE
+            """,
         )
     except sqlite3.OperationalError:
         return []
+
+
+def _aircraft_meta_json(rows: list[dict]) -> str:
+    out: dict[str, dict] = {}
+    for r in rows:
+        sn = (r.get("shortname") or "").strip().lower()
+        if not sn:
+            continue
+        out[sn] = {
+            "type": (str(r.get("type") or "")).upper(),
+            "cost": int(r.get("cost") or 0),
+            "fuel_mod": int(r.get("fuel_mod") or 0),
+            "co2_mod": int(r.get("co2_mod") or 0),
+            "speed_mod": int(r.get("speed_mod") or 0),
+        }
+    return json.dumps(out)
+
+
+def _buy_next_deep_link(hub_u: str, dest_u: str, dist: float | None) -> str:
+    q: dict[str, str] = {}
+    if hub_u:
+        q["hub"] = hub_u
+    if dest_u:
+        q["dest"] = dest_u
+    if dist is not None:
+        q["distance_km"] = str(int(round(float(dist))))
+    if not q:
+        return "/buy-next"
+    return "/buy-next?" + urlencode(q)
 
 
 def _eligible_aircraft_response_mode(request: Request) -> str:
@@ -63,6 +101,11 @@ def api_routes_eligible_aircraft(
     hub_u = h.upper()
     dest_u = d.upper()
     catalog = _aircraft_catalog_for_options(conn)
+    meta_json = (
+        _aircraft_meta_json([{k: r[k] for k in r.keys()} for r in catalog])
+        if catalog
+        else "{}"
+    )
 
     def _ctx(
         *,
@@ -73,7 +116,15 @@ def api_routes_eligible_aircraft(
         error_message: str | None = None,
         aircraft_catalog: list[dict] | None = None,
         form_id: str = "add-route-main",
+        aircraft_meta_json: str | None = None,
+        buy_next_deep_link: str | None = None,
     ) -> dict:
+        cat = aircraft_catalog if aircraft_catalog is not None else catalog
+        dlink = (
+            buy_next_deep_link
+            if buy_next_deep_link is not None
+            else _buy_next_deep_link(hub_u, dest_u, dist)
+        )
         return {
             "hub": hub_u,
             "dest": dest_u,
@@ -82,8 +133,10 @@ def api_routes_eligible_aircraft(
             "empty_reason": empty_reason,
             "incomplete": incomplete,
             "error_message": error_message,
-            "aircraft_catalog": aircraft_catalog if aircraft_catalog is not None else catalog,
+            "aircraft_catalog": cat,
             "form_id": form_id,
+            "aircraft_meta_json": aircraft_meta_json if aircraft_meta_json is not None else meta_json,
+            "buy_next_deep_link": dlink,
         }
 
     if not h or not d:

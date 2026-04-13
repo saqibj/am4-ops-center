@@ -18,26 +18,10 @@
           hx-swap="innerHTML"
           hx-indicator="#fleet-inv-spinner"
           hx-on::after-request="if (event.detail.elt !== event.currentTarget) return; if (event.detail.successful && event.detail.xhr.responseText.indexOf('data-fleet-error') === -1) { document.getElementById('fleet-add-form').reset(); htmx.ajax('GET', '/api/fleet/summary', { target: '#fleet-summary', swap: 'innerHTML' }); }">
-        <div>
-            <label class="block text-xs am4-text-secondary mb-1">Aircraft (shortname)</label>
-            <input type="text" name="aircraft" list="fleet-ac-list" required placeholder="e.g. b738"
-                   class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono lowercase">
-            <datalist id="fleet-ac-list">
-                {% for ac in aircraft %}
-                <option value="{{ ac.shortname }}">{{ ac.shortname }} — {{ ac.name }}</option>
-                {% endfor %}
-            </datalist>
-        </div>
-        <div>
-            <label class="block text-xs am4-text-secondary mb-1">Count</label>
-            <input type="number" name="quantity" value="1" min="1" max="999" step="1"
-                   class="am4-input rounded-md px-3 py-2 w-24 font-mono">
-        </div>
-        <div>
-            <label class="block text-xs am4-text-secondary mb-1">Notes (optional)</label>
-            <input type="text" name="notes" placeholder="Optional"
-                   class="am4-input rounded-md px-3 py-2 min-w-[12rem]">
-        </div>
+        {% set variant = "compact" %}
+        {% set ac_datalist_id = "fleet-ac-list" %}
+        {% set aircraft_catalog = aircraft %}
+        {% include "partials/_fleet_entry_fields.html" %}
         <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 rounded-md px-4 py-2 text-sm font-medium">
             Save
         </button>

@@ -32,41 +32,10 @@
 {% endif %}
 
 {% if not incomplete and not error_message and distance_km is not none and not aircraft %}
-<div id="add-route-inline-fleet" class="mt-4 p-4 rounded-lg am4-bordered am4-sunken space-y-3" data-inline-fleet="1">
-  <p class="text-sm am4-text-secondary">
-    No aircraft in <span class="font-mono">My Fleet</span> can fly this leg with current assignments.
-    Add a type below (same as <a href="/my-fleet" class="am4-accent hover:underline">My Fleet</a>), then the list above refreshes automatically.
-    For purchase planning, open <a href="/buy-next" target="_blank" rel="noopener noreferrer" class="am4-accent hover:underline">Buy Next</a> in a new tab and pick hub <span class="font-mono">{{ hub }}</span>.
-  </p>
-  <form id="add-route-fleet-inline" class="flex flex-wrap gap-3 items-end"
-        hx-post="/api/fleet/add"
-        hx-swap="none"
-        hx-on::after-request="if (event.detail.successful &amp;&amp; event.detail.xhr &amp;&amp; event.detail.xhr.responseText &amp;&amp; event.detail.xhr.responseText.indexOf('data-fleet-error') === -1) { var h=document.getElementById('add-route-hub'); var d=document.getElementById('add-route-dest'); if (h &amp;&amp; d) { htmx.ajax('GET', '/api/routes/eligible-aircraft', {target:'#aircraft-select-target', swap:'innerHTML', values:{hub:h.value.trim(), dest:d.value.trim()}}); } this.reset(); }">
-    <div>
-      <label class="block text-xs am4-text-secondary mb-1">Aircraft shortname</label>
-      <input type="text" name="aircraft" list="add-route-inline-ac-list" required placeholder="e.g. b738"
-             autocomplete="off"
-             class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono lowercase">
-      <datalist id="add-route-inline-ac-list">
-        {% for ac in aircraft_catalog %}
-        <option value="{{ ac.shortname }}">{{ ac.shortname }} — {{ ac.name }}</option>
-        {% endfor %}
-      </datalist>
-    </div>
-    <div>
-      <label class="block text-xs am4-text-secondary mb-1">Quantity</label>
-      <input type="number" name="quantity" value="1" min="1" max="999" step="1"
-             class="am4-input rounded-md px-3 py-2 w-24 font-mono">
-    </div>
-    <div>
-      <label class="block text-xs am4-text-secondary mb-1">Notes</label>
-      <input type="text" name="notes" placeholder="Optional"
-             class="am4-input rounded-md px-3 py-2 min-w-[12rem]">
-    </div>
-    <button type="submit" class="bg-sky-600 hover:bg-sky-500 rounded-md px-4 py-2 text-sm font-medium">
-      Add to fleet &amp; refresh
-    </button>
-  </form>
+<div id="add-route-inline-fleet" class="mt-4" data-inline-fleet="1">
+{% set variant = "inline_route" %}
+{% set inline_form_id = "add-route-fleet-inline" %}
+{% include "partials/_fleet_entry_fields.html" %}
 </div>
 {% endif %}
 </div>

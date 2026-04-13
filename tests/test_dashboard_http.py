@@ -96,6 +96,20 @@ def test_buy_next_global_page_includes_saved_filters_bar(
     assert "buynext-global-filters" in r.text
 
 
+def test_buy_next_page_presets_from_add_route_link(
+    client: TestClient, absent_am4_db: None
+) -> None:
+    r = client.get(
+        "/buy-next",
+        params={"hub": "KHI", "dest": "DXB", "distance_km": "5000"},
+    )
+    assert r.status_code == 200
+    assert "Add route" in r.text
+    assert "KHI" in r.text
+    assert "DXB" in r.text
+    assert "5000" in r.text
+
+
 # HTMX bubbles afterRequest to ancestors; without this guard, child requests (e.g. search)
 # can incorrectly trigger form.reset() on the parent form.
 _HTMX_AFTER_REQUEST_ELT_GUARD = "event.detail.elt !== event.currentTarget"
@@ -105,6 +119,7 @@ def test_my_inventory_pages_form_after_request_elt_guard(client: TestClient) -> 
     """Regression: add-route / add-hub / add-fleet forms must not reset on bubbled HTMX events."""
     for path, form_marker in (
         ("/my-routes", 'id="routes-add-form"'),
+        ("/routes/add", 'id="add-route-main"'),
         ("/my-hubs", 'id="hub-add-form"'),
         ("/my-fleet", 'id="fleet-add-form"'),
     ):

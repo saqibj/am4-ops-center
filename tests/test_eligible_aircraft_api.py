@@ -114,6 +114,44 @@ def test_eligible_aircraft_empty_reason_in_html(tmp_path, monkeypatch) -> None:
     assert "5,000 km" in r.text or "5000 km" in r.text
 
 
+def test_eligible_aircraft_empty_html_inline_fleet_markup(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "elig_inline.db"
+    conn = get_connection(db_path)
+    create_schema(conn)
+    conn.execute(
+        "INSERT INTO airports (id, iata, rwy) VALUES (1, 'KHI', 3000), (2, 'DXB', 4000)"
+    )
+    conn.execute(
+        """
+        INSERT INTO aircraft (id, shortname, name, type, range_km, rwy, capacity, cost)
+        VALUES (1, 'only', 'Only type', 'PAX', 5000, 1500, 180, 123456789)
+        """
+    )
+    conn.execute("INSERT INTO my_fleet (aircraft_id, quantity) VALUES (1, 2)")
+    conn.execute(
+        "INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned) VALUES (1, 2, 1, 2)"
+    )
+    conn.execute(
+        """
+        INSERT INTO route_demands (origin_id, dest_id, distance_km, demand_y, demand_j, demand_f)
+        VALUES (1, 2, 5000, 1, 0, 0)
+        """
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(dbm, "DB_PATH", str(db_path))
+    client = TestClient(app)
+    r = client.get(
+        "/api/routes/eligible-aircraft",
+        params={"hub": "KHI", "dest": "DXB"},
+        headers={"Accept": "text/html"},
+    )
+    assert r.status_code == 200
+    assert 'data-inline-fleet-entry="1"' in r.text
+    assert "arf-submit" in r.text
+    assert "/buy-next?" in r.text and "hub=KHI" in r.text
+
+
 def test_eligible_aircraft_json_unknown_airport(tmp_path, monkeypatch) -> None:
     db_path = tmp_path / "elig4.db"
     _seed_db(db_path)

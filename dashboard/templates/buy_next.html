@@ -9,6 +9,16 @@
 </p>
 <a href="/buy-next/global" class="text-xs am4-accent hover:underline">Browse globally instead →</a>
 
+{% if preset_hub %}
+<p class="text-sm am4-accent mb-3 rounded-md am4-bordered am4-sunken px-3 py-2">
+    From <strong>Add route</strong>:
+    hub <span class="font-mono">{{ preset_hub }}</span>
+    {% if preset_dest %}→ <span class="font-mono">{{ preset_dest }}</span>{% endif %}
+    {% if preset_distance_km %}<span class="am4-text-secondary"> (~{{ preset_distance_km }} km)</span>{% endif %}
+    — pick budget below, then results load as usual.
+</p>
+{% endif %}
+
 {% include "partials/saved_filters_bar.html" %}
 
 <form id="buynext-filters" class="flex flex-wrap gap-4 mb-6 items-end">
@@ -21,10 +31,10 @@
                 hx-include="#buynext-filters"
                 hx-indicator="#buynext-spinner"
                 class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono">
-            <option value="" disabled selected>Select hub...</option>
+            <option value="" disabled {% if not preset_hub %}selected{% endif %}>Select hub...</option>
             {% for h in hubs %}
             {% set fhb = hub_freshness_by_iata.get(h|upper, {}) %}
-            <option value="{{ h }}">{{ h }}{{ fhb.get('option_suffix', '') }}</option>
+            <option value="{{ h }}" {% if preset_hub and h|upper == preset_hub %}selected{% endif %}>{{ h }}{{ fhb.get('option_suffix', '') }}</option>
             {% endfor %}
         </select>
     </div>

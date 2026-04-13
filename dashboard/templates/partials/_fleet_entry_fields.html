@@ -1,0 +1,152 @@
+{# variant: "compact" (My Fleet add row) | "inline_route" (Add route — no eligible aircraft) #}
+{% if variant == 'compact' %}
+<div>
+    <label class="block text-xs am4-text-secondary mb-1">Aircraft (shortname)</label>
+    <input type="text" name="aircraft" list="{{ ac_datalist_id }}" required placeholder="e.g. b738"
+           class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono lowercase">
+    <datalist id="{{ ac_datalist_id }}">
+        {% for ac in aircraft_catalog %}
+        <option value="{{ ac.shortname }}">{{ ac.shortname }} — {{ ac.name }}</option>
+        {% endfor %}
+    </datalist>
+</div>
+<div>
+    <label class="block text-xs am4-text-secondary mb-1">Count</label>
+    <input type="number" name="quantity" value="1" min="1" max="999" step="1"
+           class="am4-input rounded-md px-3 py-2 w-24 font-mono">
+</div>
+<div>
+    <label class="block text-xs am4-text-secondary mb-1">Notes (optional)</label>
+    <input type="text" name="notes" placeholder="Optional"
+           class="am4-input rounded-md px-3 py-2 min-w-[12rem]">
+</div>
+{% elif variant == 'inline_route' %}
+<div class="space-y-4" data-inline-fleet-entry="1" data-route-hub="{{ hub }}" data-route-dest="{{ dest }}">
+    <script type="application/json" class="arf-aircraft-meta">{{ aircraft_meta_json }}</script>
+
+    <p class="text-sm am4-text-secondary">
+        No aircraft in <span class="font-mono">My Fleet</span> can fly this leg with current assignments.
+        Add a type below (same idea as <a href="/my-fleet" class="am4-accent hover:underline">My Fleet</a>), then the list above refreshes.
+        <a href="{{ buy_next_deep_link }}" target="_blank" rel="noopener noreferrer" class="am4-accent hover:underline">Open Buy Next</a>
+        for hub <span class="font-mono">{{ hub }}</span>{% if dest %} → <span class="font-mono">{{ dest }}</span>{% endif %}{% if distance_km is not none %} (~{{ distance_km|int }} km){% endif %} (enter a budget there to rank purchases).
+    </p>
+
+    <form id="{{ inline_form_id }}"
+          class="space-y-4"
+          hx-post="/api/fleet/add"
+          hx-params="aircraft,quantity,notes"
+          hx-swap="none"
+          hx-on::after-request="if (event.detail.successful &amp;&amp; event.detail.xhr &amp;&amp; event.detail.xhr.responseText &amp;&amp; event.detail.xhr.responseText.indexOf('data-fleet-error') === -1) { var h=document.getElementById('add-route-hub'); var d=document.getElementById('add-route-dest'); if (h &amp;&amp; d) { htmx.ajax('GET', '/api/routes/eligible-aircraft', {target:'#aircraft-select-target', swap:'innerHTML', values:{hub:h.value.trim(), dest:d.value.trim()}}); } }">
+
+        <div class="flex flex-wrap gap-4 items-end am4-bordered rounded-lg p-3 am4-sunken">
+            <div class="min-w-[8rem]">
+                <label class="block text-xs am4-text-secondary mb-1">Route hub</label>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <input type="text" id="arf-hub-display" readonly
+                           value="{{ hub }}"
+                           class="am4-input rounded-md px-3 py-2 w-24 font-mono uppercase bg-black/20"
+                           title="Locked to route origin">
+                    <label class="inline-flex items-center gap-2 text-xs am4-text-secondary cursor-pointer">
+                        <input type="checkbox" id="arf-hub-override" class="h-4 w-4 rounded border am4-border">
+                        Override hub
+                    </label>
+                </div>
+                <input type="text" id="arf-hub-override-input" value="{{ hub }}"
+                       maxlength="4"
+                       class="am4-input rounded-md px-3 py-2 w-24 font-mono uppercase mt-2 hidden"
+                       placeholder="IATA"
+                       title="For your notes only until route+fleet save supports per-hub buys">
+            </div>
+
+            <div class="min-w-[10rem]">
+                <label class="block text-xs am4-text-secondary mb-1">Aircraft shortname</label>
+                <input type="text" name="aircraft" id="arf-aircraft" list="arf-ac-list" required autocomplete="off"
+                       placeholder="e.g. b738"
+                       class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono lowercase">
+                <datalist id="arf-ac-list">
+                    {% for ac in aircraft_catalog %}
+                    <option value="{{ ac.shortname }}">{{ ac.shortname }} — {{ ac.name }} ({{ ac.type or '?' }})</option>
+                    {% endfor %}
+                </datalist>
+            </div>
+
+            <div>
+                <label class="block text-xs am4-text-secondary mb-1">Quantity</label>
+                <input type="number" name="quantity" id="arf-qty" value="1" min="1" max="999" step="1" required
+                       class="am4-input rounded-md px-3 py-2 w-24 font-mono">
+            </div>
+
+            <div class="min-w-[12rem]">
+                <label class="block text-xs am4-text-secondary mb-1">Notes</label>
+                <input type="text" name="notes" id="arf-notes" placeholder="Optional"
+                       class="am4-input rounded-md px-3 py-2 min-w-[12rem]">
+            </div>
+        </div>
+
+        <p id="arf-est-cost" class="text-sm am4-text-muted font-mono" data-est-cost-wrap="1">Estimated list price: —</p>
+
+        <div id="arf-pax-config" class="flex flex-wrap gap-3 items-end am4-bordered rounded-lg p-3 am4-sunken">
+            <p class="w-full text-xs am4-text-secondary uppercase tracking-wider">Passenger config (seats / trip)</p>
+            <div>
+                <label class="block text-xs am4-text-secondary mb-1">Y</label>
+                <input type="number" id="arf-cfg-y" min="0" max="900" step="1" value=""
+                       class="am4-input rounded-md px-3 py-2 w-20 font-mono" data-inline-fleet-field="1">
+            </div>
+            <div>
+                <label class="block text-xs am4-text-secondary mb-1">J</label>
+                <input type="number" id="arf-cfg-j" min="0" max="200" step="1" value=""
+                       class="am4-input rounded-md px-3 py-2 w-20 font-mono" data-inline-fleet-field="1">
+            </div>
+            <div>
+                <label class="block text-xs am4-text-secondary mb-1">F</label>
+                <input type="number" id="arf-cfg-f" min="0" max="100" step="1" value=""
+                       class="am4-input rounded-md px-3 py-2 w-20 font-mono" data-inline-fleet-field="1">
+            </div>
+        </div>
+
+        <div id="arf-cargo-config" class="hidden flex flex-wrap gap-3 items-end am4-bordered rounded-lg p-3 am4-sunken">
+            <p class="w-full text-xs am4-text-secondary uppercase tracking-wider">Cargo config</p>
+            <div>
+                <label class="block text-xs am4-text-secondary mb-1">Light (L)</label>
+                <input type="number" id="arf-cargo-l" min="0" max="999" step="1" value=""
+                       class="am4-input rounded-md px-3 py-2 w-24 font-mono" data-inline-fleet-field="1">
+            </div>
+            <div>
+                <label class="block text-xs am4-text-secondary mb-1">Heavy (H)</label>
+                <input type="number" id="arf-cargo-h" min="0" max="999" step="1" value=""
+                       class="am4-input rounded-md px-3 py-2 w-24 font-mono" data-inline-fleet-field="1">
+            </div>
+        </div>
+
+        <div class="am4-bordered rounded-lg p-3 am4-sunken space-y-2">
+            <p class="text-xs am4-text-secondary uppercase tracking-wider">Mods (reference — not saved to DB yet)</p>
+            <div class="flex flex-wrap gap-4 text-sm am4-text-secondary">
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="arf-mod-speed" class="h-4 w-4 rounded border am4-border" data-inline-fleet-field="1">
+                    Speed mod
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="arf-mod-fuel" class="h-4 w-4 rounded border am4-border" data-inline-fleet-field="1">
+                    Fuel mod
+                </label>
+                <label class="inline-flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" id="arf-mod-co2" class="h-4 w-4 rounded border am4-border" data-inline-fleet-field="1">
+                    CO₂ mod
+                </label>
+            </div>
+            <div>
+                <label class="block text-xs am4-text-secondary mb-1">Engine / variant note (optional)</label>
+                <input type="text" id="arf-engine-note" placeholder="e.g. engine IV — for your notes only"
+                       class="am4-input rounded-md px-3 py-2 min-w-[16rem] max-w-full" data-inline-fleet-field="1">
+            </div>
+        </div>
+
+        <p id="arf-gate-hint" class="text-xs text-amber-400/90 min-h-[1rem]"></p>
+
+        <button type="submit" id="arf-submit" data-inline-fleet-submit="1" disabled
+                class="bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-md px-4 py-2 text-sm font-medium">
+            Add to fleet &amp; refresh
+        </button>
+    </form>
+</div>
+{% endif %}

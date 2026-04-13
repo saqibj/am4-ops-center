@@ -192,10 +192,18 @@ def page_fleet_planner(request: Request):
 
 
 @router.get("/buy-next", response_class=HTMLResponse)
-def page_buy_next(request: Request):
+def page_buy_next(
+    request: Request,
+    hub: str = "",
+    dest: str = "",
+    distance_km: str = "",
+):
     ctx = base_context(request, None)
     ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
     ctx.update(_saved_filters_bar_context("buy-next"))
+    ctx["preset_hub"] = (hub or "").strip().upper()
+    ctx["preset_dest"] = (dest or "").strip().upper()
+    ctx["preset_distance_km"] = (distance_km or "").strip()
     return templates.TemplateResponse(request, "buy_next.html", ctx)
 
 

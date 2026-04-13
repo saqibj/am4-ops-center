@@ -1,0 +1,10 @@
+<select id="game-mode-select" name="game_mode"
+        class="am4-input rounded-md px-3 py-2 w-full max-w-xs text-sm"
+        hx-post="/settings/game-mode"
+        hx-trigger="change"
+        hx-swap="outerHTML"
+        hx-include="this"
+        aria-label="Game mode">
+    <option value="easy" {% if game_mode == 'easy' %}selected{% endif %}>Easy</option>
+    <option value="realism" {% if game_mode == 'realism' %}selected{% endif %}>Realism</option>
+</select>

@@ -98,6 +98,45 @@ def test_saved_filters_save_roundtrip(saved_filters_db, auth_headers) -> None:
         conn.close()
 
 
+@pytest.fixture
+def app_settings_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "app_settings.db"
+    conn = get_connection(db_path)
+    create_schema(conn)
+    conn.close()
+    monkeypatch.setattr(dbm, "DB_PATH", str(db_path))
+    return db_path
+
+
+def test_settings_game_mode_post_requires_auth(app_settings_db) -> None:
+    client = TestClient(app)
+    r = client.post(
+        "/settings/game-mode",
+        data={"game_mode": "realism"},
+    )
+    assert r.status_code == 401
+
+
+def test_settings_game_mode_post_updates_row(app_settings_db, auth_headers) -> None:
+    client = TestClient(app)
+    r = client.post(
+        "/settings/game-mode",
+        data={"game_mode": "realism"},
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    assert 'id="game-mode-select"' in r.text
+    conn = get_connection(app_settings_db)
+    try:
+        row = conn.execute(
+            "SELECT game_mode FROM app_settings WHERE id = 1"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == "realism"
+    finally:
+        conn.close()
+
+
 def test_saved_filters_duplicate_name_returns_message(
     saved_filters_db, auth_headers
 ) -> None:

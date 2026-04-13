@@ -10,6 +10,7 @@
 
     <label for="settings-section-jump" class="lg:hidden block text-xs am4-text-secondary mb-1">Section</label>
     <select id="settings-section-jump" class="lg:hidden am4-input rounded-md px-3 py-2 w-full mb-6 text-sm" aria-label="Jump to section">
+        <option value="#game-mode">Game mode</option>
         <option value="#appearance">Appearance</option>
         <option value="#branding">Branding</option>
         <option value="#preferences">Preferences</option>
@@ -20,6 +21,7 @@
 
     <div class="lg:grid lg:grid-cols-[11rem_1fr] lg:gap-10">
         <nav class="settings-rail hidden lg:block" aria-label="Settings sections">
+            <a href="#game-mode">Game mode</a>
             <a href="#appearance">Appearance</a>
             <a href="#branding">Branding</a>
             <a href="#preferences">Preferences</a>
@@ -29,6 +31,12 @@
         </nav>
 
         <div class="min-w-0">
+            <section id="game-mode" class="settings-card scroll-mt-20">
+                <h3 class="settings-section-title">Game mode</h3>
+                <p class="text-sm am4-text-secondary mb-4">Easy mode disables runway-length validation and uses the easy-mode contribution multiplier (1.0). Realism mode enforces runway constraints and uses contribution multiplier 1.5.</p>
+                {% include "partials/game_mode_select.html" %}
+            </section>
+
             <section id="appearance" class="settings-card scroll-mt-20">
                 <h3 class="settings-section-title">Appearance</h3>
                 <p class="text-sm am4-text-secondary mb-4">Theme and display density.</p>

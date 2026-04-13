@@ -39,6 +39,8 @@ def test_settings_page_renders(client: TestClient) -> None:
     assert r.status_code == 200
     assert "Settings" in r.text
     assert "settings-page.js" in r.text
+    assert "Game mode" in r.text
+    assert 'hx-post="/settings/game-mode"' in r.text
 
 
 def test_index_renders(client: TestClient) -> None:

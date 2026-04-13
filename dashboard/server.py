@@ -39,6 +39,7 @@ async def _app_lifespan(app: FastAPI):
     from dashboard.db import _apply_pragmas, current_db_path, get_db
     from database.extraction_runs import ensure_extraction_runs_schema
     from database.saved_filters import ensure_saved_filters_schema
+    from database.settings_dao import ensure_app_settings_schema
     from database.schema import apply_route_aircraft_baseline_prices_at_path
 
     ensure_runtime_dirs()
@@ -78,6 +79,17 @@ async def _app_lifespan(app: FastAPI):
             logger.info("Schema ensured: saved_filters")
         except Exception:
             logger.exception("ensure_saved_filters_schema failed")
+            raise
+
+        try:
+            c1b = _short_setup_conn()
+            try:
+                ensure_app_settings_schema(c1b)
+            finally:
+                c1b.close()
+            logger.info("Schema ensured: app_settings")
+        except Exception:
+            logger.exception("ensure_app_settings_schema failed")
             raise
 
         try:
@@ -200,7 +212,9 @@ def redirect_contribution():
 
 
 from dashboard.routes import api_routes, pages, setup as setup_routes
+from dashboard.routes import settings as settings_routes
 
 app.include_router(pages.router)
+app.include_router(settings_routes.router)
 app.include_router(setup_routes.router)
 app.include_router(api_routes.router)

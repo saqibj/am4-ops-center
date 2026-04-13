@@ -110,8 +110,7 @@ def test_eligible_aircraft_empty_reason_in_html(tmp_path, monkeypatch) -> None:
     )
     assert r.status_code == 200
     assert "data-empty-reason" in r.text
-    assert "No eligible aircraft at KHI" in r.text
-    assert "5,000 km" in r.text or "5000 km" in r.text
+    assert "All your aircraft at KHI are already assigned to other routes." in r.text
 
 
 def test_eligible_aircraft_empty_html_inline_fleet_markup(tmp_path, monkeypatch) -> None:
@@ -147,10 +146,140 @@ def test_eligible_aircraft_empty_html_inline_fleet_markup(tmp_path, monkeypatch)
         headers={"Accept": "text/html"},
     )
     assert r.status_code == 200
+    assert "All your aircraft at KHI are already assigned to other routes." in r.text
     assert 'data-inline-fleet-entry="1"' in r.text
     assert "inline_fleet_quantity" in r.text
     assert 'form="add-route-main"' in r.text
     assert "/buy-next?" in r.text and "hub=KHI" in r.text
+
+
+def test_eligible_aircraft_fully_assigned_single_unit_json_reason(
+    tmp_path, monkeypatch
+) -> None:
+    """1× aircraft fully assigned at hub: empty list, 'all assigned' reason (not 'no fleet')."""
+    db_path = tmp_path / "elig_full1.db"
+    conn = get_connection(db_path)
+    create_schema(conn)
+    conn.execute(
+        "INSERT INTO airports (id, iata, rwy, lat, lng) VALUES "
+        "(1, 'KHI', 3000, 24.86, 67.00), (2, 'DXB', 4000, 25.25, 55.36)"
+    )
+    conn.execute(
+        """
+        INSERT INTO aircraft (id, shortname, name, type, range_km, rwy, capacity)
+        VALUES (1, 'solo', 'Solo type', 'PAX', 5000, 1500, 180)
+        """
+    )
+    conn.execute("INSERT INTO my_fleet (aircraft_id, quantity) VALUES (1, 1)")
+    conn.execute(
+        """
+        INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned)
+        VALUES (1, 2, 1, 1)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO route_demands (origin_id, dest_id, distance_km, demand_y, demand_j, demand_f)
+        VALUES (1, 2, 5000, 100, 10, 1)
+        """
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(dbm, "DB_PATH", str(db_path))
+    client = TestClient(app)
+    r = client.get(
+        "/api/routes/eligible-aircraft",
+        params={"hub": "KHI", "dest": "DXB", "format": "json"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["aircraft"] == []
+    assert (
+        data["empty_reason"]
+        == "All your aircraft at KHI are already assigned to other routes."
+    )
+    assert "don't own any aircraft" not in (data["empty_reason"] or "").lower()
+
+
+def test_eligible_aircraft_fully_assigned_single_unit_html_inline_expands(
+    tmp_path, monkeypatch
+) -> None:
+    db_path = tmp_path / "elig_full1_html.db"
+    conn = get_connection(db_path)
+    create_schema(conn)
+    conn.execute(
+        "INSERT INTO airports (id, iata, rwy, lat, lng) VALUES "
+        "(1, 'KHI', 3000, 24.86, 67.00), (2, 'DXB', 4000, 25.25, 55.36)"
+    )
+    conn.execute(
+        """
+        INSERT INTO aircraft (id, shortname, name, type, range_km, rwy, capacity)
+        VALUES (1, 'solo', 'Solo type', 'PAX', 5000, 1500, 180)
+        """
+    )
+    conn.execute("INSERT INTO my_fleet (aircraft_id, quantity) VALUES (1, 1)")
+    conn.execute(
+        """
+        INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned)
+        VALUES (1, 2, 1, 1)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO route_demands (origin_id, dest_id, distance_km, demand_y, demand_j, demand_f)
+        VALUES (1, 2, 5000, 100, 10, 1)
+        """
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(dbm, "DB_PATH", str(db_path))
+    client = TestClient(app)
+    r = client.get(
+        "/api/routes/eligible-aircraft",
+        params={"hub": "KHI", "dest": "DXB"},
+        headers={"Accept": "text/html"},
+    )
+    assert r.status_code == 200
+    # Eligible <select> is empty (no "Choose aircraft"); inline datalist still lists catalog types.
+    assert "— Choose aircraft —" not in r.text
+    assert "No eligible aircraft" in r.text
+    assert 'data-inline-fleet-entry="1"' in r.text
+    assert "All your aircraft at KHI are already assigned" in r.text
+
+
+def test_eligible_aircraft_no_fleet_global_json_reason(tmp_path, monkeypatch) -> None:
+    """No rows in my_fleet: distinct copy for zero-owned case."""
+    db_path = tmp_path / "elig_nofleet.db"
+    conn = get_connection(db_path)
+    create_schema(conn)
+    conn.execute(
+        "INSERT INTO airports (id, iata, rwy, lat, lng) VALUES "
+        "(1, 'KHI', 3000, 24.86, 67.00), (2, 'DXB', 4000, 25.25, 55.36)"
+    )
+    conn.execute(
+        """
+        INSERT INTO aircraft (id, shortname, name, type, range_km, rwy, capacity)
+        VALUES (1, 'ghost', 'Ghost', 'PAX', 5000, 1500, 180)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO route_demands (origin_id, dest_id, distance_km, demand_y, demand_j, demand_f)
+        VALUES (1, 2, 5000, 100, 10, 1)
+        """
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(dbm, "DB_PATH", str(db_path))
+    client = TestClient(app)
+    r = client.get(
+        "/api/routes/eligible-aircraft",
+        params={"hub": "KHI", "dest": "DXB", "format": "json"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["aircraft"] == []
+    assert data["empty_reason"] == "You don't own any aircraft at KHI yet."
 
 
 def test_eligible_aircraft_only_unassigned_my_fleet_at_hub(

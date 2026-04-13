@@ -96,16 +96,36 @@ def eligible_aircraft_empty_reason(
     dest_iata: str,
     distance_km: float,
 ) -> str:
-    """Human-readable explanation when ``get_eligible_aircraft`` returns no rows."""
-    row = conn.execute("SELECT COUNT(*) FROM my_fleet").fetchone()
-    n_fleet = int(row[0] or 0) if row else 0
+    """Human-readable explanation when ``get_eligible_aircraft`` returns no rows.
+
+    Picks the most specific case: no fleet, all units assigned at this hub, or
+    runway/range blocks every type that still has free units at the hub.
+    """
+    hub = hub_iata.strip().upper()
+
+    hub_row = conn.execute(
+        "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = ? LIMIT 1",
+        (hub,),
+    ).fetchone()
+    if hub_row is None:
+        return f"No aircraft at {hub} can fly this route (range or runway)."
+    hub_id = int(hub_row[0])
+
+    n_fleet = int(conn.execute("SELECT COUNT(*) FROM my_fleet").fetchone()[0] or 0)
     if n_fleet == 0:
-        return "Add aircraft in My Fleet first."
-    return (
-        f"No eligible aircraft at {hub_iata} for {dest_iata} ({distance_km:,.0f} km). "
-        "Check aircraft range, runway length at both airports, or planes already assigned "
-        "from this hub."
-    )
+        return f"You don't own any aircraft at {hub} yet."
+
+    any_avail_at_hub = False
+    for row in conn.execute("SELECT aircraft_id FROM my_fleet"):
+        aid = int(row[0])
+        if available_aircraft_at_hub(conn, hub_id, aid) >= 1:
+            any_avail_at_hub = True
+            break
+
+    if not any_avail_at_hub:
+        return f"All your aircraft at {hub} are already assigned to other routes."
+
+    return f"No aircraft at {hub} can fly this route (range or runway)."
 
 
 def get_eligible_aircraft(

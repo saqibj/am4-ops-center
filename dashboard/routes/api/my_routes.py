@@ -14,6 +14,7 @@ from app.services.fleet_service import (
     get_eligible_aircraft,
     lookup_route_distance_km,
 )
+from app.services.route_validator import validate_route
 from dashboard.auth import check_auth_token
 from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db, get_read_db
 from dashboard.server import templates
@@ -528,6 +529,7 @@ def api_routes_add(
     notes: str = Form(""),
 ):
     msg: str | None = None
+    use_flash_err = False
     try:
         conn = get_db()
         try:
@@ -553,56 +555,71 @@ def api_routes_add(
             elif not ac:
                 msg = "Unknown aircraft shortname."
             else:
-                n = int(num_assigned) if num_assigned else 1
-                n = max(1, min(999, n))
-                prev = fetch_one(
+                vr = validate_route(
                     conn,
-                    """
-                    SELECT num_assigned FROM my_routes
-                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
-                    """,
-                    [int(hub["id"]), int(dest["id"]), int(ac["id"])],
+                    hub_iata.strip(),
+                    destination_iata.strip(),
+                    aircraft.strip(),
+                    None,
                 )
-                conn.execute(
-                    """
-                    INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
-                    VALUES (?, ?, ?, ?, ?, datetime('now'))
-                    ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
-                        num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
-                        notes = CASE
-                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
-                            THEN excluded.notes
-                            ELSE my_routes.notes
-                        END,
-                        updated_at = datetime('now')
-                    """,
-                    (
-                        int(hub["id"]),
-                        int(dest["id"]),
-                        int(ac["id"]),
-                        n,
-                        notes.strip() or None,
-                    ),
-                )
-                conn.commit()
-                after = fetch_one(
-                    conn,
-                    """
-                    SELECT num_assigned FROM my_routes
-                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
-                    """,
-                    [int(hub["id"]), int(dest["id"]), int(ac["id"])],
-                )
-                if prev:
-                    msg = (
-                        f"Merged +{n} (now {int(after['num_assigned']) if after else n} assigned for "
-                        f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()} / {aircraft.strip()})."
-                    )
+                if vr["errors"]:
+                    msg = "; ".join(vr["errors"])
+                    use_flash_err = True
                 else:
-                    msg = (
-                        f"Added {n} × {aircraft.strip()} on "
-                        f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()}."
+                    n = int(num_assigned) if num_assigned else 1
+                    n = max(1, min(999, n))
+                    prev = fetch_one(
+                        conn,
+                        """
+                        SELECT num_assigned FROM my_routes
+                        WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                        """,
+                        [int(hub["id"]), int(dest["id"]), int(ac["id"])],
                     )
+                    conn.execute(
+                        """
+                        INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
+                        VALUES (?, ?, ?, ?, ?, datetime('now'))
+                        ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
+                            num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
+                            notes = CASE
+                                WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                                THEN excluded.notes
+                                ELSE my_routes.notes
+                            END,
+                            updated_at = datetime('now')
+                        """,
+                        (
+                            int(hub["id"]),
+                            int(dest["id"]),
+                            int(ac["id"]),
+                            n,
+                            notes.strip() or None,
+                        ),
+                    )
+                    conn.commit()
+                    after = fetch_one(
+                        conn,
+                        """
+                        SELECT num_assigned FROM my_routes
+                        WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                        """,
+                        [int(hub["id"]), int(dest["id"]), int(ac["id"])],
+                    )
+                    parts: list[str] = []
+                    if prev:
+                        parts.append(
+                            f"Merged +{n} (now {int(after['num_assigned']) if after else n} assigned for "
+                            f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()} / {aircraft.strip()})."
+                        )
+                    else:
+                        parts.append(
+                            f"Added {n} × {aircraft.strip()} on "
+                            f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()}."
+                        )
+                    if vr["warnings"]:
+                        parts.append(" ".join(vr["warnings"]))
+                    msg = " ".join(parts)
         finally:
             conn.close()
     except FileNotFoundError:
@@ -622,7 +639,12 @@ def api_routes_add(
         routes = []
 
     ctx: dict = {"routes": routes}
-    if msg and ("Unknown" in msg or "Database" in msg or "missing" in msg):
+    if msg and (
+        use_flash_err
+        or "Unknown" in msg
+        or "Database" in msg
+        or "missing" in msg
+    ):
         ctx["flash_err"] = msg
     elif msg:
         ctx["flash"] = msg

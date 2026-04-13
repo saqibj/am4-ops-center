@@ -1,0 +1,6 @@
+-- Migration: v_fleet_availability (task 8).
+-- Idempotent path: database.schema.migrate_add_unique_constraints(conn) or
+--   database.schema._recreate_dashboard_views(conn) — both run DASHBOARD_VIEWS_SQL
+--   from database/schema.py (includes DROP/CREATE for this view).
+-- Manual: execute the v_fleet_availability block from SCHEMA_SQL or DASHBOARD_VIEWS_SQL
+--   in database/schema.py after my_routes / my_fleet exist.

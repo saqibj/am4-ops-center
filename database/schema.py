@@ -296,6 +296,24 @@ JOIN airports ho ON mr.origin_id = ho.id
 JOIN airports hd ON mr.dest_id = hd.id
 JOIN aircraft ac ON mr.aircraft_id = ac.id;
 
+-- Per hub where the user has at least one my_routes row for that aircraft.
+-- Rows only appear when there is route assignment data; aircraft with fleet but no routes are omitted.
+DROP VIEW IF EXISTS v_fleet_availability;
+CREATE VIEW v_fleet_availability AS
+SELECT
+    mf.aircraft_id,
+    ac.shortname AS aircraft,
+    mr.origin_id AS hub_airport_id,
+    ho.iata AS hub_iata,
+    mf.quantity AS owned_qty,
+    COALESCE(SUM(mr.num_assigned), 0) AS assigned_at_hub,
+    mf.quantity - COALESCE(SUM(mr.num_assigned), 0) AS available_at_hub
+FROM my_fleet mf
+JOIN aircraft ac ON ac.id = mf.aircraft_id
+JOIN my_routes mr ON mr.aircraft_id = mf.aircraft_id
+JOIN airports ho ON ho.id = mr.origin_id
+GROUP BY mf.aircraft_id, mr.origin_id, ac.shortname, mf.quantity, ho.iata;
+
 DROP VIEW IF EXISTS v_best_routes;
 CREATE VIEW v_best_routes AS
 SELECT
@@ -390,6 +408,24 @@ FROM my_routes mr
 JOIN airports ho ON mr.origin_id = ho.id
 JOIN airports hd ON mr.dest_id = hd.id
 JOIN aircraft ac ON mr.aircraft_id = ac.id;
+
+-- Per hub where the user has at least one my_routes row for that aircraft.
+-- Rows only appear when there is route assignment data; aircraft with fleet but no routes are omitted.
+DROP VIEW IF EXISTS v_fleet_availability;
+CREATE VIEW v_fleet_availability AS
+SELECT
+    mf.aircraft_id,
+    ac.shortname AS aircraft,
+    mr.origin_id AS hub_airport_id,
+    ho.iata AS hub_iata,
+    mf.quantity AS owned_qty,
+    COALESCE(SUM(mr.num_assigned), 0) AS assigned_at_hub,
+    mf.quantity - COALESCE(SUM(mr.num_assigned), 0) AS available_at_hub
+FROM my_fleet mf
+JOIN aircraft ac ON ac.id = mf.aircraft_id
+JOIN my_routes mr ON mr.aircraft_id = mf.aircraft_id
+JOIN airports ho ON ho.id = mr.origin_id
+GROUP BY mf.aircraft_id, mr.origin_id, ac.shortname, mf.quantity, ho.iata;
 
 DROP VIEW IF EXISTS v_best_routes;
 CREATE VIEW v_best_routes AS

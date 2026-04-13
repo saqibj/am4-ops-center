@@ -22,6 +22,12 @@
 {% include "partials/saved_filters_bar.html" %}
 
 <form id="buynext-filters" class="flex flex-wrap gap-4 mb-6 items-end">
+    {% if preset_dest %}
+    <input type="hidden" name="filter_dest" value="{{ preset_dest }}">
+    {% endif %}
+    {% if preset_distance_km %}
+    <input type="hidden" name="filter_distance_km" value="{{ preset_distance_km }}">
+    {% endif %}
     <div>
         <label class="block text-xs am4-text-secondary mb-1">Hub</label>
         <select name="hub"

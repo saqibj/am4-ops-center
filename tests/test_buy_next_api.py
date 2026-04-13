@@ -108,6 +108,32 @@ def test_buy_next_global_database_missing_returns_amber(
     assert "Database not found" in r.text
 
 
+def test_buy_next_page_hidden_filters_and_destination_alias(
+    client: TestClient, absent_am4_db: None
+) -> None:
+    r = client.get(
+        "/buy-next",
+        params={
+            "hub": "DXB",
+            "destination": "JFK",
+            "distance_km": "5000",
+        },
+    )
+    assert r.status_code == 200
+    assert "JFK" in r.text
+    assert "5000" in r.text
+    assert 'name="filter_dest"' in r.text
+    assert 'name="filter_distance_km"' in r.text
+
+
+def test_buy_next_page_dest_query_param_still_works(
+    client: TestClient, absent_am4_db: None
+) -> None:
+    r = client.get("/buy-next", params={"hub": "DXB", "dest": "LHR"})
+    assert r.status_code == 200
+    assert "LHR" in r.text
+
+
 def test_buy_next_limit_over_max_returns_422(client: TestClient) -> None:
     r = client.get(
         "/api/buy-next",

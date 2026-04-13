@@ -170,7 +170,7 @@
         "testStrategy": "Run on fresh DB and on existing DB copy; assert no data loss and new column defaults correctly.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -183,7 +183,7 @@
         "dependencies": [
           "4"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -196,7 +196,7 @@
         "dependencies": [
           "4"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       }
     ],
@@ -204,7 +204,7 @@
       "version": "1.0.0",
       "lastModified": "2026-04-13T13:51:51.876Z",
       "taskCount": 10,
-      "completedCount": 7,
+      "completedCount": 10,
       "tags": [
         "master"
       ]

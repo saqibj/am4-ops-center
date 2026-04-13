@@ -18,6 +18,15 @@ from dashboard.routes.api.shared import CONTRIB_SORT, _contrib_order, _query_fla
 router = APIRouter()
 
 
+def _parse_optional_float(s: str | None) -> float | None:
+    if s is None or str(s).strip() == "":
+        return None
+    try:
+        return float(str(s).strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_buy_next_budget(budget: str | None) -> tuple[int | None, str | None]:
     """Parse budget from query string.
 
@@ -70,6 +79,8 @@ def _buy_next_flat_rows(
     hide_stopovers: bool,
     hide_existing: bool,
     limit: int,
+    filter_dest_id: int | None = None,
+    filter_distance_km: float | None = None,
 ) -> list[dict]:
     # my_routes_collapsed intentionally aggregates multiple aircraft on same OD into one
     # row so highlight doesn't duplicate recommendations.
@@ -129,7 +140,14 @@ def _buy_next_flat_rows(
     if origin_id is not None:
         origin_sql = " AND ra.origin_id = ?"
         params.append(origin_id)
-    sql += origin_sql + """
+    sql += origin_sql
+    if filter_dest_id is not None:
+        sql += " AND ra.dest_id = ?"
+        params.append(filter_dest_id)
+    if filter_distance_km is not None:
+        sql += " AND ra.distance_km IS NOT NULL AND ABS(ra.distance_km - ?) <= 1.0"
+        params.append(filter_distance_km)
+    sql += """
       AND ac.cost > 0
       AND ac.cost <= ?
       AND ra.profit_per_ac_day > 0
@@ -333,6 +351,8 @@ def api_buy_next(
     hide_stopovers: int = Query(0),
     hide_existing: int = Query(0),
     limit: int = Query(15, ge=1, le=500),
+    filter_dest: str = Query(""),
+    filter_distance_km: str = Query(""),
 ):
     allowed_sorts = {
         "price_desc",
@@ -377,6 +397,20 @@ def api_buy_next(
             return HTMLResponse("<p class='text-amber-400'>Unknown hub.</p>")
         origin_id = int(hub_row["id"])
 
+        filter_dest_id: int | None = None
+        fd = (filter_dest or "").strip()
+        if fd:
+            dest_row = fetch_one(
+                conn,
+                "SELECT id FROM airports WHERE UPPER(TRIM(iata)) = UPPER(TRIM(?)) LIMIT 1",
+                [fd],
+            )
+            if not dest_row:
+                return HTMLResponse("<p class='text-amber-400'>Unknown destination filter.</p>")
+            filter_dest_id = int(dest_row["id"])
+
+        filter_dist = _parse_optional_float(filter_distance_km)
+
         rows = _buy_next_flat_rows(
             conn,
             origin_id=origin_id,
@@ -387,6 +421,8 @@ def api_buy_next(
             hide_stopovers=hide_stopovers_flag,
             hide_existing=hide_existing_flag,
             limit=limit,
+            filter_dest_id=filter_dest_id,
+            filter_distance_km=filter_dist,
         )
         _enrich_buy_next_rows(rows, int(budget_val))
         rows, truncated = _finalize_buy_next_rows(rows, sort_val, limit)

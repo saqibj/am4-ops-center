@@ -40,6 +40,52 @@
     var hubDisp = root.querySelector("#arf-hub-display");
     var hubOv = root.querySelector("#arf-hub-override");
     var hubIn = root.querySelector("#arf-hub-override-input");
+    var notes = root.querySelector("#arf-notes");
+    var eng = root.querySelector("#arf-engine-note");
+    var cancelBtn = root.querySelector("#arf-cancel");
+
+    function serializeState() {
+      function gv(el) {
+        return el ? String(el.value || "") : "";
+      }
+      function gc(el) {
+        return el && el.checked ? "1" : "0";
+      }
+      return [
+        gv(ac),
+        gv(qty),
+        gv(notes),
+        gv(y),
+        gv(j),
+        gv(f),
+        gv(cl),
+        gv(ch),
+        gc(modS),
+        gc(modF),
+        gc(modC),
+        gv(eng),
+        gc(hubOv),
+        gv(hubIn),
+      ].join("|");
+    }
+
+    function resetInlineFleet() {
+      if (ac) ac.value = "";
+      if (qty) qty.value = "1";
+      if (notes) notes.value = "";
+      if (y) y.value = "";
+      if (j) j.value = "";
+      if (f) f.value = "";
+      if (cl) cl.value = "";
+      if (ch) ch.value = "";
+      if (modS) modS.checked = false;
+      if (modF) modF.checked = false;
+      if (modC) modC.checked = false;
+      if (eng) eng.value = "";
+      if (hubOv) hubOv.checked = false;
+      syncHubUi();
+      onAcChange();
+    }
 
     function syncHubUi() {
       if (!hubOv || !hubIn || !hubDisp) return;
@@ -166,9 +212,25 @@
     if (ac) ac.addEventListener("change", onAcChange);
     if (hubOv) hubOv.addEventListener("change", syncHubUi);
 
+    var initialSnapshot = "";
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", function () {
+        if (
+          serializeState() !== initialSnapshot &&
+          !window.confirm("Discard unsaved inline fleet changes?")
+        ) {
+          return;
+        }
+        resetInlineFleet();
+        initialSnapshot = serializeState();
+        gate();
+      });
+    }
+
     syncHubUi();
     onAcChange();
     gate();
+    initialSnapshot = serializeState();
   }
 
   function initFromContainer(container) {

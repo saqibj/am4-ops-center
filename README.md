@@ -524,6 +524,14 @@ am4-ops-center/
 
 ---
 
+## Database migrations
+
+Canonical SQLite DDL (tables, indexes, views) lives in [`database/schema.py`](database/schema.py) (`SCHEMA_SQL`, `DASHBOARD_VIEWS_SQL`). Dashboard startup and helpers call `migrate_add_unique_constraints` and related routines so existing databases pick up new columns and recreated views.
+
+Human-readable notes and optional one-off snippets are under [`app/db/migrations/`](app/db/migrations/) (for example `001_my_routes_needs_extraction_refresh.sql`, `002_v_fleet_availability.sql`). Prefer running the Python migration path so the database stays consistent; use the `.sql` files when fixing an older copy manually.
+
+---
+
 ## 🚑 Troubleshooting
 
 | Issue | Fix |

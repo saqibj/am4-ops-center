@@ -198,13 +198,14 @@ def page_buy_next(
     request: Request,
     hub: str = "",
     dest: str = "",
+    destination: str = "",
     distance_km: str = "",
 ):
     ctx = base_context(request, None)
     ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
     ctx.update(_saved_filters_bar_context("buy-next"))
     ctx["preset_hub"] = (hub or "").strip().upper()
-    ctx["preset_dest"] = (dest or "").strip().upper()
+    ctx["preset_dest"] = (destination or dest or "").strip().upper()
     ctx["preset_distance_km"] = (distance_km or "").strip()
     return templates.TemplateResponse(request, "buy_next.html", ctx)
 

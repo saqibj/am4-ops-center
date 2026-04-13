@@ -1,13 +1,23 @@
 {% from 'partials/airport_badge.html' import airport_badge_expanded %}
 <div {% if flash_err %}data-routes-error="1"{% endif %}>
+    {% if success_route %}
+    <div class="mb-4 rounded-lg border border-emerald-500/35 bg-emerald-950/25 px-4 py-3">
+        <p class="text-sm text-emerald-300/95 mb-2 font-medium">Route saved</p>
+        <p class="text-xs am4-text-secondary mb-3">Use the links below to add another leg with the same aircraft or return to the full list.</p>
+        <div class="flex flex-wrap gap-3 text-sm">
+            <a href="{{ success_route.add_another_href }}"
+               class="inline-flex items-center rounded-md bg-emerald-700/90 hover:bg-emerald-600 px-3 py-1.5 text-white font-medium">
+                Add another route for this aircraft
+            </a>
+            <a href="{{ success_route.my_routes_href }}"
+               class="inline-flex items-center rounded-md am4-bordered px-3 py-1.5 am4-text-secondary hover:am4-accent">
+                Back to My Routes
+            </a>
+        </div>
+    </div>
+    {% endif %}
     {% if flash %}
     <p class="am4-accent text-sm mb-4">{{ flash }}</p>
-    {% endif %}
-    {% if needs_extraction_refresh %}
-    <p class="text-amber-400/90 text-sm mb-4 border border-amber-500/30 rounded-md px-3 py-2 am4-sunken">
-        Awaiting extraction: profitability rows for this hub, destination, and aircraft are not in the database yet.
-        Run your next route extract to refresh numbers.
-    </p>
     {% endif %}
     {% if flash_err %}
     <p class="am4-text-negative text-sm mb-4">{{ flash_err }}</p>
@@ -32,8 +42,17 @@
             </thead>
             <tbody>
                 {% for r in routes %}
-                <tr class="transition-colors">
-                    <td class="px-4 py-3">{{ airport_badge_expanded(r.hub, name=r.hub_name or '', fullname='', country=r.hub_country or '') }}</td>
+                <tr class="transition-colors {% if highlight_route_id is not none and highlight_route_id == r.id %}ring-1 ring-amber-500/50 bg-amber-950/20{% endif %}">
+                    <td class="px-4 py-3 align-top">
+                        <div class="space-y-1">
+                            {{ airport_badge_expanded(r.hub, name=r.hub_name or '', fullname='', country=r.hub_country or '') }}
+                            {% if r.needs_extraction_refresh %}
+                            <p class="text-[11px] leading-snug text-amber-400/95 border border-amber-500/25 rounded px-2 py-1 am4-sunken max-w-[14rem]">
+                                Awaiting next extraction for profitability data — run a hub extract when ready.
+                            </p>
+                            {% endif %}
+                        </div>
+                    </td>
                     <td class="px-4 py-3">{{ airport_badge_expanded(r.destination, name=r.dest_name or '', fullname=r.dest_fullname or '', country=r.dest_country or '') }}</td>
                     <td class="px-4 py-3 font-mono am4-text-secondary">{{ r.aircraft }}</td>
                     <td class="px-4 py-3 text-right font-mono">{{ r.num_assigned }}</td>

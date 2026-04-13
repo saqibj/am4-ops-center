@@ -186,6 +186,7 @@ def _my_routes_rows(conn: sqlite3.Connection) -> list[dict]:
                v.dest_country,
                v.num_assigned,
                v.notes,
+               v.needs_extraction_refresh,
                (SELECT MAX(ra.profit_per_ac_day)
                 FROM route_aircraft ra
                 WHERE ra.origin_id   = v.origin_id

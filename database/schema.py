@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS my_routes (
     aircraft_id     INTEGER NOT NULL,
     num_assigned    INTEGER NOT NULL DEFAULT 1 CHECK (num_assigned >= 1 AND num_assigned <= 999),
     notes           TEXT,
+    needs_extraction_refresh INTEGER NOT NULL DEFAULT 0 CHECK (needs_extraction_refresh IN (0, 1)),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (origin_id) REFERENCES airports(id),
@@ -278,6 +279,7 @@ SELECT
     mr.aircraft_id,
     mr.num_assigned,
     mr.notes,
+    mr.needs_extraction_refresh,
     mr.created_at,
     mr.updated_at,
     ho.iata AS hub,
@@ -372,6 +374,7 @@ SELECT
     mr.aircraft_id,
     mr.num_assigned,
     mr.notes,
+    mr.needs_extraction_refresh,
     mr.created_at,
     mr.updated_at,
     ho.iata AS hub,
@@ -840,6 +843,44 @@ def _ensure_analyze_stats(conn: sqlite3.Connection) -> None:
         pass  # route_aircraft may not exist yet
 
 
+def _migrate_my_routes_needs_extraction_refresh(conn: sqlite3.Connection) -> bool:
+    """Return True if a new column was added (views must be recreated)."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(my_routes)").fetchall()}
+    if "needs_extraction_refresh" in cols:
+        return False
+    conn.execute(
+        "ALTER TABLE my_routes ADD COLUMN needs_extraction_refresh INTEGER NOT NULL DEFAULT 0"
+    )
+    return True
+
+
+def ensure_my_routes_inventory_schema(conn: sqlite3.Connection) -> None:
+    """Idempotent: add ``needs_extraction_refresh`` to ``my_routes`` and refresh ``v_my_routes`` if needed."""
+    if _migrate_my_routes_needs_extraction_refresh(conn):
+        _recreate_dashboard_views(conn)
+
+
+def sync_my_routes_extraction_flags(conn: sqlite3.Connection) -> None:
+    """Clear ``needs_extraction_refresh`` when a valid ``route_aircraft`` row exists for the triple."""
+    try:
+        conn.execute(
+            """
+            UPDATE my_routes
+            SET needs_extraction_refresh = 0
+            WHERE needs_extraction_refresh = 1
+              AND EXISTS (
+                SELECT 1 FROM route_aircraft ra
+                WHERE ra.origin_id = my_routes.origin_id
+                  AND ra.dest_id = my_routes.dest_id
+                  AND ra.aircraft_id = my_routes.aircraft_id
+                  AND COALESCE(ra.is_valid, 0) = 1
+              )
+            """
+        )
+    except sqlite3.OperationalError:
+        pass
+
+
 def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
     """Apply unique constraints to DBs created before the schema update. Safe to run multiple times."""
     from database.extraction_runs import ensure_extraction_runs_schema
@@ -851,6 +892,7 @@ def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
         ensure_route_aircraft_baseline_prices(conn)
         ensure_extraction_runs_schema(conn)
         _migrate_route_aircraft_unique(conn)
+        _migrate_my_routes_needs_extraction_refresh(conn)
         ensure_route_aircraft_indexes(conn)
         _recreate_dashboard_views(conn)
         _ensure_analyze_stats(conn)

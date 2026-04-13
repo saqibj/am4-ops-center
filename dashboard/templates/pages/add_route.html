@@ -39,6 +39,7 @@
         <div class="relative min-w-[11rem] flex-1 max-w-md">
             <label class="block text-xs am4-text-secondary mb-1">Destination (IATA)</label>
             <input type="text" id="add-route-dest" name="destination_iata" form="add-route-main" required
+                   value="{{ prefill_destination or '' }}"
                    placeholder="JFK"
                    autocomplete="off"
                    list="add-route-airport-list"
@@ -53,7 +54,7 @@
         </div>
     </div>
 
-    <div class="mb-2">
+    <div class="mb-2" id="add-route-aircraft-wrap" data-prefill-aircraft="{{ prefill_aircraft or '' }}">
         <label class="block text-xs am4-text-secondary mb-1">Aircraft</label>
         <span id="add-route-ac-spinner" class="htmx-indicator am4-accent text-xs">Loading…</span>
         <div id="aircraft-select-target"
@@ -103,6 +104,30 @@
         <option value="{{ ap.iata }}">{{ ap.iata }} — {{ ap.name }}</option>
         {% endfor %}
     </datalist>
+    <script>
+    (function () {
+      function prefillAircraftSelect() {
+        var wrap = document.getElementById("add-route-aircraft-wrap");
+        if (!wrap) return;
+        var want = (wrap.getAttribute("data-prefill-aircraft") || "").trim().toLowerCase();
+        if (!want) return;
+        var sel = document.getElementById("aircraft-select");
+        if (!sel || sel.options.length < 2) return;
+        for (var i = 0; i < sel.options.length; i++) {
+          if ((sel.options[i].value || "").trim().toLowerCase() === want) {
+            sel.selectedIndex = i;
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+            break;
+          }
+        }
+      }
+      document.body.addEventListener("htmx:afterSwap", function (ev) {
+        if (ev.detail && ev.detail.target && ev.detail.target.id === "aircraft-select-target") {
+          prefillAircraftSelect();
+        }
+      });
+    })();
+    </script>
 </div>
 
 <div class="mb-8">

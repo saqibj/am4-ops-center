@@ -20,6 +20,8 @@ from dashboard.auth import check_auth_token
 from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db, get_read_db
 from dashboard.server import templates
 
+from database.schema import ensure_my_routes_inventory_schema
+
 from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_routes_rows
 
 router = APIRouter()
@@ -521,18 +523,29 @@ def api_routes_pair_coverage(
 def api_routes_inventory(
     request: Request,
     conn: sqlite3.Connection | None = Depends(get_read_db),
+    highlight: str = Query("", description="Emphasize row with this id"),
+    fresh: str = Query("", description="Unused; reserved for future UX hints"),
 ):
+    """``highlight`` / ``fresh`` support query params from the My Routes page (return from add-route)."""
+    del fresh  # reserved for future toast/banner behavior
+    highlight_route_id: int | None = None
+    if highlight.strip().isdigit():
+        highlight_route_id = int(highlight.strip())
     if conn is None:
         routes = []
     else:
         try:
+            ensure_my_routes_inventory_schema(conn)
             routes = _my_routes_rows(conn)
         except sqlite3.OperationalError:
             routes = []
     return templates.TemplateResponse(
         request,
         "partials/my_routes_inventory.html",
-        {"routes": routes},
+        {
+            "routes": routes,
+            "highlight_route_id": highlight_route_id,
+        },
     )
 
 
@@ -591,10 +604,11 @@ def api_routes_add(
 ):
     msg: str | None = None
     use_flash_err = False
-    needs_extraction_refresh = False
+    success_route: dict[str, str | int] | None = None
     try:
         conn = get_db()
         try:
+            ensure_my_routes_inventory_schema(conn)
             conn.execute("BEGIN IMMEDIATE")
             hub = fetch_one(
                 conn,
@@ -678,16 +692,28 @@ def api_routes_add(
                             """,
                             [hub_id, dest_id, ac_id],
                         )
+                        ex_needed = (
+                            1
+                            if (iq > 0 and not _has_valid_route_aircraft_row(conn, hub_id, dest_id, ac_id))
+                            else 0
+                        )
                         conn.execute(
                             """
-                            INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
-                            VALUES (?, ?, ?, ?, ?, datetime('now'))
+                            INSERT INTO my_routes (
+                                origin_id, dest_id, aircraft_id, num_assigned, notes,
+                                needs_extraction_refresh, updated_at
+                            )
+                            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
                             ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
                                 num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
                                 notes = CASE
                                     WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
                                     THEN excluded.notes
                                     ELSE my_routes.notes
+                                END,
+                                needs_extraction_refresh = CASE
+                                    WHEN excluded.needs_extraction_refresh = 1 THEN 1
+                                    ELSE my_routes.needs_extraction_refresh
                                 END,
                                 updated_at = datetime('now')
                             """,
@@ -697,12 +723,9 @@ def api_routes_add(
                                 ac_id,
                                 n,
                                 notes.strip() or None,
+                                ex_needed,
                             ),
                         )
-                        if iq > 0 and not _has_valid_route_aircraft_row(
-                            conn, hub_id, dest_id, ac_id
-                        ):
-                            needs_extraction_refresh = True
                         conn.commit()
                         after = fetch_one(
                             conn,
@@ -712,26 +735,38 @@ def api_routes_add(
                             """,
                             [hub_id, dest_id, ac_id],
                         )
+                        rid_row = fetch_one(
+                            conn,
+                            """
+                            SELECT id FROM my_routes
+                            WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                            """,
+                            [hub_id, dest_id, ac_id],
+                        )
+                        hub_u = hub_iata.strip().upper()
+                        dest_u = destination_iata.strip().upper()
+                        ac_u = aircraft.strip()
+                        if rid_row:
+                            rid = int(rid_row["id"])
+                            success_route = {
+                                "id": rid,
+                                "add_another_href": "/routes/add?"
+                                + urlencode({"hub": hub_u, "destination": dest_u, "aircraft": ac_u}),
+                                "my_routes_href": "/my-routes?"
+                                + urlencode({"highlight": str(rid), "fresh": "1"}),
+                            }
                         parts: list[str] = []
                         if iq > 0:
                             parts.append(f"Added {iq} × {aircraft.strip()} to fleet.")
                         if prev:
                             parts.append(
                                 f"Merged +{n} (now {int(after['num_assigned']) if after else n} assigned for "
-                                f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()} / {aircraft.strip()})."
+                                f"{hub_u} → {dest_u} / {ac_u})."
                             )
                         else:
-                            parts.append(
-                                f"Added {n} × {aircraft.strip()} on "
-                                f"{hub_iata.strip().upper()} → {destination_iata.strip().upper()}."
-                            )
+                            parts.append(f"Added {n} × {ac_u} on {hub_u} → {dest_u}.")
                         if vr["warnings"]:
                             parts.append(" ".join(vr["warnings"]))
-                        if needs_extraction_refresh:
-                            parts.append(
-                                "Run extraction when you can — profitability data is not in the DB for this "
-                                "hub/destination/aircraft yet."
-                            )
                         msg = " ".join(parts)
             if not hub or not dest or not ac:
                 conn.rollback()
@@ -759,7 +794,11 @@ def api_routes_add(
     except sqlite3.OperationalError:
         routes = []
 
-    ctx: dict = {"routes": routes, "needs_extraction_refresh": needs_extraction_refresh}
+    ctx: dict = {
+        "routes": routes,
+        "success_route": success_route,
+        "highlight_route_id": None,
+    }
     if msg and (
         use_flash_err
         or "Unknown" in msg
@@ -791,7 +830,11 @@ def api_routes_delete(request: Request, my_route_id: int = Form(...)):
         return templates.TemplateResponse(
             request,
             "partials/my_routes_inventory.html",
-            {"routes": [], "flash_err": "Database not found."},
+            {
+                "routes": [],
+                "flash_err": "Database not found.",
+                "highlight_route_id": None,
+            },
         )
 
     try:
@@ -807,7 +850,11 @@ def api_routes_delete(request: Request, my_route_id: int = Form(...)):
     return templates.TemplateResponse(
         request,
         "partials/my_routes_inventory.html",
-        {"routes": routes, "flash": "Removed route row."},
+        {
+            "routes": routes,
+            "flash": "Removed route row.",
+            "highlight_route_id": None,
+        },
     )
 
 

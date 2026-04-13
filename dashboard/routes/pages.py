@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import APIRouter, Request
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
 from app.services.hubs import (
@@ -419,7 +421,11 @@ def page_scenarios(request: Request):
 
 
 @router.get("/my-routes", response_class=HTMLResponse)
-def page_my_routes(request: Request):
+def page_my_routes(
+    request: Request,
+    highlight: str = Query("", description="Route row id to emphasize"),
+    fresh: str = Query("", description="Set when returning from add-route flow"),
+):
     try:
         conn = get_db()
         try:
@@ -431,20 +437,45 @@ def page_my_routes(request: Request):
             conn.close()
     except (FileNotFoundError, sqlite3.OperationalError):
         aircraft = []
+    inv_url = "/api/routes/inventory"
+    q: dict[str, str] = {}
+    if highlight.strip().isdigit():
+        q["highlight"] = highlight.strip()
+    if fresh.strip():
+        q["fresh"] = fresh.strip()
+    if q:
+        inv_url += "?" + urlencode(q)
     ctx = base_context(request, None)
-    ctx.update({"airports": _airports_with_iata(), "aircraft": aircraft})
+    ctx.update(
+        {
+            "airports": _airports_with_iata(),
+            "aircraft": aircraft,
+            "routes_inventory_url": inv_url,
+        }
+    )
     return templates.TemplateResponse(request, "my_routes.html", ctx)
 
 
 @router.get("/routes/add", response_class=HTMLResponse)
-def page_add_route(request: Request):
+def page_add_route(
+    request: Request,
+    hub: str = Query("", description="Prefill origin hub IATA"),
+    destination: str = Query("", description="Prefill destination IATA"),
+    dest: str = Query("", description="Alias for destination"),
+    aircraft: str = Query("", description="Prefill aircraft shortname after eligible list loads"),
+):
     hubs = _origin_hub_iatas_for_fleet_plan()
-    default_hub = hubs[0] if hubs else ""
+    hub_u = (hub or "").strip().upper()
+    dest_u = (destination or dest or "").strip().upper()
+    ac_u = (aircraft or "").strip().lower()
+    default_hub = hub_u if hub_u and hub_u in hubs else (hubs[0] if hubs else "")
     ctx = base_context(request, None)
     ctx.update(
         {
             "hubs": hubs,
             "default_hub": default_hub,
+            "prefill_destination": dest_u,
+            "prefill_aircraft": ac_u,
             "airports": _airports_with_iata(),
         }
     )

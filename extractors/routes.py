@@ -23,6 +23,7 @@ from database.schema import (
     get_connection,
     replace_master_tables,
     save_extract_config,
+    sync_my_routes_extraction_flags,
 )
 from extractors.aircraft import extract_all_aircraft
 from extractors.airports import extract_all_airports
@@ -479,6 +480,7 @@ def refresh_single_hub_conn(conn: sqlite3.Connection, cfg: UserConfig, hub_iata:
             iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label
         )
         _insert_batches(conn, rr, _demands_to_map(dd), run_id=run_id)
+        sync_my_routes_extraction_flags(conn)
         save_extract_config(conn, cfg)
         snap_n = insert_snapshots_for_run(conn, run_id, [ap_id])
         finish_extraction_run(
@@ -596,6 +598,7 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
                     total_routes += len(rr)
                     total_demand_rows += len(dd)
 
+        sync_my_routes_extraction_flags(conn)
         snap_n = insert_snapshots_for_run(conn, run_id, None)
         finish_extraction_run(
             conn,

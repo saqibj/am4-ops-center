@@ -1,0 +1,8 @@
+-- Migration: my_routes.needs_extraction_refresh (task 7).
+-- Idempotent application path: database.schema.ensure_my_routes_inventory_schema(conn)
+--   or migrate_add_unique_constraints(conn) — both recreate v_my_routes.
+-- Raw ALTER is not safe to run twice; use PRAGMA table_info(my_routes) first, then:
+--
+-- ALTER TABLE my_routes ADD COLUMN needs_extraction_refresh INTEGER NOT NULL DEFAULT 0;
+--
+-- Then run DASHBOARD_VIEWS_SQL from database/schema.py to recreate v_my_routes.

@@ -6,6 +6,7 @@ import sqlite3
 from typing import Any, TypedDict
 
 from app.services.fleet_service import lookup_route_distance_km
+from database.settings_dao import read_game_mode
 
 
 class RouteValidationResult(TypedDict):
@@ -96,10 +97,12 @@ def validate_route(
     ac_type = (ac[3] or "").strip().upper()
     capacity = ac[4]
 
-    if hub_rwy is not None and ac_rwy > int(hub_rwy):
-        errors.append("Aircraft runway requirement exceeds hub runway length.")
-    if dest_rwy is not None and ac_rwy > int(dest_rwy):
-        errors.append("Aircraft runway requirement exceeds destination runway length.")
+    realism = read_game_mode(conn) == "realism"
+    if realism:
+        if hub_rwy is not None and ac_rwy > int(hub_rwy):
+            errors.append("Aircraft runway requirement exceeds hub runway length.")
+        if dest_rwy is not None and ac_rwy > int(dest_rwy):
+            errors.append("Aircraft runway requirement exceeds destination runway length.")
 
     ra_row = conn.execute(
         """

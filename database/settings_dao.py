@@ -25,15 +25,23 @@ def ensure_app_settings_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def get_game_mode(conn: sqlite3.Connection) -> str:
-    """Return current ``game_mode`` ('easy' or 'realism')."""
-    ensure_app_settings_schema(conn)
-    row = conn.execute(
-        "SELECT game_mode FROM app_settings WHERE id = 1"
-    ).fetchone()
+def read_game_mode(conn: sqlite3.Connection) -> str:
+    """Read ``game_mode`` with no commit (safe inside an outer SQLite transaction)."""
+    try:
+        row = conn.execute(
+            "SELECT game_mode FROM app_settings WHERE id = 1"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return GameMode.EASY.value
     if row is None:
         return GameMode.EASY.value
     return str(row[0])
+
+
+def get_game_mode(conn: sqlite3.Connection) -> str:
+    """Return current ``game_mode`` ('easy' or 'realism')."""
+    ensure_app_settings_schema(conn)
+    return read_game_mode(conn)
 
 
 def set_game_mode(conn: sqlite3.Connection, mode: str) -> None:

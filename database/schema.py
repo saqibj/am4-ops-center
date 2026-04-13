@@ -10,8 +10,10 @@ from pathlib import Path
 
 from config import GameMode, UserConfig
 from database.queries import _table_exists
+from database.settings_dao import APP_SETTINGS_SCHEMA_FRAGMENT, ensure_app_settings_schema
 
-SCHEMA_SQL = """
+SCHEMA_SQL = (
+    """
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS aircraft (
@@ -232,7 +234,9 @@ CREATE TABLE IF NOT EXISTS saved_filters (
 );
 
 CREATE INDEX IF NOT EXISTS idx_saved_filters_page ON saved_filters(page);
-
+"""
+    + APP_SETTINGS_SCHEMA_FRAGMENT
+    + """
 DROP VIEW IF EXISTS v_my_fleet;
 CREATE VIEW v_my_fleet AS
 SELECT
@@ -343,6 +347,7 @@ JOIN airports a_dest ON ra.dest_id = a_dest.id
 JOIN aircraft ac ON ra.aircraft_id = ac.id
 WHERE ra.is_valid = 1;
 """
+)
 
 # Recreate after migrations that DROP/rename master tables (views can become invalid).
 DASHBOARD_VIEWS_SQL = """
@@ -930,6 +935,7 @@ def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
         _migrate_route_aircraft_unique(conn)
         _migrate_my_routes_needs_extraction_refresh(conn)
         ensure_route_aircraft_indexes(conn)
+        ensure_app_settings_schema(conn)
         _recreate_dashboard_views(conn)
         _ensure_analyze_stats(conn)
         conn.commit()

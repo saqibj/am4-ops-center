@@ -31,12 +31,7 @@
         for hub <span class="font-mono">{{ hub }}</span>{% if dest %} → <span class="font-mono">{{ dest }}</span>{% endif %}{% if distance_km is not none %} (~{{ distance_km|int }} km){% endif %} (enter a budget there to rank purchases).
     </p>
 
-    <form id="{{ inline_form_id }}"
-          class="space-y-4"
-          hx-post="/api/fleet/add"
-          hx-params="aircraft,quantity,notes"
-          hx-swap="none"
-          hx-on::after-request="if (event.detail.successful &amp;&amp; event.detail.xhr &amp;&amp; event.detail.xhr.responseText &amp;&amp; event.detail.xhr.responseText.indexOf('data-fleet-error') === -1) { var h=document.getElementById('add-route-hub'); var d=document.getElementById('add-route-dest'); if (h &amp;&amp; d) { htmx.ajax('GET', '/api/routes/eligible-aircraft', {target:'#aircraft-select-target', swap:'innerHTML', values:{hub:h.value.trim(), dest:d.value.trim()}}); } }">
+    <div id="{{ inline_form_id }}" class="space-y-4" data-inline-fleet-form-wrap="1">
 
         <div class="flex flex-wrap gap-4 items-end am4-bordered rounded-lg p-3 am4-sunken">
             <div class="min-w-[8rem]">
@@ -60,7 +55,7 @@
 
             <div class="min-w-[10rem]">
                 <label class="block text-xs am4-text-secondary mb-1">Aircraft shortname</label>
-                <input type="text" name="aircraft" id="arf-aircraft" list="arf-ac-list" required autocomplete="off"
+                <input type="text" name="aircraft" id="arf-aircraft" form="add-route-main" list="arf-ac-list" required autocomplete="off"
                        placeholder="e.g. b738"
                        class="am4-input rounded-md px-3 py-2 min-w-[10rem] font-mono lowercase">
                 <datalist id="arf-ac-list">
@@ -71,14 +66,16 @@
             </div>
 
             <div>
-                <label class="block text-xs am4-text-secondary mb-1">Quantity</label>
-                <input type="number" name="quantity" id="arf-qty" value="1" min="1" max="999" step="1" required
-                       class="am4-input rounded-md px-3 py-2 w-24 font-mono">
+                <label class="block text-xs am4-text-secondary mb-1">Add to fleet (qty)</label>
+                <input type="number" name="inline_fleet_quantity" id="arf-qty" value="1" min="1" max="999" step="1" required
+                       form="add-route-main"
+                       class="am4-input rounded-md px-3 py-2 w-24 font-mono"
+                       title="Planes to add to My Fleet in the same save as the route">
             </div>
 
             <div class="min-w-[12rem]">
-                <label class="block text-xs am4-text-secondary mb-1">Notes</label>
-                <input type="text" name="notes" id="arf-notes" placeholder="Optional"
+                <label class="block text-xs am4-text-secondary mb-1">Fleet notes</label>
+                <input type="text" name="inline_fleet_notes" id="arf-notes" placeholder="Optional" form="add-route-main"
                        class="am4-input rounded-md px-3 py-2 min-w-[12rem]">
             </div>
         </div>
@@ -89,17 +86,17 @@
             <p class="w-full text-xs am4-text-secondary uppercase tracking-wider">Passenger config (seats / trip)</p>
             <div>
                 <label class="block text-xs am4-text-secondary mb-1">Y</label>
-                <input type="number" id="arf-cfg-y" min="0" max="900" step="1" value=""
+                <input type="number" name="route_config_y" id="arf-cfg-y" form="add-route-main" min="0" max="900" step="1" value=""
                        class="am4-input rounded-md px-3 py-2 w-20 font-mono" data-inline-fleet-field="1">
             </div>
             <div>
                 <label class="block text-xs am4-text-secondary mb-1">J</label>
-                <input type="number" id="arf-cfg-j" min="0" max="200" step="1" value=""
+                <input type="number" name="route_config_j" id="arf-cfg-j" form="add-route-main" min="0" max="200" step="1" value=""
                        class="am4-input rounded-md px-3 py-2 w-20 font-mono" data-inline-fleet-field="1">
             </div>
             <div>
                 <label class="block text-xs am4-text-secondary mb-1">F</label>
-                <input type="number" id="arf-cfg-f" min="0" max="100" step="1" value=""
+                <input type="number" name="route_config_f" id="arf-cfg-f" form="add-route-main" min="0" max="100" step="1" value=""
                        class="am4-input rounded-md px-3 py-2 w-20 font-mono" data-inline-fleet-field="1">
             </div>
         </div>
@@ -108,12 +105,12 @@
             <p class="w-full text-xs am4-text-secondary uppercase tracking-wider">Cargo config</p>
             <div>
                 <label class="block text-xs am4-text-secondary mb-1">Light (L)</label>
-                <input type="number" id="arf-cargo-l" min="0" max="999" step="1" value=""
+                <input type="number" name="route_cargo_l" id="arf-cargo-l" form="add-route-main" min="0" max="999" step="1" value=""
                        class="am4-input rounded-md px-3 py-2 w-24 font-mono" data-inline-fleet-field="1">
             </div>
             <div>
                 <label class="block text-xs am4-text-secondary mb-1">Heavy (H)</label>
-                <input type="number" id="arf-cargo-h" min="0" max="999" step="1" value=""
+                <input type="number" name="route_cargo_h" id="arf-cargo-h" form="add-route-main" min="0" max="999" step="1" value=""
                        class="am4-input rounded-md px-3 py-2 w-24 font-mono" data-inline-fleet-field="1">
             </div>
         </div>
@@ -143,10 +140,9 @@
 
         <p id="arf-gate-hint" class="text-xs text-amber-400/90 min-h-[1rem]"></p>
 
-        <button type="submit" id="arf-submit" data-inline-fleet-submit="1" disabled
-                class="bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-md px-4 py-2 text-sm font-medium">
-            Add to fleet &amp; refresh
-        </button>
-    </form>
+        <p id="arf-submit-hint" class="text-sm am4-text-secondary">
+            <span id="arf-ready-label" data-inline-fleet-submit="1">Configure aircraft and seats/cargo, then use <strong>Save route</strong> below to add to fleet and assign in one step.</span>
+        </p>
+    </div>
 </div>
 {% endif %}

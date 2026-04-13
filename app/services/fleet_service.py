@@ -64,6 +64,32 @@ def lookup_route_distance_km(
     return _haversine_km(float(lat1), float(lon1), float(lat2), float(lon2))
 
 
+def available_aircraft_at_hub(
+    conn: sqlite3.Connection,
+    hub_airport_id: int,
+    aircraft_id: int,
+) -> int:
+    """
+    Planes of ``aircraft_id`` still free at ``hub_airport_id``: ``my_fleet.quantity`` minus
+    ``SUM(my_routes.num_assigned)`` for that origin and aircraft. Returns ``0`` if not in fleet.
+    """
+    row = conn.execute(
+        "SELECT COALESCE(quantity, 0) FROM my_fleet WHERE aircraft_id = ?",
+        (aircraft_id,),
+    ).fetchone()
+    qty = int(row[0] or 0) if row else 0
+    row2 = conn.execute(
+        """
+        SELECT COALESCE(SUM(num_assigned), 0)
+        FROM my_routes
+        WHERE origin_id = ? AND aircraft_id = ?
+        """,
+        (hub_airport_id, aircraft_id),
+    ).fetchone()
+    asg = int(row2[0] or 0) if row2 else 0
+    return max(0, qty - asg)
+
+
 def eligible_aircraft_empty_reason(
     conn: sqlite3.Connection,
     hub_iata: str,

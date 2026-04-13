@@ -148,7 +148,8 @@ def test_eligible_aircraft_empty_html_inline_fleet_markup(tmp_path, monkeypatch)
     )
     assert r.status_code == 200
     assert 'data-inline-fleet-entry="1"' in r.text
-    assert "arf-submit" in r.text
+    assert "inline_fleet_quantity" in r.text
+    assert 'form="add-route-main"' in r.text
     assert "/buy-next?" in r.text and "hub=KHI" in r.text
 
 

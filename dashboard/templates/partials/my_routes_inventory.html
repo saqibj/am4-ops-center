@@ -3,6 +3,12 @@
     {% if flash %}
     <p class="am4-accent text-sm mb-4">{{ flash }}</p>
     {% endif %}
+    {% if needs_extraction_refresh %}
+    <p class="text-amber-400/90 text-sm mb-4 border border-amber-500/30 rounded-md px-3 py-2 am4-sunken">
+        Awaiting extraction: profitability rows for this hub, destination, and aircraft are not in the database yet.
+        Run your next route extract to refresh numbers.
+    </p>
+    {% endif %}
     {% if flash_err %}
     <p class="am4-text-negative text-sm mb-4">{{ flash_err }}</p>
     {% endif %}

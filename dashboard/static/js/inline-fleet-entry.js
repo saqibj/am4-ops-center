@@ -25,7 +25,7 @@
     var ac = root.querySelector("#arf-aircraft");
     var qty = root.querySelector("#arf-qty");
     var hint = root.querySelector("#arf-gate-hint");
-    var btn = root.querySelector("#arf-submit");
+    var readyLabel = root.querySelector("#arf-ready-label");
     var est = root.querySelector("#arf-est-cost");
     var pax = root.querySelector("#arf-pax-config");
     var cargo = root.querySelector("#arf-cargo-config");
@@ -85,7 +85,7 @@
     }
 
     function gate() {
-      if (!btn || !ac || !qty) return;
+      if (!ac || !qty) return;
       var sn = ac.value.trim().toLowerCase();
       var qv = num(qty.value);
       var m = sn ? meta[sn] : null;
@@ -95,7 +95,7 @@
       if (!sn) {
         msg = "Enter an aircraft shortname.";
       } else if (qv < 1) {
-        msg = "Quantity must be at least 1.";
+        msg = "Add-to-fleet quantity must be at least 1.";
       } else if (m && String(m.type).toUpperCase() === "CARGO") {
         var l = num(cl && cl.value);
         var h = num(ch && ch.value);
@@ -126,8 +126,21 @@
         }
       }
 
-      btn.disabled = !ok;
+      if (readyLabel) {
+        if (ok) {
+          readyLabel.innerHTML =
+            "Ready — use <strong>Save route</strong> below to add to fleet and assign.";
+          readyLabel.classList.remove("am4-text-secondary");
+          readyLabel.classList.add("text-emerald-400/90");
+        } else {
+          readyLabel.textContent =
+            "Configure aircraft and seats/cargo, then use Save route below.";
+          readyLabel.classList.add("am4-text-secondary");
+          readyLabel.classList.remove("text-emerald-400/90");
+        }
+      }
       if (hint) hint.textContent = ok ? "" : msg;
+      root.setAttribute("data-inline-fleet-ok", ok ? "1" : "0");
     }
 
     function onAcChange() {
@@ -165,6 +178,21 @@
   }
 
   document.addEventListener("DOMContentLoaded", function () {
+    var mf = document.getElementById("add-route-main");
+    if (mf && mf.getAttribute("data-ar-inline-gate") !== "1") {
+      mf.setAttribute("data-ar-inline-gate", "1");
+      mf.addEventListener("submit", function (ev) {
+        var entry = document.querySelector("[data-inline-fleet-entry]");
+        if (!entry) return;
+        if (entry.getAttribute("data-inline-fleet-ok") !== "1") {
+          ev.preventDefault();
+          var h = entry.querySelector("#arf-gate-hint");
+          if (h && !h.textContent) {
+            h.textContent = "Complete the checklist above before saving.";
+          }
+        }
+      });
+    }
     initFromContainer(document.getElementById("aircraft-select-target"));
   });
 

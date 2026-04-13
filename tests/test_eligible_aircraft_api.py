@@ -153,6 +153,59 @@ def test_eligible_aircraft_empty_html_inline_fleet_markup(tmp_path, monkeypatch)
     assert "/buy-next?" in r.text and "hub=KHI" in r.text
 
 
+def test_eligible_aircraft_only_unassigned_my_fleet_at_hub(
+    tmp_path, monkeypatch
+) -> None:
+    """Master-only types and fully-assigned fleet types must not appear in the dropdown."""
+    db_path = tmp_path / "elig_abc.db"
+    conn = get_connection(db_path)
+    create_schema(conn)
+    conn.execute(
+        "INSERT INTO airports (id, iata, rwy, lat, lng) VALUES "
+        "(1, 'KHI', 3000, 24.86, 67.00), (2, 'DXB', 4000, 25.25, 55.36)"
+    )
+    conn.executemany(
+        """
+        INSERT INTO aircraft (id, shortname, name, type, range_km, rwy, capacity)
+        VALUES (?, ?, ?, 'PAX', ?, ?, 180)
+        """,
+        [
+            (1, "atype", "A fully assigned at hub", 5000, 1500),
+            (2, "btype", "B one free", 5000, 1500),
+            (3, "ctype", "C master only", 5000, 1500),
+        ],
+    )
+    conn.execute(
+        "INSERT INTO my_fleet (aircraft_id, quantity) VALUES (1, 2), (2, 1)"
+    )
+    conn.execute(
+        """
+        INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned)
+        VALUES (1, 2, 1, 2)
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO route_demands (origin_id, dest_id, distance_km, demand_y, demand_j, demand_f)
+        VALUES (1, 2, 5000, 100, 10, 1)
+        """
+    )
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(dbm, "DB_PATH", str(db_path))
+    client = TestClient(app)
+    r = client.get(
+        "/api/routes/eligible-aircraft",
+        params={"hub": "KHI", "dest": "DXB", "format": "json"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    sns = {a["shortname"] for a in data["aircraft"]}
+    assert sns == {"btype"}
+    assert "atype" not in sns
+    assert "ctype" not in sns
+
+
 def test_eligible_aircraft_json_unknown_airport(tmp_path, monkeypatch) -> None:
     db_path = tmp_path / "elig4.db"
     _seed_db(db_path)

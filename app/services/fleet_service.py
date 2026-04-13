@@ -208,6 +208,11 @@ def get_eligible_aircraft(
 
     for row in rows:
         ac_id = int(row["aircraft_id"])
+        # Authoritative availability at this hub (must match my_fleet − assignments at origin).
+        avail_at_hub = available_aircraft_at_hub(conn, hub_id, ac_id)
+        if avail_at_hub < 1:
+            continue
+
         ac_rwy = int(row["rwy"] or 0)
         if hub_rwy is not None and ac_rwy > int(hub_rwy):
             continue
@@ -258,9 +263,7 @@ def get_eligible_aircraft(
                 cap = row["capacity"]
                 config_summary = f"capacity {int(cap)}" if cap is not None else "—"
 
-        owned = int(row["owned_count"])
-        assigned = int(row["assigned_at_hub"])
-        available = owned - assigned
+        available = avail_at_hub
 
         out.append(
             {

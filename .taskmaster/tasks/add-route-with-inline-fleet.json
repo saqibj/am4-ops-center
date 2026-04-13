@@ -1,0 +1,43 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "6a",
+        "title": "Persist purchase_price, engine, and mods on my_fleet",
+        "description": "Extend my_fleet schema and the inline fleet entry path to store purchase_price, engine choice, and mods (fuel/co2/speed) so profitability calculations for inline-added aircraft are accurate.",
+        "details": "Schema: add columns purchase_price INTEGER, engine TEXT, mod_fuel BOOLEAN DEFAULT 0, mod_co2 BOOLEAN DEFAULT 0, mod_speed BOOLEAN DEFAULT 0 to my_fleet. Migration file app/db/migrations/00X_fleet_engine_mods.sql, idempotent, update canonical schema.sql. Revise the my_fleet upsert conflict target: currently (hub, shortname) merges rows with different configs — change to (hub, shortname, engine, mod_fuel, mod_co2, mod_speed, config_hash) so distinct configs stay distinct. Inline fleet form in _fleet_entry_fields.html already collects these fields; wire them through api_routes_add to the upsert. Backfill existing rows with engine=NULL (treated as default by am4 calc). Verify route_aircraft baseline price logic still works.",
+        "testStrategy": "Unit: upsert with same (hub, shortname) but different engine creates two rows, not one. Integration: add route via inline path with non-default engine+mods, assert my_fleet row has correct values and profitability calc uses them (not defaults).",
+        "priority": "high",
+        "dependencies": ["6"],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "6b",
+        "title": "Extract compute_needs_extraction_refresh helper",
+        "description": "Centralize the logic that determines whether a route is awaiting extraction (no valid route_aircraft row for the hub+dest+aircraft+config triple) into a single reusable function, used by both the add endpoint and the my_routes inventory partial.",
+        "details": "Location: app/services/route_service.py, function compute_needs_extraction_refresh(hub, dest, shortname, config) -> bool. Replace inline logic in api_routes_add and in the Jinja context builder for my_routes_inventory.html. Ensures tasks 7/8 (persisting the flag to my_routes) have one place to change. Pure read query, no side effects.",
+        "testStrategy": "Unit tests: (a) valid route_aircraft row exists -> False; (b) no row for this triple -> True; (c) row exists but for different config -> True. Mock DB fixture.",
+        "priority": "medium",
+        "dependencies": ["6"],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": "6c",
+        "title": "Document merge-on-conflict decision for duplicate routes",
+        "description": "Task 5's validator originally treated duplicate (hub, dest, shortname) routes as a 422 error; the implemented behavior is merge-on-conflict. Document this decision and align the validator tests.",
+        "details": "Update route_validator.py docstring to explain: duplicate (hub, dest, shortname) is not an error; api_routes_add merges via ON CONFLICT on my_routes to support re-tuning an existing route's config. Update any test in tests/test_route_validator.py that asserts duplicate-is-error to instead assert duplicate-is-warning (or remove if redundant). Add a note to README or docs/decisions/ capturing the rationale.",
+        "testStrategy": "Tests: validator returns a warning (not an error) for duplicate triple; api_routes_add POST with duplicate triple returns 200 and updates the existing row's config fields.",
+        "priority": "medium",
+        "dependencies": ["6"],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "updated": "2026-04-13T13:46:13.040Z"
+    }
+  }
+}

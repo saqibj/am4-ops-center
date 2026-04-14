@@ -41,6 +41,8 @@ def test_settings_page_renders(client: TestClient) -> None:
     assert "settings-page.js" in r.text
     assert "Game mode" in r.text
     assert 'hx-post="/settings/game-mode"' in r.text
+    assert "Easy" in r.text
+    assert 'href="/settings"' in r.text and "bg-emerald-900" in r.text
 
 
 def test_index_renders(client: TestClient) -> None:

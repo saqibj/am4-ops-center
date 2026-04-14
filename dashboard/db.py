@@ -10,6 +10,7 @@ from typing import Any
 
 from app.env_compat import resolved_env_db
 from app.paths import db_path
+from database.settings_dao import read_game_mode
 from dateutil import parser as date_parser
 from fastapi import Request
 
@@ -243,6 +244,23 @@ def hub_freshness_context(
     return _hub_freshness_from_rows(request, rows)
 
 
+def _resolve_game_mode(conn: sqlite3.Connection | None) -> str:
+    """Persisted game mode for nav/badge; ``easy`` if DB missing or unreadable."""
+    if conn is not None:
+        try:
+            return read_game_mode(conn)
+        except sqlite3.OperationalError:
+            return "easy"
+    try:
+        c = get_db()
+        try:
+            return read_game_mode(c)
+        finally:
+            c.close()
+    except (FileNotFoundError, sqlite3.OperationalError):
+        return "easy"
+
+
 def base_context(
     request: Request, conn: sqlite3.Connection | None
 ) -> dict:
@@ -251,11 +269,13 @@ def base_context(
         "hub_freshness_list": [],
         "stale_hub_banner": None,
     }
+    game_mode = _resolve_game_mode(conn)
     if conn is None:
         return {
             "request": request,
             "db_name": current_db_path().name,
             "route_count": 0,
+            "game_mode": game_mode,
             **empty_fresh,
         }
     try:
@@ -273,5 +293,6 @@ def base_context(
         "request": request,
         "db_name": current_db_path().name,
         "route_count": rc,
+        "game_mode": game_mode,
         **fresh,
     }

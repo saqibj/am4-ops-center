@@ -40,7 +40,13 @@
                 class="am4-app-logo h-8 w-auto max-w-[120px] object-contain flex-shrink-0 mt-0.5"
                 data-am4-default-logo decoding="async" />
             <div class="min-w-0 flex-1">
-                <h1 class="text-xl font-bold am4-accent leading-tight">AM4 Ops Center</h1>
+                <div class="flex flex-wrap items-center gap-2">
+                    <h1 class="text-xl font-bold am4-accent leading-tight">AM4 Ops Center</h1>
+                    <a href="/settings"
+                       class="text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0 no-underline hover:opacity-90
+                       {% if game_mode == 'realism' %}bg-amber-900 text-amber-200{% else %}bg-emerald-900 text-emerald-200{% endif %}"
+                       title="Game mode — change in Settings">{% if game_mode == 'realism' %}Realism{% else %}Easy{% endif %}</a>
+                </div>
                 <p id="shell-airline-name" class="hidden text-sm am4-text-muted leading-snug mt-0.5 truncate" title=""></p>
             </div>
         </div>

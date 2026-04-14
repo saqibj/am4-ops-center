@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import io
-from pathlib import Path
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -20,6 +19,7 @@ from app.state import (
 from commands.airline import _aircraft_id, _norm_keys
 from config import UserConfig
 from database.schema import create_schema, get_connection
+from dashboard.db import base_context
 from dashboard.server import templates
 from dashboard.setup_flow import get_progress, start_extraction
 
@@ -27,15 +27,16 @@ router = APIRouter(tags=["setup"])
 
 
 def _ctx(request: Request, step: int, title: str) -> dict:
-    return {
-        "request": request,
-        "step": step,
-        "step_total": 5,
-        "step_title": title,
-        "db_name": Path(dbm.current_db_path()).name,
-        "route_count": 0,
-        "setup_complete": is_setup_complete(),
-    }
+    ctx = base_context(request, None)
+    ctx.update(
+        {
+            "step": step,
+            "step_total": 5,
+            "step_title": title,
+            "setup_complete": is_setup_complete(),
+        }
+    )
+    return ctx
 
 
 def _parse_hubs(raw: str) -> list[str]:

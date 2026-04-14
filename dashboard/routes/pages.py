@@ -19,7 +19,6 @@ from config import UserConfig
 from dashboard.db import base_context, fetch_all, fetch_one, get_db
 from database.extraction_runs import list_completed_runs
 from database.schema import load_extract_config
-from database.settings_dao import get_game_mode
 from dashboard.hub_freshness import STALE_AFTER_DAYS
 from dashboard.routes.api.saved_filters import FORM_IDS as SAVED_FILTER_FORM_IDS
 from dashboard.server import templates
@@ -518,17 +517,7 @@ def page_heatmap(request: Request):
 
 @router.get("/settings", response_class=HTMLResponse)
 def page_settings(request: Request):
-    game_mode = "easy"
-    try:
-        conn = get_db()
-        try:
-            game_mode = get_game_mode(conn)
-        finally:
-            conn.close()
-    except (FileNotFoundError, sqlite3.OperationalError):
-        game_mode = "easy"
     ctx = base_context(request, None)
     ctx["landing_paths"] = sorted(ALLOWED_LANDING_PATHS)
     ctx["app_version"] = _package_version()
-    ctx["game_mode"] = game_mode
     return templates.TemplateResponse(request, "settings.html", ctx)

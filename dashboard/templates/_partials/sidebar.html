@@ -59,6 +59,16 @@
     </details>
   </nav>
 
+  <div
+    id="sidebar-status"
+    class="am4-sidebar-status border-t border-[var(--chrome-border)] px-3 py-2 text-sm text-[var(--shell-text)]"
+    hx-get="/api/system/status"
+    hx-trigger="load"
+    hx-swap="outerHTML"
+  >
+    <p class="text-xs am4-text-muted">Loading status…</p>
+  </div>
+
   <div class="am4-sidebar__footer">
     <button id="theme-toggle" class="am4-theme-toggle" type="button" aria-label="Toggle theme">
       <svg class="am4-theme-icon am4-theme-icon--sun" viewBox="0 0 24 24" fill="none" aria-hidden="true">

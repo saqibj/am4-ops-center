@@ -1,0 +1,34 @@
+<div
+  id="sidebar-status"
+  class="am4-sidebar-status border-t border-[var(--chrome-border)] px-3 py-2 text-sm text-[var(--shell-text)]"
+  hx-get="/api/system/status"
+  hx-trigger="every 30s"
+  hx-swap="outerHTML"
+>
+  <div class="space-y-2">
+    <div>
+      <div class="flex justify-between gap-2 items-baseline">
+        <span class="text-[13px]">Extraction</span>
+        <span class="text-[11px] text-[var(--shell-muted)]">{{ sys_status.extraction_relative }}</span>
+      </div>
+      {% if sys_status.hub_bars %}
+      <div class="flex gap-0.5 h-1 w-full mt-1" role="presentation" aria-hidden="true">
+        {% for bar in sys_status.hub_bars %}
+        <span
+          class="h-1 min-w-[2px] flex-1 rounded-sm {% if bar.tier == 'fresh' %}bg-emerald-500{% elif bar.tier == 'warn' %}bg-amber-500{% elif bar.tier == 'stale' %}bg-rose-500{% else %}bg-zinc-500{% endif %}"
+          title="{{ bar.iata }}"
+        ></span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="flex justify-between gap-2 items-baseline">
+      <span class="text-[13px]">DB</span>
+      <span class="text-[11px] text-[var(--shell-muted)] font-mono">{{ "{:,}".format(sys_status.db_rows) }}</span>
+    </div>
+    <div class="flex justify-between gap-2 items-baseline">
+      <span class="text-[13px]">Workers</span>
+      <span class="text-[11px] text-[var(--shell-muted)]">{{ sys_status.workers }}</span>
+    </div>
+  </div>
+</div>

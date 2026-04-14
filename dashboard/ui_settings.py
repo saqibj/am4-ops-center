@@ -2,23 +2,23 @@
 
 Persisted in the browser as JSON in localStorage (see static/js/settings-store.js).
 Keep schema_version in sync with the JS store when the shape changes.
+Airline name and logo are server-side (SQLite + uploads); not stored here.
 """
 
 from __future__ import annotations
 
 import json
-import re
 from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
-SETTINGS_SCHEMA_VERSION = 1
+SETTINGS_SCHEMA_VERSION = 2
 SETTINGS_STORAGE_KEY = "am4-ops-center.ui-settings.v1"
 
 ThemeMode = Literal["light", "dark", "system"]
 ResolvedTheme = Literal["light", "dark"]
 UiDensity = Literal["comfortable", "compact"]
-ResetSection = Literal["appearance", "branding", "preferences", "notifications"]
+ResetSection = Literal["appearance", "preferences", "notifications"]
 
 ALLOWED_THEME_MODES: frozenset[str] = frozenset({"light", "dark", "system"})
 ALLOWED_DENSITIES: frozenset[str] = frozenset({"comfortable", "compact"})
@@ -46,28 +46,11 @@ ALLOWED_LANDING_PATHS: frozenset[str] = frozenset(
     }
 )
 
-MAX_AIRLINE_NAME_LEN = 60
-MAX_LOGO_DATA_URL_CHARS = 700_000
-
-_LOGO_PREFIXES: tuple[str, ...] = (
-    "data:image/png;base64,",
-    "data:image/jpeg;base64,",
-    "data:image/jpg;base64,",
-    "data:image/webp;base64,",
-    "data:image/gif;base64,",
-)
-
 
 @dataclass
 class AppearanceSettings:
     theme_mode: ThemeMode = "dark"
     ui_density: UiDensity = "comfortable"
-
-
-@dataclass
-class BrandingSettings:
-    airline_name: str = ""
-    airline_logo_data_url: str | None = None
 
 
 @dataclass
@@ -86,42 +69,12 @@ class NotificationSettings:
 class UiSettings:
     schema_version: int = SETTINGS_SCHEMA_VERSION
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
-    branding: BrandingSettings = field(default_factory=BrandingSettings)
     preferences: PreferencesSettings = field(default_factory=PreferencesSettings)
     notifications: NotificationSettings = field(default_factory=NotificationSettings)
 
 
 def default_ui_settings() -> UiSettings:
     return UiSettings()
-
-
-def sanitize_airline_name(raw: str | None) -> str:
-    if raw is None:
-        return ""
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(raw))
-    text = " ".join(text.strip().split())
-    if len(text) > MAX_AIRLINE_NAME_LEN:
-        text = text[:MAX_AIRLINE_NAME_LEN]
-    return text
-
-
-def sanitize_logo_data_url(raw: str | None) -> str | None:
-    if raw is None:
-        return None
-    if not isinstance(raw, str):
-        return None
-    s = raw.strip()
-    if not s:
-        return None
-    if len(s) > MAX_LOGO_DATA_URL_CHARS:
-        return None
-    if not any(s.startswith(p) for p in _LOGO_PREFIXES):
-        return None
-    if ";base64," not in s:
-        return None
-    if ".." in s or s.startswith("data:text/html"):
-        return None
-    return s
 
 
 def _coerce_theme_mode(value: Any) -> ThemeMode:
@@ -154,7 +107,6 @@ def ui_settings_from_dict(data: dict[str, Any] | None) -> UiSettings:
         return default_ui_settings()
 
     appearance = data.get("appearance") if isinstance(data.get("appearance"), dict) else {}
-    branding = data.get("branding") if isinstance(data.get("branding"), dict) else {}
     preferences = data.get("preferences") if isinstance(data.get("preferences"), dict) else {}
     notifications = data.get("notifications") if isinstance(data.get("notifications"), dict) else {}
 
@@ -168,12 +120,6 @@ def ui_settings_from_dict(data: dict[str, Any] | None) -> UiSettings:
         appearance=AppearanceSettings(
             theme_mode=_coerce_theme_mode(appearance.get("theme_mode")),
             ui_density=_coerce_density(appearance.get("ui_density")),
-        ),
-        branding=BrandingSettings(
-            airline_name=sanitize_airline_name(
-                branding.get("airline_name") if branding.get("airline_name") is not None else ""
-            ),
-            airline_logo_data_url=sanitize_logo_data_url(branding.get("airline_logo_data_url")),
         ),
         preferences=PreferencesSettings(
             default_landing_path=_coerce_landing_path(preferences.get("default_landing_path")),
@@ -217,8 +163,6 @@ def merge_ui_settings(base: UiSettings, patch: dict[str, Any]) -> UiSettings:
 
     if "appearance" in patch and isinstance(patch["appearance"], dict):
         merged["appearance"] = {**merged["appearance"], **patch["appearance"]}
-    if "branding" in patch and isinstance(patch["branding"], dict):
-        merged["branding"] = {**merged["branding"], **patch["branding"]}
     if "preferences" in patch and isinstance(patch["preferences"], dict):
         merged["preferences"] = {**merged["preferences"], **patch["preferences"]}
     if "notifications" in patch and isinstance(patch["notifications"], dict):
@@ -231,8 +175,6 @@ def reset_section(settings: UiSettings, section: ResetSection) -> UiSettings:
     out = deepcopy(settings)
     if section == "appearance":
         out.appearance = AppearanceSettings()
-    elif section == "branding":
-        out.branding = BrandingSettings()
     elif section == "preferences":
         out.preferences = PreferencesSettings()
     elif section == "notifications":

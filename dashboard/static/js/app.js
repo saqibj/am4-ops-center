@@ -1,7 +1,7 @@
 /* Optional Chart.js helpers; HTMX drives most UI. */
 /* Global Am4UiSettings (settings-store.js): getState, setState, subscribe, resolveTheme, … */
 /* Am4Branding.syncDefaultAppLogos — theme default logos (branding.js). */
-/* shell-branding.js — airline name/logo in nav + Overview welcome. */
+/* shell-branding.js — placeholder (airline name/logo are server-rendered). */
 
 (function () {
   "use strict";

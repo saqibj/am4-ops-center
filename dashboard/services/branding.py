@@ -10,6 +10,8 @@ from fastapi import Request
 from dashboard.db import open_read_connection
 
 AIRLINE_LOGO_KEY = "airline_logo_path"
+AIRLINE_NAME_KEY = "airline_name"
+MAX_AIRLINE_NAME_LEN = 60
 MAX_LOGO_BYTES = 256 * 1024
 
 # Resolved dashboard package root (…/dashboard)
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 INSERT OR IGNORE INTO settings (key, value) VALUES ('airline_logo_path', '');
+INSERT OR IGNORE INTO settings (key, value) VALUES ('airline_name', '');
 """
 
 
@@ -52,6 +55,55 @@ def _write_logo_rel(conn: sqlite3.Connection, value: str) -> None:
         """,
         (AIRLINE_LOGO_KEY, value),
     )
+
+
+def get_airline_name(conn: sqlite3.Connection) -> str:
+    """Return stored airline display name, or empty string if unset."""
+    _ensure_settings_table(conn)
+    row = conn.execute(
+        "SELECT value FROM settings WHERE key = ?",
+        (AIRLINE_NAME_KEY,),
+    ).fetchone()
+    if row is None:
+        return ""
+    return str(row[0] or "").strip()
+
+
+def set_airline_name(conn: sqlite3.Connection, name: str) -> None:
+    """Strip, truncate to ``MAX_AIRLINE_NAME_LEN``, persist in ``settings``."""
+    text = (name or "").strip()
+    if len(text) > MAX_AIRLINE_NAME_LEN:
+        text = text[:MAX_AIRLINE_NAME_LEN]
+    _ensure_settings_table(conn)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            """
+            INSERT INTO settings (key, value, updated_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(key) DO UPDATE SET
+                value = excluded.value,
+                updated_at = datetime('now')
+            """,
+            (AIRLINE_NAME_KEY, text),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
+def resolve_airline_name(request: Request) -> str | None:
+    """Display name for templates, or ``None`` if unset/blank."""
+    conn, owns = open_read_connection(request)
+    if conn is None:
+        return None
+    try:
+        raw = get_airline_name(conn)
+        return raw if raw else None
+    finally:
+        if owns:
+            conn.close()
 
 
 def validate_upload(

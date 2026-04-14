@@ -102,3 +102,30 @@ def test_get_logo_path_none_when_empty_or_missing_file(
     assert b.get_logo_path(branding_conn) == p.resolve()
     p.unlink()
     assert b.get_logo_path(branding_conn) is None
+
+
+def test_get_airline_name_empty_when_unset(branding_conn: sqlite3.Connection):
+    assert b.get_airline_name(branding_conn) == ""
+
+
+def test_set_and_get_airline_name_round_trip(branding_conn: sqlite3.Connection):
+    b.set_airline_name(branding_conn, "Test Airways")
+    assert b.get_airline_name(branding_conn) == "Test Airways"
+
+
+def test_set_airline_name_strips_whitespace(branding_conn: sqlite3.Connection):
+    b.set_airline_name(branding_conn, "  Sky Co  ")
+    assert b.get_airline_name(branding_conn) == "Sky Co"
+
+
+def test_set_airline_name_truncates_long(branding_conn: sqlite3.Connection):
+    long_name = "A" * 80
+    b.set_airline_name(branding_conn, long_name)
+    assert len(b.get_airline_name(branding_conn)) == b.MAX_AIRLINE_NAME_LEN
+    assert b.get_airline_name(branding_conn) == "A" * b.MAX_AIRLINE_NAME_LEN
+
+
+def test_set_airline_name_empty_clears(branding_conn: sqlite3.Connection):
+    b.set_airline_name(branding_conn, "Then Clear")
+    b.set_airline_name(branding_conn, "")
+    assert b.get_airline_name(branding_conn) == ""

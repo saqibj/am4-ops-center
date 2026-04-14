@@ -1,11 +1,12 @@
 /**
  * AM4 Ops Center — UI settings (localStorage + in-memory store).
  * Schema must match dashboard/ui_settings.py (SETTINGS_SCHEMA_VERSION).
+ * Airline name and logo are server-side — not stored here.
  */
 (function (global) {
   "use strict";
 
-  var SCHEMA_VERSION = 1;
+  var SCHEMA_VERSION = 2;
   var STORAGE_KEY = "am4-ops-center.ui-settings.v1";
 
   var ALLOWED_THEME_MODES = { light: 1, dark: 1, system: 1 };
@@ -22,6 +23,7 @@
     "/my-fleet": 1,
     "/my-hubs": 1,
     "/my-routes": 1,
+    "/routes/add": 1,
     "/fleet-health": 1,
     "/demand-utilization": 1,
     "/extraction-deltas": 1,
@@ -30,21 +32,10 @@
     "/heatmap": 1,
   };
 
-  var MAX_AIRLINE_NAME_LEN = 60;
-  var MAX_LOGO_DATA_URL_CHARS = 700000;
-  var LOGO_PREFIXES = [
-    "data:image/png;base64,",
-    "data:image/jpeg;base64,",
-    "data:image/jpg;base64,",
-    "data:image/webp;base64,",
-    "data:image/gif;base64,",
-  ];
-
   function defaults() {
     return {
       schema_version: SCHEMA_VERSION,
       appearance: { theme_mode: "dark", ui_density: "comfortable" },
-      branding: { airline_name: "", airline_logo_data_url: null },
       preferences: { default_landing_path: "/" },
       notifications: {
         route_change_alerts: true,
@@ -52,35 +43,6 @@
         marketing_alerts: false,
       },
     };
-  }
-
-  function sanitizeAirlineName(raw) {
-    if (raw == null) return "";
-    var text = String(raw)
-      /* eslint-disable-next-line no-control-regex -- strip C0 controls except tab/LF/CR */
-      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "")
-      .trim()
-      .replace(/\s+/g, " ");
-    if (text.length > MAX_AIRLINE_NAME_LEN) text = text.slice(0, MAX_AIRLINE_NAME_LEN);
-    return text;
-  }
-
-  function sanitizeLogoDataUrl(raw) {
-    if (raw == null) return null;
-    var s = String(raw).trim();
-    if (!s) return null;
-    if (s.length > MAX_LOGO_DATA_URL_CHARS) return null;
-    var okPrefix = false;
-    for (var i = 0; i < LOGO_PREFIXES.length; i++) {
-      if (s.indexOf(LOGO_PREFIXES[i]) === 0) {
-        okPrefix = true;
-        break;
-      }
-    }
-    if (!okPrefix) return null;
-    if (s.indexOf(";base64,") === -1) return null;
-    if (s.indexOf("..") !== -1 || s.indexOf("data:text/html") === 0) return null;
-    return s;
   }
 
   function coerceThemeMode(v) {
@@ -104,7 +66,6 @@
     if (!data || typeof data !== "object") return d;
 
     var appearance = data.appearance && typeof data.appearance === "object" ? data.appearance : {};
-    var branding = data.branding && typeof data.branding === "object" ? data.branding : {};
     var preferences = data.preferences && typeof data.preferences === "object" ? data.preferences : {};
     var notifications = data.notifications && typeof data.notifications === "object" ? data.notifications : {};
 
@@ -112,10 +73,6 @@
     d.appearance = {
       theme_mode: coerceThemeMode(appearance.theme_mode),
       ui_density: coerceDensity(appearance.ui_density),
-    };
-    d.branding = {
-      airline_name: sanitizeAirlineName(branding.airline_name != null ? branding.airline_name : ""),
-      airline_logo_data_url: sanitizeLogoDataUrl(branding.airline_logo_data_url),
     };
     d.preferences = {
       default_landing_path: coerceLanding(preferences.default_landing_path),
@@ -147,9 +104,6 @@
     var merged = cloneState(base);
     if (patch.appearance && typeof patch.appearance === "object") {
       merged.appearance = Object.assign({}, merged.appearance, patch.appearance);
-    }
-    if (patch.branding && typeof patch.branding === "object") {
-      merged.branding = Object.assign({}, merged.branding, patch.branding);
     }
     if (patch.preferences && typeof patch.preferences === "object") {
       merged.preferences = Object.assign({}, merged.preferences, patch.preferences);
@@ -252,7 +206,6 @@
   function resetSection(section) {
     var d = defaults();
     if (section === "appearance") state.appearance = d.appearance;
-    else if (section === "branding") state.branding = d.branding;
     else if (section === "preferences") state.preferences = d.preferences;
     else if (section === "notifications") state.notifications = d.notifications;
     else return getState();
@@ -290,8 +243,6 @@
     parseStored: parseStored,
     normalizeFromObject: normalizeFromObject,
     mergePatch: mergePatch,
-    sanitizeAirlineName: sanitizeAirlineName,
-    sanitizeLogoDataUrl: sanitizeLogoDataUrl,
     resolveTheme: resolveTheme,
     getState: getState,
     setState: setState,

@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from dashboard.auth import check_auth_token
 from dashboard.db import base_context, get_db
 from dashboard.server import templates
-from dashboard.services.branding import remove_logo, save_logo
+from dashboard.services.branding import remove_logo, save_logo, set_airline_name
 from database.settings_dao import get_game_mode, set_game_mode
 
 router = APIRouter(tags=["pages"])
@@ -83,6 +83,28 @@ async def post_settings_branding_logo(
         )
 
     return _branding_redirect_response(request, err=None, ok="Logo saved.")
+
+
+@router.post("/settings/branding/name")
+def post_settings_branding_name(
+    request: Request,
+    airline_name: str = Form(""),
+):
+    check_auth_token(request)
+    try:
+        conn = get_db()
+        try:
+            set_airline_name(conn, airline_name)
+        finally:
+            conn.close()
+    except (FileNotFoundError, sqlite3.Error) as e:
+        return _branding_redirect_response(
+            request,
+            err=f"Could not save name: {str(e)[:180]}",
+            ok=None,
+        )
+
+    return _branding_redirect_response(request, err=None, ok="Name saved.")
 
 
 @router.post("/settings/branding/logo/remove")

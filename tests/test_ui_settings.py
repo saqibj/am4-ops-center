@@ -14,8 +14,6 @@ from dashboard.ui_settings import (
     reset_all_settings,
     reset_section,
     resolve_theme,
-    sanitize_airline_name,
-    sanitize_logo_data_url,
     ui_settings_from_dict,
     ui_settings_to_json,
     ui_settings_to_json_dict,
@@ -28,8 +26,7 @@ def test_default_settings_shape() -> None:
     assert d["schema_version"] == SETTINGS_SCHEMA_VERSION
     assert d["appearance"]["theme_mode"] == "dark"
     assert d["appearance"]["ui_density"] == "comfortable"
-    assert d["branding"]["airline_name"] == ""
-    assert d["branding"]["airline_logo_data_url"] is None
+    assert "branding" not in d
     assert d["preferences"]["default_landing_path"] == "/"
     assert d["notifications"]["route_change_alerts"] is True
 
@@ -43,18 +40,10 @@ def test_parse_empty_and_malformed() -> None:
 
 def test_round_trip_json() -> None:
     s = default_ui_settings()
-    s.branding.airline_name = "Test Airways"
     s.appearance.theme_mode = "system"
     raw = ui_settings_to_json(s)
     back = parse_stored_settings_json(raw)
-    assert back.branding.airline_name == "Test Airways"
     assert back.appearance.theme_mode == "system"
-
-
-def test_sanitize_airline_name() -> None:
-    assert sanitize_airline_name("  Foo   Bar  ") == "Foo Bar"
-    assert sanitize_airline_name("a" * 100) == "a" * 60
-    assert sanitize_airline_name("x\x00y") == "xy"
 
 
 def test_invalid_enums_coerced() -> None:
@@ -67,13 +56,6 @@ def test_invalid_enums_coerced() -> None:
     assert s.appearance.theme_mode == "dark"
     assert s.appearance.ui_density == "comfortable"
     assert s.preferences.default_landing_path == "/"
-
-
-def test_logo_rejects_bad_payload() -> None:
-    assert sanitize_logo_data_url("data:text/html;base64,abc") is None
-    assert sanitize_logo_data_url("data:image/png;base64," + "x" * 800_000) is None
-    good = "data:image/png;base64,iVBORw0KGgo="
-    assert sanitize_logo_data_url(good) == good
 
 
 def test_merge_partial() -> None:
@@ -92,11 +74,11 @@ def test_merge_partial() -> None:
 
 def test_reset_section_and_all() -> None:
     s = ui_settings_from_dict(
-        {"branding": {"airline_name": "ACME", "airline_logo_data_url": None}}
+        {"appearance": {"theme_mode": "light", "ui_density": "compact"}}
     )
-    s2 = reset_section(s, "branding")
-    assert s2.branding.airline_name == ""
-    assert s.branding.airline_name == "ACME"
+    s2 = reset_section(s, "appearance")
+    assert s2.appearance.theme_mode == "dark"
+    assert s.appearance.theme_mode == "light"
     assert reset_all_settings() == default_ui_settings()
 
 
@@ -116,7 +98,7 @@ def test_resolve_theme(mode: str, prefers: bool | None, expected: str) -> None:
 
 def test_json_compact_roundtrip_matches_python_dict() -> None:
     """Ensure JS-style compact JSON still parses."""
-    raw = '{"schema_version":1,"appearance":{"theme_mode":"light","ui_density":"compact"},"branding":{"airline_name":"","airline_logo_data_url":null},"preferences":{"default_landing_path":"/fleet-planner"},"notifications":{"route_change_alerts":false,"maintenance_alerts":true,"marketing_alerts":false}}'
+    raw = '{"schema_version":2,"appearance":{"theme_mode":"light","ui_density":"compact"},"preferences":{"default_landing_path":"/fleet-planner"},"notifications":{"route_change_alerts":false,"maintenance_alerts":true,"marketing_alerts":false}}'
     s = parse_stored_settings_json(raw)
     assert s.appearance.theme_mode == "light"
     assert s.appearance.ui_density == "compact"
@@ -124,3 +106,9 @@ def test_json_compact_roundtrip_matches_python_dict() -> None:
     assert s.notifications.route_change_alerts is False
     back = json.loads(ui_settings_to_json(s))
     assert back["appearance"]["theme_mode"] == "light"
+
+
+def test_v1_json_with_branding_extra_ignored() -> None:
+    raw = '{"schema_version":1,"branding":{"airline_name":"X","airline_logo_data_url":null},"appearance":{"theme_mode":"dark","ui_density":"comfortable"},"preferences":{"default_landing_path":"/"},"notifications":{"route_change_alerts":true,"maintenance_alerts":false,"marketing_alerts":false}}'
+    s = parse_stored_settings_json(raw)
+    assert s.appearance.theme_mode == "dark"

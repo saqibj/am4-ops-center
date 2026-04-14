@@ -2,7 +2,7 @@
 {% block title %}Overview{% endblock %}
 {% block content %}
 <h2 class="text-2xl font-bold mb-2">Overview</h2>
-<p id="overview-welcome" class="am4-text-secondary text-sm mb-1">Welcome to your operations dashboard.</p>
+<p id="overview-welcome" class="am4-text-secondary text-sm mb-1">{% if airline_name %}Welcome back — {{ airline_name }}{% else %}Welcome to your operations dashboard.{% endif %}</p>
 <p class="am4-text-secondary mb-6">Extraction snapshot from your SQLite database.</p>
 
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

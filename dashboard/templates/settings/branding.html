@@ -12,6 +12,21 @@
   <p class="text-sm text-emerald-400/95 rounded border border-emerald-800/40 bg-emerald-950/20 px-3 py-2">{{ flash }}</p>
   {% endif %}
 
+  <form hx-post="/settings/branding/name" class="space-y-2">
+    <label for="branding-airline-name" class="block text-sm font-medium">Airline name</label>
+    <input
+      type="text"
+      id="branding-airline-name"
+      name="airline_name"
+      value="{{ airline_name or '' }}"
+      maxlength="60"
+      autocomplete="organization"
+      class="am4-input rounded-md px-3 py-2 w-full text-sm"
+      placeholder="e.g. Air Karachi"
+    />
+    <button type="submit" class="am4-input rounded-md px-4 py-2 text-sm font-medium hover:bg-[var(--nav-hover)]">Save</button>
+  </form>
+
   <div class="flex items-center gap-4">
     {% if airline_logo_url %}
     <img src="{{ airline_logo_url }}" alt="Airline logo preview" width="52" height="52" class="object-contain rounded-md am4-bordered bg-[var(--surface-sunken)] p-1" />

@@ -8,6 +8,20 @@ from database.schema import create_schema, get_connection, migrate_add_unique_co
 from database.settings_dao import get_game_mode, set_game_mode
 
 
+def test_core_game_mode_helpers_match_settings(tmp_path) -> None:
+    from core.game_mode import as_am4_kwargs, is_realism
+
+    db = tmp_path / "t.db"
+    conn = get_connection(db)
+    create_schema(conn)
+    assert not is_realism(conn)
+    assert as_am4_kwargs(conn) == {"realism": False, "fourx": False}
+    set_game_mode(conn, "realism")
+    assert is_realism(conn)
+    assert as_am4_kwargs(conn) == {"realism": True, "fourx": False}
+    conn.close()
+
+
 def test_default_game_mode_easy(tmp_path) -> None:
     db = tmp_path / "t.db"
     conn = get_connection(db)

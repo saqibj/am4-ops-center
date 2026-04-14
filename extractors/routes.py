@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 log = logging.getLogger(__name__)
 
 from config import GameMode, UserConfig
+from core.game_mode import as_am4_kwargs, is_realism
 from database.extraction_runs import (
     finish_extraction_run,
     insert_snapshots_for_run,
@@ -25,6 +26,7 @@ from database.schema import (
     save_extract_config,
     sync_my_routes_extraction_flags,
 )
+from database.settings_dao import read_game_mode
 from extractors.aircraft import extract_all_aircraft
 from extractors.airports import extract_all_airports
 
@@ -32,14 +34,33 @@ if TYPE_CHECKING:
     from am4.utils.game import User as Am4User
 
 
-def build_am4_user(cfg: UserConfig) -> "Am4User":
-    """Map Ops Center UserConfig to am4 User (CI is optimized inside am4; not set on User)."""
+def build_am4_user(
+    cfg: UserConfig,
+    *,
+    conn: sqlite3.Connection | None = None,
+    realism_override: bool | None = None,
+) -> "Am4User":
+    """Map Ops Center UserConfig to am4 User (CI is optimized inside am4; not set on User).
+
+    Precedence: ``realism_override`` (e.g. main-thread snapshot for threaded extract) >
+    ``conn`` + ``app_settings`` > ``cfg.game_mode`` (CLI-only).
+    """
     from am4.utils.game import User
     from am4.utils.route import AircraftRoute
 
-    realism = cfg.game_mode == GameMode.REALISM
+    if realism_override is not None:
+        realism = bool(realism_override)
+        fourx = False
+    elif conn is not None:
+        am4_kw = as_am4_kwargs(conn)
+        realism = bool(am4_kw["realism"])
+        fourx = bool(am4_kw["fourx"])
+    else:
+        realism = cfg.game_mode == GameMode.REALISM
+        fourx = False
     user = User.Default(realism=realism)
     user.game_mode = User.GameMode.REALISM if realism else User.GameMode.EASY
+    user.fourx = fourx
     user.fuel_price = int(cfg.fuel_price)
     user.co2_price = int(cfg.co2_price)
     user.fuel_training = int(cfg.fuel_training)
@@ -473,9 +494,9 @@ def refresh_single_hub_conn(conn: sqlite3.Connection, cfg: UserConfig, hub_iata:
 
         _delete_routes_for_origin(conn, ap_id)
         aircraft_rows = _aircraft_rows_from_db(conn)
-        user = build_am4_user(cfg)
+        user = build_am4_user(cfg, conn=conn)
         options = _aircraft_route_options(cfg)
-        game_mode_label = cfg.game_mode.value
+        game_mode_label = read_game_mode(conn)
         rr, dd = extract_routes_for_hub(
             iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label
         )
@@ -552,11 +573,16 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
     hubs_csv = ",".join(str(h) for h in hubs if h) if hubs else "ALL"
     run_id = start_extraction_run(conn, cfg, scope="full", hubs_csv=hubs_csv)
 
-    game_mode_label = cfg.game_mode.value
+    game_mode_label = read_game_mode(conn)
+    # Snapshot once: worker threads must not share the SQLite connection.
+    extract_realism = is_realism(conn)
 
     def _build_user_and_options() -> tuple[Any, Any]:
         """Fresh User + options per call so worker threads do not share mutable am4 state."""
-        return build_am4_user(cfg), _aircraft_route_options(cfg)
+        return (
+            build_am4_user(cfg, realism_override=extract_realism),
+            _aircraft_route_options(cfg),
+        )
 
     print(f"[3/3] Computing routes for {len(hubs)} hubs × {len(aircraft_rows)} aircraft (workers={cfg.max_workers})…")
 

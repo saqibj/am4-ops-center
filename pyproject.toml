@@ -28,4 +28,4 @@ py-modules = ["config", "main"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["app*", "commands*", "dashboard*", "database*", "exporters*", "extractors*"]
+include = ["app*", "commands*", "core*", "dashboard*", "database*", "exporters*", "extractors*"]

@@ -1,7 +1,11 @@
 {% set path = request.url.path %}
 <aside class="am4-sidebar">
   <div class="am4-sidebar__header">
+    {% if airline_logo_url %}
+    <img src="{{ airline_logo_url }}" alt="" style="width:26px;height:26px;object-fit:contain;border-radius:6px;" />
+    {% else %}
     <div class="am4-logo-fallback" aria-hidden="true">A4</div>
+    {% endif %}
     <div class="min-w-0">
       <p class="am4-sidebar__airline">AM4 Ops Center</p>
       <p class="am4-sidebar__meta">{{ hub_freshness_list|length }} hubs tracked</p>
@@ -55,6 +59,16 @@
       </a>
       <a href="/my-hubs" class="am4-item {% if path.startswith('/my-hubs') %}is-active{% endif %}">
         <span>Hubs setup</span><kbd>⌘H</kbd>
+      </a>
+    </details>
+
+    <details open class="am4-group">
+      <summary>Settings</summary>
+      <a href="/settings" class="am4-item {% if path == '/settings' %}is-active{% endif %}">
+        <span>General</span>
+      </a>
+      <a href="/settings/branding" class="am4-item {% if path.startswith('/settings/branding') %}is-active{% endif %}">
+        <span>Branding</span>
       </a>
     </details>
   </nav>

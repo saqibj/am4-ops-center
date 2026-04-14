@@ -27,9 +27,15 @@ def _auth_template_context(request: Request) -> dict[str, Any]:
     return {"auth_token": get_dashboard_auth_token()}
 
 
+def _branding_template_context(request: Request) -> dict[str, Any]:
+    from dashboard.services.branding import resolve_airline_logo_url
+
+    return {"airline_logo_url": resolve_airline_logo_url(request)}
+
+
 templates = Jinja2Templates(
     directory=str(BASE_DIR / "templates"),
-    context_processors=[_auth_template_context],
+    context_processors=[_auth_template_context, _branding_template_context],
 )
 
 

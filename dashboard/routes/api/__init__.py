@@ -16,10 +16,12 @@ from dashboard.routes.api import (
     recommendations,
     saved_filters,
     scenarios,
+    system,
 )
 
 router = APIRouter(prefix="/api", tags=["api"])
 router.include_router(meta.router)
+router.include_router(system.router)
 router.include_router(analytics.router)
 router.include_router(recommendations.router)
 router.include_router(fleet.router)

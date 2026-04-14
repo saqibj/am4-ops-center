@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Branding{% endblock %}
+{% block content %}
+<div class="max-w-lg am4-card rounded-lg p-6 space-y-4">
+  <h2 class="text-xl font-bold">Branding</h2>
+  <p class="text-sm am4-text-secondary">Upload an airline logo (PNG, JPG, or SVG, max 256KB). Shown in the sidebar at 26×26px.</p>
+
+  {% if flash_err %}
+  <p class="text-sm text-rose-400 rounded border border-rose-800/50 bg-rose-950/30 px-3 py-2">{{ flash_err }}</p>
+  {% endif %}
+  {% if flash and not flash_err %}
+  <p class="text-sm text-emerald-400/95 rounded border border-emerald-800/40 bg-emerald-950/20 px-3 py-2">{{ flash }}</p>
+  {% endif %}
+
+  <form hx-post="/settings/branding/name" class="space-y-2">
+    <label for="branding-airline-name" class="block text-sm font-medium">Airline name</label>
+    <input
+      type="text"
+      id="branding-airline-name"
+      name="airline_name"
+      value="{{ airline_name or '' }}"
+      maxlength="60"
+      autocomplete="organization"
+      class="am4-input rounded-md px-3 py-2 w-full text-sm"
+      placeholder="e.g. Air Karachi"
+    />
+    <button type="submit" class="am4-input rounded-md px-4 py-2 text-sm font-medium hover:bg-[var(--nav-hover)]">Save</button>
+  </form>
+
+  <div class="flex items-center gap-4">
+    {% if airline_logo_url %}
+    <img src="{{ airline_logo_url }}" alt="Airline logo preview" width="52" height="52" class="object-contain rounded-md am4-bordered bg-[var(--surface-sunken)] p-1" />
+    {% else %}
+    <div class="flex h-[52px] w-[52px] items-center justify-center rounded-md text-xs font-bold text-white" style="background:#7F77DD;">A4</div>
+    {% endif %}
+    <span class="text-xs am4-text-muted">Sidebar preview</span>
+  </div>
+
+  <form
+    hx-post="/settings/branding/logo"
+    hx-encoding="multipart/form-data"
+    enctype="multipart/form-data"
+  >
+    <div class="space-y-3">
+      <label class="block text-sm font-medium">Logo file</label>
+      <input
+        type="file"
+        name="logo"
+        required
+        accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml"
+        class="am4-input rounded-md px-3 py-2 w-full text-sm"
+      />
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" class="am4-input rounded-md px-4 py-2 text-sm font-medium hover:bg-[var(--nav-hover)]">Save</button>
+      </div>
+    </div>
+  </form>
+
+  {% if airline_logo_url %}
+  <form hx-post="/settings/branding/logo/remove" hx-confirm="Remove the airline logo?">
+    <button type="submit" class="text-sm text-rose-400 hover:underline">Remove logo</button>
+  </form>
+  {% endif %}
+
+  <p class="text-xs am4-text-muted"><a href="/settings" class="underline">← All settings</a></p>
+</div>
+{% endblock %}

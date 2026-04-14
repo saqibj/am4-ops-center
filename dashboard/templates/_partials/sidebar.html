@@ -1,0 +1,119 @@
+{% set path = request.url.path %}
+<aside class="am4-sidebar">
+  <div class="am4-sidebar__header">
+    <div class="am4-logo-fallback" aria-hidden="true">A4</div>
+    <div class="min-w-0">
+      <p class="am4-sidebar__airline">AM4 Ops Center</p>
+      <p class="am4-sidebar__meta">{{ hub_freshness_list|length }} hubs tracked</p>
+    </div>
+  </div>
+
+  <nav class="am4-sidebar__nav" aria-label="Primary">
+    <details open class="am4-group">
+      <summary>Operations</summary>
+      <a href="/" class="am4-item {% if path == '/' %}is-active{% endif %}">
+        <span>Dashboard</span><kbd>⌘1</kbd>
+      </a>
+      <a href="/my-hubs" class="am4-item {% if path.startswith('/my-hubs') %}is-active{% endif %}">
+        <span>Hub summary</span><kbd>⌘2</kbd>
+      </a>
+      <a href="/heatmap" class="am4-item {% if path.startswith('/heatmap') %}is-active{% endif %}">
+        <span>Global heatmap</span><kbd>⌘3</kbd>
+      </a>
+    </details>
+
+    <details open class="am4-group">
+      <summary>Routes</summary>
+      <a href="/my-routes" class="am4-item {% if path.startswith('/my-routes') or path == '/routes' %}is-active{% endif %}">
+        <span>All routes</span><kbd>⌘R</kbd>
+      </a>
+      <a href="/routes/add" class="am4-item {% if path.startswith('/routes/add') %}is-active{% endif %}">
+        <span>Add route</span><kbd>⌘N</kbd>
+      </a>
+      <a href="/buy-next" class="am4-item {% if path.startswith('/buy-next') %}is-active{% endif %}">
+        <span>Buy next</span><kbd>⌘K</kbd>
+      </a>
+      <a href="/contributions" class="am4-item {% if path.startswith('/contributions') %}is-active{% endif %}">
+        <span>Profitability</span><kbd>⌘P</kbd>
+      </a>
+    </details>
+
+    <details open class="am4-group">
+      <summary>Fleet</summary>
+      <a href="/my-fleet" class="am4-item {% if path.startswith('/my-fleet') %}is-active{% endif %}">
+        <span>My fleet</span><kbd>⌘F</kbd>
+      </a>
+      <a href="/aircraft" class="am4-item {% if path.startswith('/aircraft') %}is-active{% endif %}">
+        <span>Aircraft catalog</span><kbd>⌘A</kbd>
+      </a>
+    </details>
+
+    <details open class="am4-group">
+      <summary>Data</summary>
+      <a href="/extraction-deltas" class="am4-item {% if path.startswith('/extraction-deltas') %}is-active{% endif %}">
+        <span>Extraction</span><kbd>⌘E</kbd>
+      </a>
+      <a href="/my-hubs" class="am4-item {% if path.startswith('/my-hubs') %}is-active{% endif %}">
+        <span>Hubs setup</span><kbd>⌘H</kbd>
+      </a>
+    </details>
+  </nav>
+
+  <div class="am4-sidebar__footer">
+    <button id="theme-toggle" class="am4-theme-toggle" type="button" aria-label="Toggle theme">
+      <svg class="am4-theme-icon am4-theme-icon--sun" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+      <svg class="am4-theme-icon am4-theme-icon--moon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M20 15.2A8.2 8.2 0 1 1 8.8 4 7 7 0 0 0 20 15.2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      </svg>
+      <span>Theme</span>
+    </button>
+  </div>
+</aside>
+
+<script>
+(() => {
+  const themeToggle = document.getElementById("theme-toggle");
+  if (themeToggle && !themeToggle.dataset.bound) {
+    themeToggle.dataset.bound = "1";
+    themeToggle.addEventListener("click", () => {
+      const html = document.documentElement;
+      const current = html.dataset.theme === "dark" ? "dark" : "light";
+      const next = current === "dark" ? "light" : "dark";
+      html.dataset.theme = next;
+      localStorage.setItem("theme", next);
+    });
+  }
+
+  if (!window.__am4SidebarShortcutsBound) {
+    window.__am4SidebarShortcutsBound = true;
+    const go = (href) => { window.location.assign(href); };
+    document.addEventListener("keydown", (event) => {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "k") {
+        event.preventDefault();
+        return;
+      }
+      const routes = {
+        "1": "/",
+        "2": "/my-hubs",
+        "3": "/heatmap",
+        "r": "/my-routes",
+        "n": "/routes/add",
+        "f": "/my-fleet",
+      };
+      const target = routes[key];
+      if (!target) {
+        return;
+      }
+      event.preventDefault();
+      go(target);
+    });
+  }
+})();
+</script>

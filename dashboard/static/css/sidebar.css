@@ -1,0 +1,162 @@
+:root {
+  --sidebar-surface: #ffffff;
+  --main-surface: #fafaf9;
+  --card-surface: #ffffff;
+  --chrome-border: #e5e5e5;
+  --shell-text: #1c1c1f;
+  --shell-muted: #71717a;
+  --active-fill: #f4f4f5;
+}
+
+html[data-theme="dark"] {
+  --sidebar-surface: #08080a;
+  --main-surface: #0a0a0b;
+  --card-surface: #111114;
+  --chrome-border: #1c1c1f;
+  --shell-text: #e6e6e6;
+  --shell-muted: #a1a1aa;
+  --active-fill: #27272a;
+}
+
+.am4-body {
+  background: var(--main-surface);
+  color: var(--shell-text);
+}
+
+.am4-main {
+  background: var(--main-surface);
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.am4-sidebar {
+  width: 250px;
+  min-width: 250px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--chrome-border);
+  background: var(--sidebar-surface);
+  color: var(--shell-text);
+}
+
+.am4-sidebar__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+.am4-logo-fallback {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #7f77dd;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.am4-sidebar__airline {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.am4-sidebar__meta {
+  font-size: 0.75rem;
+  color: var(--shell-muted);
+}
+
+.am4-sidebar__nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.am4-group {
+  margin-bottom: 0.5rem;
+}
+
+.am4-group > summary {
+  list-style: none;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--shell-muted);
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+}
+
+.am4-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.am4-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  text-decoration: none;
+  color: var(--shell-text);
+  padding: 0.42rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.am4-item:hover {
+  background: color-mix(in srgb, var(--active-fill) 68%, transparent);
+}
+
+.am4-item.is-active {
+  background: var(--active-fill);
+}
+
+.am4-item kbd {
+  font-size: 11px;
+  color: var(--shell-muted);
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+}
+
+.am4-sidebar__footer {
+  border-top: 1px solid var(--chrome-border);
+  padding: 0.75rem;
+}
+
+.am4-theme-toggle {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--chrome-border);
+  border-radius: 0.45rem;
+  padding: 0.45rem 0.5rem;
+  background: var(--card-surface);
+  color: var(--shell-text);
+  font-size: 12px;
+}
+
+.am4-theme-toggle:hover {
+  background: var(--active-fill);
+}
+
+.am4-theme-icon {
+  width: 15px;
+  height: 15px;
+}
+
+html[data-theme="dark"] .am4-theme-icon--sun,
+html[data-theme="light"] .am4-theme-icon--moon {
+  display: none;
+}

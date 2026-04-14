@@ -1,13 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="application-name" content="AM4 Ops Center">
     <title>AM4 Ops Center — {% block title %}Dashboard{% endblock %}</title>
     <link rel="icon" href="/static/favicon.ico">
+    <script>
+      (() => {
+        const saved = localStorage.getItem("theme");
+        const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.theme = saved || (systemDark ? "dark" : "light");
+      })();
+    </script>
     <link rel="stylesheet" href="/static/css/theme.css">
-    <script src="/static/js/theme-boot.js"></script>
+    <link rel="stylesheet" href="/static/css/sidebar.css">
     <script src="/static/js/branding.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
@@ -27,55 +34,7 @@
 </head>
 <body class="am4-body min-h-screen flex"
       hx-headers='{"Authorization": "Bearer {{ auth_token }}"}'>
-    <input type="checkbox" id="nav-toggle" class="peer sr-only" aria-label="Toggle menu">
-    <label for="nav-toggle" class="am4-mobile-menu-btn fixed top-4 left-4 z-50 lg:hidden flex items-center justify-center w-10 h-10 rounded-md cursor-pointer">
-        ☰
-    </label>
-
-    <nav class="am4-nav border-r fixed inset-y-0 left-0 z-40 w-64 p-4 space-y-2 -translate-x-full peer-checked:translate-x-0 transition-transform duration-200 lg:translate-x-0 lg:static lg:flex-shrink-0">
-        <div class="am4-nav-lockup flex items-start gap-2 pr-10">
-            <img id="shell-airline-logo" alt="" width="40" height="40" decoding="async"
-                class="hidden h-8 w-8 max-w-[2.5rem] object-contain flex-shrink-0 mt-0.5 rounded-sm am4-bordered" />
-            <img src="/static/img/app-logo-dark.png" width="128" height="128" alt=""
-                class="am4-app-logo h-8 w-auto max-w-[120px] object-contain flex-shrink-0 mt-0.5"
-                data-am4-default-logo decoding="async" />
-            <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                    <h1 class="text-xl font-bold am4-accent leading-tight">AM4 Ops Center</h1>
-                    <a href="/settings"
-                       class="text-[10px] font-semibold uppercase tracking-wide rounded px-1.5 py-0.5 shrink-0 no-underline hover:opacity-90
-                       {% if game_mode == 'realism' %}bg-amber-900 text-amber-200{% else %}bg-emerald-900 text-emerald-200{% endif %}"
-                       title="Game mode — change in Settings">{% if game_mode == 'realism' %}Realism{% else %}Easy{% endif %}</a>
-                </div>
-                <p id="shell-airline-name" class="hidden text-sm am4-text-muted leading-snug mt-0.5 truncate" title=""></p>
-            </div>
-        </div>
-        <a href="/" class="am4-nav-link block px-3 py-2 rounded-md">Overview</a>
-        <a href="/hub-explorer" class="am4-nav-link block px-3 py-2 rounded-md">Hub Explorer</a>
-        <a href="/aircraft" class="am4-nav-link block px-3 py-2 rounded-md">Aircraft</a>
-        <a href="/route-analyzer" class="am4-nav-link block px-3 py-2 rounded-md">Route Analyzer</a>
-        <a href="/scenarios" class="am4-nav-link block px-3 py-2 rounded-md">Scenarios</a>
-        <a href="/fleet-planner" class="am4-nav-link block px-3 py-2 rounded-md">Fleet Planner</a>
-        <a href="/buy-next" class="am4-nav-link block px-3 py-2 rounded-md">Buy Next</a>
-        <p class="text-xs am4-text-muted uppercase tracking-wider px-3 pt-4 pb-1">My Airline</p>
-        <a href="/my-fleet" class="am4-nav-link block px-3 py-2 rounded-md">My Fleet</a>
-        <a href="/my-routes" class="am4-nav-link block px-3 py-2 rounded-md">My Routes</a>
-        <a href="/routes/add" class="am4-nav-link block px-3 py-2 rounded-md">Add route</a>
-        <a href="/fleet-health" class="am4-nav-link block px-3 py-2 rounded-md">Fleet Health</a>
-        <a href="/demand-utilization" class="am4-nav-link block px-3 py-2 rounded-md">Demand utilization</a>
-        <a href="/extraction-deltas" class="am4-nav-link block px-3 py-2 rounded-md">Extraction deltas</a>
-        <a href="/hub-roi" class="am4-nav-link block px-3 py-2 rounded-md">Hub ROI</a>
-        <a href="/my-hubs" class="am4-nav-link block px-3 py-2 rounded-md">Hub Manager</a>
-        <a href="/contributions" class="am4-nav-link block px-3 py-2 rounded-md">Contributions</a>
-        <a href="/heatmap" class="am4-nav-link block px-3 py-2 rounded-md">Heatmap</a>
-        <a href="/settings" class="am4-nav-link block px-3 py-2 rounded-md mt-2">Settings</a>
-        <div class="absolute bottom-4 left-4 right-4 text-xs am4-text-muted">
-            DB: {{ db_name }}<br>
-            {{ route_count }} routes
-        </div>
-    </nav>
-
-    <label for="nav-toggle" class="am4-overlay-scrim fixed inset-0 z-30 hidden peer-checked:block lg:hidden"></label>
+    {% include "_partials/sidebar.html" %}
 
     <main class="flex-1 overflow-auto w-full min-w-0 am4-main">
         {% if stale_hub_banner %}

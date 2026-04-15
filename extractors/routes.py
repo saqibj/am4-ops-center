@@ -6,7 +6,7 @@ import json
 import logging
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 log = logging.getLogger(__name__)
 
@@ -332,9 +332,12 @@ def _insert_batches_chunked(
     *,
     batch_size: int = _HUB_REFRESH_WRITE_BATCH_SIZE,
     run_id: int | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> None:
     if batch_size < 1:
         batch_size = 1
+    total_chunks = (len(route_rows) + batch_size - 1) // batch_size if route_rows else 0
+    done_chunks = 0
     for i in range(0, len(route_rows), batch_size):
         chunk = route_rows[i : i + batch_size]
         batch: list[dict] = []
@@ -352,6 +355,9 @@ def _insert_batches_chunked(
                 if tup is not None:
                     conn.execute(DEMAND_UPSERT_SQL, tup)
             conn.commit()
+            done_chunks += 1
+            if progress_callback is not None:
+                progress_callback(done_chunks, total_chunks)
         except Exception:
             conn.rollback()
             raise
@@ -501,7 +507,12 @@ def _demands_to_map(demand_rows: list[dict]) -> dict[tuple[int, int], tuple]:
     return demand_map
 
 
-def refresh_single_hub_conn(conn: sqlite3.Connection, cfg: UserConfig, hub_iata: str) -> None:
+def refresh_single_hub_conn(
+    conn: sqlite3.Connection,
+    cfg: UserConfig,
+    hub_iata: str,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> None:
     """
     Recompute route_aircraft and route_demands for one origin hub only.
     Does not clear other hubs or replace aircraft/airports master tables.
@@ -536,7 +547,15 @@ def refresh_single_hub_conn(conn: sqlite3.Connection, cfg: UserConfig, hub_iata:
         rr, dd = extract_routes_for_hub(
             iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label
         )
-        _insert_batches_chunked(conn, rr, _demands_to_map(dd), run_id=run_id)
+        _insert_batches_chunked(
+            conn,
+            rr,
+            _demands_to_map(dd),
+            run_id=run_id,
+            progress_callback=progress_callback,
+        )
+        if progress_callback is not None:
+            progress_callback(1, 1)
         sync_my_routes_extraction_flags(conn)
         save_extract_config(conn, cfg)
         snap_n = insert_snapshots_for_run(conn, run_id, [ap_id])
@@ -556,12 +575,17 @@ def refresh_single_hub_conn(conn: sqlite3.Connection, cfg: UserConfig, hub_iata:
         raise
 
 
-def refresh_single_hub(db_path: str, cfg: UserConfig, hub_iata: str) -> None:
+def refresh_single_hub(
+    db_path: str,
+    cfg: UserConfig,
+    hub_iata: str,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> None:
     """Open DB, ensure schema, refresh one hub, close."""
     conn = get_connection(db_path)
     try:
         create_schema(conn)
-        refresh_single_hub_conn(conn, cfg, hub_iata)
+        refresh_single_hub_conn(conn, cfg, hub_iata, progress_callback=progress_callback)
     finally:
         conn.close()
 

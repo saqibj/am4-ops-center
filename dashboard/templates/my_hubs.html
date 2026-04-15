@@ -50,10 +50,135 @@
     <p class="am4-text-muted text-xs w-full sm:w-auto sm:ml-2">Stale = status OK but last extract &gt; {{ stale_after_days }} days ago (UTC).</p>
 </div>
 
+<div id="hub-refresh-progress" class="hidden mb-4 rounded-md border border-emerald-800/40 bg-emerald-950/20 px-3 py-2 text-sm">
+    <span id="hub-refresh-progress-text" class="am4-text-secondary"></span>
+</div>
+
 <div id="hub-inventory"
      hx-get="/api/hubs/inventory"
      hx-trigger="load"
      hx-indicator="#hub-inv-spinner">
     <p class="am4-text-secondary">Loading hubs…</p>
 </div>
+<script>
+(() => {
+  const box = document.getElementById("hub-refresh-progress");
+  const txt = document.getElementById("hub-refresh-progress-text");
+  let pollHandle = null;
+
+  function authHeader() {
+    try {
+      const raw = document.body.getAttribute("hx-headers") || "{}";
+      const parsed = JSON.parse(raw);
+      return parsed.Authorization || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function show(msg, isError = false) {
+    if (!box || !txt) return;
+    box.classList.remove("hidden");
+    txt.textContent = msg;
+    txt.classList.toggle("am4-text-negative", isError);
+    txt.classList.toggle("am4-text-secondary", !isError);
+  }
+
+  function clear() {
+    if (!box || !txt) return;
+    box.classList.add("hidden");
+    txt.textContent = "";
+    txt.classList.remove("am4-text-negative");
+    txt.classList.add("am4-text-secondary");
+  }
+
+  function refreshPanels() {
+    htmx.ajax("GET", "/api/hubs/inventory", { target: "#hub-inventory", swap: "innerHTML" });
+    htmx.ajax("GET", "/api/hubs/summary", { target: "#hub-summary", swap: "innerHTML" });
+  }
+
+  async function poll(jobId, hubIata) {
+    if (pollHandle) {
+      clearInterval(pollHandle);
+      pollHandle = null;
+    }
+    const headers = { "Accept": "application/json" };
+    const token = authHeader();
+    if (token) headers["Authorization"] = token;
+    pollHandle = setInterval(async () => {
+      try {
+        const resp = await fetch(`/api/hubs/refresh/${jobId}`, { headers });
+        if (!resp.ok) {
+          show(`Refresh job ${jobId} could not be loaded.`, true);
+          clearInterval(pollHandle);
+          pollHandle = null;
+          return;
+        }
+        const data = await resp.json();
+        const pct = Number(data.progress_pct || 0);
+        if (data.status === "completed") {
+          show(`Refresh complete for ${hubIata}.`);
+          refreshPanels();
+          clearInterval(pollHandle);
+          pollHandle = null;
+          setTimeout(clear, 2500);
+          return;
+        }
+        if (data.status === "failed") {
+          const msg = data.error_message || "Refresh failed.";
+          show(`Refresh failed for ${hubIata}: ${msg}`, true);
+          refreshPanels();
+          clearInterval(pollHandle);
+          pollHandle = null;
+          return;
+        }
+        show(`Refreshing ${hubIata}... ${pct}%`);
+      } catch {
+        show(`Refresh polling interrupted for ${hubIata}.`, true);
+        clearInterval(pollHandle);
+        pollHandle = null;
+      }
+    }, 2000);
+  }
+
+  document.addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("[data-refresh-hub-id]");
+    if (!btn) return;
+    ev.preventDefault();
+    const hubId = String(btn.getAttribute("data-refresh-hub-id") || "").trim();
+    const hubIata = String(btn.getAttribute("data-refresh-hub-iata") || "").trim() || "hub";
+    if (!hubId) return;
+    const params = new URLSearchParams();
+    params.set("hub_id", hubId);
+    const headers = {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json",
+    };
+    const token = authHeader();
+    if (token) headers["Authorization"] = token;
+    show(`Starting refresh for ${hubIata}...`);
+    try {
+      const resp = await fetch("/api/hubs/refresh", {
+        method: "POST",
+        headers,
+        body: params.toString(),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.status === 202 && data.job_id) {
+        show(`Refreshing ${hubIata}... 0%`);
+        poll(Number(data.job_id), hubIata);
+        return;
+      }
+      if (resp.status === 409 && data.job_id) {
+        show(`Refresh already in progress for ${hubIata}; joining existing job...`);
+        poll(Number(data.job_id), hubIata);
+        return;
+      }
+      show(data.error || `Could not start refresh for ${hubIata}.`, true);
+    } catch {
+      show(`Could not start refresh for ${hubIata}.`, true);
+    }
+  });
+})();
+</script>
 {% endblock %}

@@ -54,15 +54,12 @@
                     </td>
                     <td class="px-4 py-3 am4-text-muted max-w-[10rem] truncate">{{ h.notes or '—' }}</td>
                     <td class="px-4 py-3 text-right whitespace-nowrap space-x-2">
-                        <form hx-post="/api/hubs/refresh"
-                              hx-target="#hub-inventory"
-                              hx-swap="innerHTML"
-                              hx-indicator="#hub-inv-spinner"
-                              hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/hubs/summary', { target: '#hub-summary', swap: 'innerHTML' })"
-                              class="inline">
-                            <input type="hidden" name="hub_id" value="{{ h.id }}">
-                            <button type="submit" class="am4-accent hover:text-emerald-300 text-xs underline-offset-2 hover:underline">Refresh</button>
-                        </form>
+                        <button type="button"
+                                class="am4-accent hover:text-emerald-300 text-xs underline-offset-2 hover:underline"
+                                data-refresh-hub-id="{{ h.id }}"
+                                data-refresh-hub-iata="{{ h.iata or '' }}">
+                            Refresh
+                        </button>
                         <form hx-post="/api/hubs/delete"
                               hx-target="#hub-inventory"
                               hx-swap="innerHTML"

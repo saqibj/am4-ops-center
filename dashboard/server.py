@@ -48,6 +48,10 @@ async def _app_lifespan(app: FastAPI):
     from dashboard.db import _apply_pragmas, current_db_path, get_read_conn
     from dashboard.services.branding import ensure_branding_schema
     from database.extraction_runs import ensure_extraction_runs_schema
+    from database.refresh_jobs import (
+        ensure_refresh_jobs_schema,
+        mark_orphaned_refresh_jobs_failed,
+    )
     from database.saved_filters import ensure_saved_filters_schema
     from database.settings_dao import ensure_app_settings_schema
     from database.schema import apply_route_aircraft_baseline_prices_at_path
@@ -111,6 +115,21 @@ async def _app_lifespan(app: FastAPI):
             logger.info("Schema ensured: app_settings")
         except Exception:
             logger.exception("ensure_app_settings_schema failed")
+            raise
+
+        try:
+            c1c = _short_setup_conn()
+            try:
+                ensure_refresh_jobs_schema(c1c)
+                orphaned = mark_orphaned_refresh_jobs_failed(c1c)
+                c1c.commit()
+            finally:
+                c1c.close()
+            if orphaned:
+                logger.warning("Marked %s orphaned refresh job(s) as failed", orphaned)
+            logger.info("Schema ensured: refresh_jobs")
+        except Exception:
+            logger.exception("ensure_refresh_jobs_schema failed")
             raise
 
         try:

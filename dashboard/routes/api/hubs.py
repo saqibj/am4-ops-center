@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from config import UserConfig
 from dashboard.auth import check_auth_token
@@ -14,6 +14,7 @@ from dashboard.db import fetch_all, fetch_one, get_db
 from dashboard.errors import safe_error_message
 from dashboard.hub_freshness import STALE_AFTER_DAYS, hub_display_status
 from dashboard.server import templates
+from database.refresh_jobs import ensure_refresh_jobs_schema
 
 from app.services.hubs import delete_hub
 
@@ -78,6 +79,86 @@ def _hub_inventory_rows(conn: sqlite3.Connection) -> list[dict]:
         ORDER BY h.iata COLLATE NOCASE
         """,
     )
+
+
+def _refresh_job_row(conn: sqlite3.Connection, job_id: int) -> dict | None:
+    row = fetch_one(
+        conn,
+        """
+        SELECT id, hub_iata, status, started_at, completed_at, progress_pct, error_message
+        FROM refresh_jobs
+        WHERE id = ?
+        LIMIT 1
+        """,
+        [int(job_id)],
+    )
+    return row
+
+
+def _refresh_job_update(
+    *,
+    job_id: int,
+    status: str,
+    progress_pct: int | None = None,
+    error_message: str | None = None,
+    completed: bool = False,
+) -> None:
+    conn = sqlite3.connect(str(dbm.current_db_path()), check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    dbm._apply_pragmas(conn)
+    try:
+        ensure_refresh_jobs_schema(conn)
+        sets = ["status = ?"]
+        params: list[object] = [status]
+        if progress_pct is not None:
+            sets.append("progress_pct = ?")
+            params.append(max(0, min(100, int(progress_pct))))
+        if error_message is not None:
+            sets.append("error_message = ?")
+            params.append(error_message[:1024])
+        if completed:
+            sets.append("completed_at = datetime('now')")
+        conn.execute(
+            f"UPDATE refresh_jobs SET {', '.join(sets)} WHERE id = ?",
+            [*params, int(job_id)],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _run_refresh_job(job_id: int, hub_iata: str) -> None:
+    try:
+        _refresh_job_update(job_id=job_id, status="running", progress_pct=0)
+        _am4_init()
+        from extractors.routes import refresh_single_hub
+
+        cfg_conn = sqlite3.connect(str(dbm.current_db_path()), check_same_thread=False)
+        cfg_conn.row_factory = sqlite3.Row
+        dbm._apply_pragmas(cfg_conn)
+        try:
+            cfg = _dashboard_extract_config_from_conn(cfg_conn)
+        finally:
+            cfg_conn.close()
+
+        def _on_progress(done: int, total: int) -> None:
+            if total <= 0:
+                pct = 100
+            else:
+                pct = int((max(0, min(done, total)) / total) * 100)
+            _refresh_job_update(job_id=job_id, status="running", progress_pct=pct)
+
+        refresh_single_hub(str(dbm.current_db_path()), cfg, hub_iata, _on_progress)
+        _refresh_job_update(job_id=job_id, status="completed", progress_pct=100, completed=True)
+    except Exception as exc:
+        _refresh_job_update(
+            job_id=job_id,
+            status="failed",
+            error_message=safe_error_message(exc),
+            completed=True,
+        )
+    finally:
+        _release_extraction_lock()
 
 
 def _hub_inventory_response(
@@ -250,56 +331,116 @@ def api_hubs_add(request: Request, iata_list: str = Form(""), notes: str = Form(
 
 @router.post(
     "/hubs/refresh",
-    response_class=HTMLResponse,
+    response_class=JSONResponse,
     dependencies=[Depends(check_auth_token)],
 )
-def api_hubs_refresh(request: Request, hub_id: int = Form(...)):
+def api_hubs_refresh(
+    request: Request, background_tasks: BackgroundTasks, hub_id: int = Form(...)
+):
     if not _try_acquire_extraction_lock():
-        return _hub_inventory_response(request, flash_err=_EXTRACTION_BUSY_MSG)
+        return JSONResponse({"error": _EXTRACTION_BUSY_MSG}, status_code=409)
+
+    def _abort(payload: dict, status_code: int) -> JSONResponse:
+        _release_extraction_lock()
+        return JSONResponse(payload, status_code=status_code)
+
     try:
-        iata: str | None = None
         try:
             conn = get_db()
             try:
                 _hubs_ensure_schema(conn)
+                ensure_refresh_jobs_schema(conn)
                 row = fetch_one(
                     conn,
                     "SELECT iata FROM v_my_hubs WHERE id = ? LIMIT 1",
                     [int(hub_id)],
                 )
                 if not row or not row.get("iata"):
-                    return _hub_inventory_response(request, flash_err="Hub not found.")
-                iata = str(row["iata"]).strip()
+                    return _abort({"error": "Hub not found."}, 404)
+                iata = str(row["iata"]).strip().upper()
+
+                existing = fetch_one(
+                    conn,
+                    """
+                    SELECT id, status
+                    FROM refresh_jobs
+                    WHERE hub_iata = ?
+                      AND status IN ('pending', 'running')
+                    ORDER BY id DESC
+                    LIMIT 1
+                    """,
+                    [iata],
+                )
+                if existing:
+                    return _abort(
+                        {
+                            "job_id": int(existing["id"]),
+                            "status": str(existing["status"]),
+                            "error": "Refresh already running for this hub.",
+                        },
+                        409,
+                    )
+
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute(
+                    """
+                    DELETE FROM refresh_jobs
+                    WHERE completed_at IS NOT NULL
+                      AND completed_at < datetime('now', '-7 days')
+                    """
+                )
+                cur = conn.execute(
+                    """
+                    INSERT INTO refresh_jobs (hub_iata, status, progress_pct, error_message)
+                    VALUES (?, 'pending', 0, NULL)
+                    """,
+                    (iata,),
+                )
+                job_id = int(cur.lastrowid)
+                conn.commit()
             finally:
                 conn.close()
         except FileNotFoundError:
-            return _hub_inventory_response(request, flash_err="Database not found.")
+            return _abort({"error": "Database not found."}, 500)
 
-        try:
-            _am4_init()
-            from extractors.routes import refresh_single_hub
-
-            try:
-                ccfg = get_db()
-                try:
-                    cfg = _dashboard_extract_config_from_conn(ccfg)
-                finally:
-                    ccfg.close()
-            except FileNotFoundError:
-                cfg = UserConfig()
-            refresh_single_hub(dbm.DB_PATH, cfg, iata)
-        except ImportError:
-            return _hub_inventory_response(request, flash_err=_HUBS_AM4_UNAVAILABLE_MSG)
-        except RuntimeError as exc:
-            return _hub_inventory_response(request, flash_err=safe_error_message(exc))
-        except ValueError as exc:
-            return _hub_inventory_response(request, flash_err=safe_error_message(exc))
-        except Exception as exc:
-            return _hub_inventory_response(request, flash_err=safe_error_message(exc))
-
-        return _hub_inventory_response(request, flash=f"Refreshed routes for {iata}.")
-    finally:
+        background_tasks.add_task(_run_refresh_job, job_id, iata)
+        return JSONResponse({"job_id": job_id, "status": "pending"}, status_code=202)
+    except ImportError:
         _release_extraction_lock()
+        return JSONResponse({"error": _HUBS_AM4_UNAVAILABLE_MSG}, status_code=500)
+    except Exception:
+        _release_extraction_lock()
+        raise
+
+
+@router.get(
+    "/hubs/refresh/{job_id}",
+    response_class=JSONResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_hubs_refresh_status(request: Request, job_id: int):
+    try:
+        conn = get_db()
+        try:
+            ensure_refresh_jobs_schema(conn)
+            row = _refresh_job_row(conn, int(job_id))
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        return JSONResponse({"error": "Database not found."}, status_code=500)
+    if row is None:
+        return JSONResponse({"error": "Refresh job not found."}, status_code=404)
+    return JSONResponse(
+        {
+            "job_id": int(row["id"]),
+            "hub_iata": str(row["hub_iata"]),
+            "status": str(row["status"]),
+            "started_at": row["started_at"],
+            "completed_at": row["completed_at"],
+            "progress_pct": int(row["progress_pct"] or 0),
+            "error_message": row["error_message"],
+        }
+    )
 
 
 @router.post(

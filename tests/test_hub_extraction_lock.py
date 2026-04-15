@@ -56,11 +56,12 @@ def test_concurrent_hub_refresh_second_gets_busy_message(hub_refresh_db, auth_he
 
         def run_refresh() -> None:
             try:
-                client.post(
+                r = client.post(
                     "/api/hubs/refresh",
                     data={"hub_id": str(hub_id)},
                     headers=auth_headers,
                 )
+                assert r.status_code == 202
             except BaseException as exc:
                 errors.append(exc)
 
@@ -72,8 +73,10 @@ def test_concurrent_hub_refresh_second_gets_busy_message(hub_refresh_db, auth_he
             data={"hub_id": str(hub_id)},
             headers=auth_headers,
         )
-        assert r2.status_code == 200
-        assert "Another extraction is already in progress" in r2.text
+        assert r2.status_code == 409
+        body = r2.json()
+        assert body.get("error")
+        assert "Another extraction is already in progress" in body["error"]
         th.join(timeout=15)
 
     assert not errors
@@ -102,3 +105,25 @@ def test_refresh_stale_busy_while_single_hub_refresh_runs(hub_refresh_db, auth_h
         assert r2.status_code == 200
         assert "Another extraction is already in progress" in r2.text
         th.join(timeout=15)
+
+
+def test_hub_refresh_status_endpoint_returns_job(hub_refresh_db, auth_headers) -> None:
+    hub_id = hub_refresh_db
+    with patch("extractors.routes.refresh_single_hub", return_value=None):
+        client = TestClient(app)
+        start = client.post(
+            "/api/hubs/refresh",
+            data={"hub_id": str(hub_id)},
+            headers=auth_headers,
+        )
+        assert start.status_code == 202
+        body = start.json()
+        assert body["status"] == "pending"
+        assert isinstance(body["job_id"], int)
+
+        status = client.get(f"/api/hubs/refresh/{body['job_id']}", headers=auth_headers)
+        assert status.status_code == 200
+        payload = status.json()
+        assert payload["job_id"] == body["job_id"]
+        assert payload["hub_iata"] == "KHI"
+        assert payload["status"] in {"pending", "running", "completed", "failed"}

@@ -16,7 +16,7 @@ from app.services.hubs import (
 )
 
 from config import UserConfig
-from dashboard.db import base_context, fetch_all, fetch_one, get_db
+from dashboard.db import base_context, fetch_all, fetch_one, get_read_conn
 from dashboard.services.add_route_undo import ensure_route_add_undos_schema, list_recent_adds
 from database.extraction_runs import list_completed_runs
 from database.schema import load_extract_config
@@ -41,7 +41,7 @@ def _package_version() -> str:
 def _origin_hub_iatas_for_fleet_plan() -> list[str]:
     """Managed hubs with a successful extract (v_my_hubs), for planner / Buy Next."""
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             hubs = fetch_all(conn, SQL_EXPLORER_HUB_IATAS)
         finally:
@@ -55,7 +55,7 @@ def _saved_filters_bar_context(page_key: str) -> dict:
     """Context keys for partials/saved_filters_bar.html."""
     items: list = []
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             items = list_saved_filters(conn, page_key)
         finally:
@@ -72,7 +72,7 @@ def _saved_filters_bar_context(page_key: str) -> dict:
 
 def _hubs_with_names() -> list[dict]:
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             return fetch_all(conn, SQL_EXPLORER_HUBS_WITH_NAMES)
         finally:
@@ -86,7 +86,7 @@ def page_index(request: Request):
     from dashboard.db import db_file_size_bytes, fetch_one
 
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             stats = fetch_one(
                 conn,
@@ -156,7 +156,7 @@ def page_hub_explorer(request: Request):
 @router.get("/aircraft", response_class=HTMLResponse)
 def page_aircraft(request: Request):
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             aircraft = fetch_all(
                 conn,
@@ -174,7 +174,7 @@ def page_aircraft(request: Request):
 @router.get("/route-analyzer", response_class=HTMLResponse)
 def page_route_analyzer(request: Request):
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             origins = fetch_all(conn, SQL_EXPLORER_HUBS_WITH_META)
         finally:
@@ -221,7 +221,7 @@ def page_buy_next_global(request: Request):
 @router.get("/my-fleet", response_class=HTMLResponse)
 def page_my_fleet(request: Request):
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             aircraft = fetch_all(
                 conn,
@@ -238,7 +238,7 @@ def page_my_fleet(request: Request):
 
 def _airports_with_iata() -> list[dict]:
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             return fetch_all(
                 conn,
@@ -265,7 +265,7 @@ def page_my_hubs(request: Request):
 def _explorer_hub_iatas() -> list[str]:
     """Hub filter dropdowns: same set as Hub Explorer (managed + successful extract)."""
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             rows = fetch_all(conn, SQL_EXPLORER_HUB_IATAS)
         finally:
@@ -296,7 +296,7 @@ def page_extraction_deltas(request: Request):
     ctx = base_context(request, None)
     ctx.update({"hubs": _explorer_hub_iatas()})
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             ctx["extraction_runs"] = list_completed_runs(conn, limit=100)
         finally:
@@ -328,7 +328,7 @@ GROUP BY ho.id, ho.iata
 def _hub_roi_summary() -> dict:
     """Per-hub capital, daily profit, payback — from my_routes × route_aircraft."""
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             raw = fetch_all(conn, _HUB_ROI_SQL)
         finally:
@@ -397,7 +397,7 @@ def page_scenarios(request: Request):
     ctx = base_context(request, None)
     ctx.update({"hubs": _explorer_hub_iatas()})
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             cfg = load_extract_config(conn)
             if cfg:
@@ -429,7 +429,7 @@ def page_my_routes(
     fresh: str = Query("", description="Set when returning from add-route flow"),
 ):
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             aircraft = fetch_all(
                 conn,
@@ -474,7 +474,7 @@ def page_add_route(
     ctx = base_context(request, None)
     recent_adds: list = []
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             ensure_route_add_undos_schema(conn)
             recent_adds = list_recent_adds(conn, limit=5)
@@ -498,7 +498,7 @@ def page_add_route(
 @router.get("/contributions", response_class=HTMLResponse)
 def page_contributions(request: Request):
     try:
-        conn = get_db()
+        conn = get_read_conn()
         try:
             hubs = fetch_all(
                 conn,

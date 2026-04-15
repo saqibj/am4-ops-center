@@ -8,7 +8,7 @@ from html import escape as html_escape
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
-from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db
+from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_read_conn
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import (
@@ -68,7 +68,7 @@ def api_hub_routes(
     query += f" ORDER BY {order_sql} LIMIT ?"
     params.append(limit)
 
-    conn = get_db()
+    conn = get_read_conn()
     try:
         routes = fetch_all(conn, query, params)
     finally:
@@ -117,7 +117,7 @@ def api_hub_summary(
     if _truthy_stopover_hide(hide_stopovers):
         q += " AND needs_stopover = 0"
 
-    conn = get_db()
+    conn = get_read_conn()
     try:
         row = fetch_one(conn, q, params)
     finally:
@@ -169,7 +169,7 @@ def api_hub_chart(
     query += " ORDER BY profit_per_ac_day DESC LIMIT ?"
     params.append(limit)
 
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(conn, query, params)
     finally:
@@ -209,7 +209,7 @@ def api_aircraft_routes(
         ORDER BY {order_sql}
         LIMIT ?
     """
-    conn = get_db()
+    conn = get_read_conn()
     try:
         routes = fetch_all(conn, sql, [aircraft.strip(), min_profit, limit])
     finally:
@@ -227,7 +227,7 @@ def api_aircraft_stats(request: Request, aircraft: str = Query("")):
     if not aircraft.strip():
         return HTMLResponse("")
 
-    conn = get_db()
+    conn = get_read_conn()
     try:
         agg = fetch_one(
             conn,
@@ -270,7 +270,7 @@ def api_route_destinations(request: Request, origin: str = Query("")):
             "disabled><option value=''>Pick origin first</option></select>"
         )
 
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(
             conn,
@@ -339,7 +339,7 @@ def api_route_compare(
         WHERE ra.is_valid = 1 AND UPPER(a0.iata) = UPPER(?) AND UPPER(a1.iata) = UPPER(?)
         ORDER BY {order_sql}
     """
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(conn, sql, [origin.strip(), dest.strip()])
     finally:
@@ -366,7 +366,7 @@ def api_route_chart(request: Request, origin: str = Query(""), dest: str = Query
         WHERE ra.is_valid = 1 AND UPPER(a0.iata) = UPPER(?) AND UPPER(a1.iata) = UPPER(?)
         ORDER BY ra.profit_per_ac_day DESC
     """
-    conn = get_db()
+    conn = get_read_conn()
     try:
         data = fetch_all(conn, sql, [origin.strip(), dest.strip()])
     finally:
@@ -426,7 +426,7 @@ def chart_profit_by_aircraft(
     q, params = _hub_filter_sql(hub.strip(), filter_type.strip(), 0.0, 0.0, 0.0, False)
     q += " ORDER BY profit_per_ac_day DESC LIMIT ?"
     params.append(limit)
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(conn, q, params)
     finally:
@@ -445,7 +445,7 @@ def chart_profit_by_distance(
         return {"labels": [], "data": []}
     q, params = _hub_filter_sql(hub.strip(), filter_type.strip(), 0.0, 0.0, 0.0, False)
     q += " ORDER BY distance_km ASC LIMIT 200"
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(conn, q, params)
     finally:
@@ -463,7 +463,7 @@ def chart_haul_breakdown(
     if not hub.strip():
         return {"short": 0, "medium": 0, "long": 0}
     q, params = _hub_filter_sql(hub.strip(), filter_type.strip(), 0.0, 0.0, 0.0, False)
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(conn, q, params)
     finally:
@@ -497,7 +497,7 @@ def api_aircraft_chart(
         ORDER BY avg_p DESC
         LIMIT ?
     """
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(conn, sql, [aircraft.strip(), min_profit, limit])
     finally:
@@ -553,7 +553,7 @@ def api_aircraft_cost_breakdown(
     """
 
     try:
-        conn = get_db()
+        conn = get_read_conn()
     except FileNotFoundError:
         return HTMLResponse(
             HTML_DB_NOT_FOUND

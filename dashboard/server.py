@@ -45,7 +45,7 @@ templates = Jinja2Templates(
 @asynccontextmanager
 async def _app_lifespan(app: FastAPI):
     from dashboard.auth import get_dashboard_auth_token
-    from dashboard.db import _apply_pragmas, current_db_path, get_db
+    from dashboard.db import _apply_pragmas, current_db_path, get_read_conn
     from dashboard.services.branding import ensure_branding_schema
     from database.extraction_runs import ensure_extraction_runs_schema
     from database.saved_filters import ensure_saved_filters_schema
@@ -144,35 +144,23 @@ async def _app_lifespan(app: FastAPI):
             finally:
                 conn.close()
 
-        app.state.db_read = get_db()
-        app.state.db_read_path = str(p.resolve())
-        jm = app.state.db_read.execute("PRAGMA journal_mode").fetchone()
-        if not jm or str(jm[0]).lower() != "wal":
-            app.state.db_read.close()
-            app.state.db_read = None
-            app.state.db_read_path = None
-            raise RuntimeError(
-                "PRAGMA journal_mode did not return 'wal' (another process may hold the DB in rollback mode). "
-                "Close extract/dashboard/SQL browser and retry."
-            )
-        logger.info(
-            "SQLite pragmas: journal_mode=wal, cache=200MB, mmap=256MB"
-        )
-        logger.info("Long-lived read connection established")
+        c_read = get_read_conn()
+        try:
+            jm = c_read.execute("PRAGMA journal_mode").fetchone()
+            if not jm or str(jm[0]).lower() != "wal":
+                raise RuntimeError(
+                    "PRAGMA journal_mode did not return 'wal' (another process may hold the DB in rollback mode). "
+                    "Close extract/dashboard/SQL browser and retry."
+                )
+        finally:
+            c_read.close()
+        logger.info("SQLite pragmas verified (journal_mode=wal)")
 
     try:
         yield
     finally:
-        rc = getattr(app.state, "db_read", None)
-        if rc is not None:
-            try:
-                rc.close()
-            except sqlite3.Error:
-                logger.exception("Error closing long-lived read connection")
-            else:
-                logger.info("Long-lived read connection closed")
-            app.state.db_read = None
-            app.state.db_read_path = None
+        app.state.db_read = None
+        app.state.db_read_path = None
 
 
 app = FastAPI(title="AM4 Ops Center Dashboard", lifespan=_app_lifespan)

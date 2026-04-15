@@ -66,11 +66,13 @@ def _write_logo_rel(conn: sqlite3.Connection, value: str) -> None:
 
 def get_airline_name(conn: sqlite3.Connection) -> str:
     """Return stored airline display name, or empty string if unset."""
-    _ensure_settings_table(conn)
-    row = conn.execute(
-        "SELECT value FROM settings WHERE key = ?",
-        (AIRLINE_NAME_KEY,),
-    ).fetchone()
+    try:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            (AIRLINE_NAME_KEY,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return ""
     if row is None:
         return ""
     return str(row[0] or "").strip()

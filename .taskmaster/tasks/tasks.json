@@ -20,7 +20,7 @@
         "testStrategy": "1. Run the full test suite. Test count must stay ≥ baseline from task 1, all tests pass.\n2. Start server with `python main.py dashboard`.\n3. Hit `/api/system/status` 10 times in rapid succession via curl. Confirm zero 500s and zero `database is locked` in the server log.\n4. Delete the local `am4ops.db` (back it up first), restart server, load the dashboard. Confirm `_read_logo_rel` does not crash before startup completes the schema init. Restore the backed-up DB after verification.\n5. Inspect logs to confirm `_ensure_settings_table` is called exactly once at startup, not per request.\n\nAfter all verification passes, commit with message `fix: move branding DDL out of request hot path` and report back with diff summary, test count, and verification confirmation.",
         "priority": "high",
         "dependencies": [1],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -31,7 +31,7 @@
         "testStrategy": "1. Run the full test suite. Test count must stay ≥ baseline, all tests pass. Some tests may need updating if they assumed a single shared connection — that's acceptable as long as test count doesn't drop and behavior is preserved.\n2. Start server. Hit `/api/system/status` and `/api/routes/summary` simultaneously from two terminals in a tight loop for 30 seconds. Confirm zero `InterfaceError` and zero `database is locked`.\n3. Manual concurrency test: in a Python REPL, open a writer connection and `BEGIN IMMEDIATE` (don't commit). In a second REPL, open a read connection and run a `SELECT`. Confirm the read returns immediately (does not block on the writer). This validates WAL is actually working.\n4. Run a hub refresh in the dashboard. While it's running (you have 8 minutes), hit `/api/system/status` and load `/my-routes` from another tab. Both must return 200 and respond promptly. Other writes (e.g. logo update, route addition) are still expected to block until the refresh finishes — that's fixed in task 4.\n5. Confirm via logs that no `InterfaceError` appears across any of the above.\n\nAfter all verification passes, commit with message `refactor: separate read and write connections, enable WAL concurrency` and report back with: which files were touched, which call sites were migrated to read vs write, any sites flagged as mixed-mode, test count, and verification confirmation.",
         "priority": "high",
         "dependencies": [2],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -42,7 +42,7 @@
         "testStrategy": "1. Run the full test suite. Test count must stay ≥ baseline, all tests pass.\n2. Time a hub refresh before and after. The new version should be within ~20% of the original duration (some overhead is expected from extra commits; significantly slower means batch size is too small).\n3. **The key concurrency test:** start a hub refresh in the dashboard. While it's running, in another tab try to add a route via `/routes/add`. Before this task, the route add would block until refresh completes. After this task, the route add should succeed within a few seconds (the time for the in-progress batch to commit and release the lock).\n4. Verify idempotency: kill the server mid-refresh (Ctrl+C). Restart and re-run the refresh for the same hub. The final DB state must match a clean uninterrupted refresh.\n5. Confirm no `database is locked` errors during concurrent operations.\n\nAfter all verification passes, commit with message `perf: chunk hub refresh writes for write concurrency` and report back with: chosen batch size and rationale, before/after refresh duration, confirmation that concurrent route-add succeeded mid-refresh, idempotency verification result.",
         "priority": "medium",
         "dependencies": [3],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": []
       },
       {

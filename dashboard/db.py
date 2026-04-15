@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -37,22 +38,98 @@ DB_PATH = str(current_db_path())
 def _apply_pragmas(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA wal_autocheckpoint=1000")
+    conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA cache_size=-200000")
     conn.execute("PRAGMA mmap_size=268435456")
     conn.execute("PRAGMA temp_store=MEMORY")
     conn.execute("PRAGMA busy_timeout=5000")
 
 
-def get_db() -> sqlite3.Connection:
+def get_read_conn() -> sqlite3.Connection:
     p = current_db_path()
     if not p.exists():
         raise FileNotFoundError(f"Database not found: {p}")
-    conn = sqlite3.connect(str(p), check_same_thread=False)
+    conn = sqlite3.connect(str(p))
     conn.row_factory = sqlite3.Row
     _apply_pragmas(conn)
     from dashboard.middleware.profiling import instrument_connection
 
     return instrument_connection(conn)
+
+
+_WRITE_CONN_RAW: sqlite3.Connection | None = None
+_WRITE_CONN_PATH: str | None = None
+_WRITE_CONN_GUARD = threading.Lock()
+_WRITE_INIT_GUARD = threading.Lock()
+
+
+class _WriteConnectionLease:
+    """Connection lease that releases global writer lock on close()."""
+
+    __slots__ = ("_conn", "_lock", "_closed")
+
+    def __init__(self, conn: sqlite3.Connection, lock: threading.Lock):
+        self._conn = conn
+        self._lock = lock
+        self._closed = False
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._lock.release()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+        return False
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
+def _ensure_write_conn() -> sqlite3.Connection:
+    global _WRITE_CONN_RAW, _WRITE_CONN_PATH
+    p = current_db_path()
+    if not p.exists():
+        raise FileNotFoundError(f"Database not found: {p}")
+    want = str(p.resolve())
+    with _WRITE_INIT_GUARD:
+        if _WRITE_CONN_RAW is not None and _WRITE_CONN_PATH != want:
+            try:
+                _WRITE_CONN_RAW.close()
+            except sqlite3.Error:
+                pass
+            _WRITE_CONN_RAW = None
+            _WRITE_CONN_PATH = None
+        if _WRITE_CONN_RAW is None:
+            conn = sqlite3.connect(want, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            _apply_pragmas(conn)
+            _WRITE_CONN_RAW = conn
+            _WRITE_CONN_PATH = want
+    return _WRITE_CONN_RAW
+
+
+def get_write_conn():
+    """Return serialized lease over shared writer connection."""
+    _WRITE_CONN_GUARD.acquire()
+    try:
+        conn = _ensure_write_conn()
+    except Exception:
+        _WRITE_CONN_GUARD.release()
+        raise
+    from dashboard.middleware.profiling import instrument_connection
+
+    return instrument_connection(_WriteConnectionLease(conn, _WRITE_CONN_GUARD))
+
+
+def get_db():
+    """Deprecated shared accessor; mapped to serialized writer connection."""
+    return get_write_conn()
 
 
 def _close_stale_read_if_path_changed(request: Request) -> None:
@@ -71,16 +148,8 @@ def _close_stale_read_if_path_changed(request: Request) -> None:
 
 def open_read_connection(request: Request) -> tuple[sqlite3.Connection | None, bool]:
     """Return (instrumented connection, needs_close). Caller must close when needs_close is True."""
-    _close_stale_read_if_path_changed(request)
-    from dashboard.middleware.profiling import instrument_connection
-
-    want = str(current_db_path())
-    raw = getattr(request.app.state, "db_read", None)
-    backed = getattr(request.app.state, "db_read_path", None)
-    if raw is not None and backed == want:
-        return instrument_connection(raw), False
     try:
-        return get_db(), True
+        return get_read_conn(), True
     except FileNotFoundError:
         return None, False
 
@@ -252,7 +321,7 @@ def _resolve_game_mode(conn: sqlite3.Connection | None) -> str:
         except sqlite3.OperationalError:
             return "easy"
     try:
-        c = get_db()
+        c = get_read_conn()
         try:
             return read_game_mode(c)
         finally:

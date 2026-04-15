@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from app.services.hubs import SQL_EXPLORER_HUB_IATAS
 
 from commands.fleet_recommend import fleet_recommend_rows
-from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db
+from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_read_conn
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import CONTRIB_SORT, _contrib_order, _query_flag_on
@@ -381,7 +381,7 @@ def api_buy_next(
         return HTMLResponse("<p class='text-amber-400'>Enter a valid budget.</p>")
 
     try:
-        conn = get_db()
+        conn = get_read_conn()
     except FileNotFoundError:
         return HTMLResponse(
             HTML_DB_NOT_FOUND
@@ -478,7 +478,7 @@ def api_buy_next_global(
         return HTMLResponse("<p class='text-amber-400'>Enter a valid budget.</p>")
 
     try:
-        conn = get_db()
+        conn = get_read_conn()
     except FileNotFoundError:
         return HTMLResponse(
             HTML_DB_NOT_FOUND
@@ -523,7 +523,7 @@ def api_buy_next_allocate(
 ):
     """Greedy split of N copies across hubs by best marginal profit_per_ac_day per copy."""
     try:
-        conn = get_db()
+        conn = get_read_conn()
     except FileNotFoundError:
         return HTMLResponse(
             HTML_DB_NOT_FOUND
@@ -603,7 +603,7 @@ def api_fleet_plan(
     if not hub.strip():
         return HTMLResponse("<p class='am4-text-secondary'>Select a hub.</p>")
 
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows, err = fleet_recommend_rows(
             conn,
@@ -656,7 +656,7 @@ def api_contributions(
     query = f"SELECT * FROM ({inner}) AS t ORDER BY {order_sql} LIMIT ?"
     params.append(limit)
 
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(conn, query, params)
     finally:
@@ -688,7 +688,7 @@ def api_heatmap_data(hub: str = Query(""), top_n: int = Query(100, ge=10, le=500
         ORDER BY profit_per_ac_day DESC
         LIMIT ?
     """
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(conn, sql, [hub.strip(), top_n])
     finally:
@@ -722,7 +722,7 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
     if not hub.strip():
         return HTMLResponse("<p class='am4-text-secondary p-4'>Select a hub.</p>")
 
-    conn = get_db()
+    conn = get_read_conn()
     try:
         rows = fetch_all(
             conn,

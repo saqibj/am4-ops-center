@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **`scripts/convert_csv.py` — OCR data quality:** compares fleet counts (from unique `Aircraft_Reg` per type) to **route-implied minimums** (sum of route rows per aircraft type) and optional **registration-uniqueness** warnings when OCR duplicates or garbles regs. New flag **`--on-undercount {warn,bump,fail}`** (default **`bump`**) to warn only, raise fleet tallies to the implied minimum, or exit non-zero. **`mapping_report.txt`** gains a **DATA QUALITY WARNINGS** section. **`tests/test_convert_csv.py`** covers clean input, bump/warn/fail, and unmapped types.
 - **Environment variables:** canonical **`AM4_OPS_CENTER_DB`** and **`AM4_OPS_CENTER_TOKEN`**; legacy **`AM4_ROUTEMINE_DB`** and **`AM4_ROUTEMINE_TOKEN`** remain supported (canonical wins when both are set). Implemented in **`app/env_compat.py`**; **`docker-compose.yml`** and **`.env.example`** prefer the new names.
 - **Windows release pipeline:** `.github/workflows/release.yml` publishes a GitHub Release on semver tags `v*.*.*` with the **am4** wheel and **AM4 Ops Center** installer; `build-am4-wheel` / `build-installer` no longer auto-run on every `v*` tag to avoid duplicate wheel builds. Root **README** adds **Install (Windows 11)**; **`docs/DEVELOPMENT.md`** and **`packaging/SMOKE_TEST.md`** support developers and pre-release QA.
 
@@ -48,12 +49,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Dashboard API:** monolithic **`dashboard/routes/api_routes.py`** split into **`dashboard/routes/api/`** (`shared`, `meta`, `analytics`, `recommendations`, `fleet`, `my_routes`, `hubs`); **`api_routes.py`** re-exports **`router`** for compatibility.
 
-- **`scripts/convert_csv.py`:** **`AIRCRAFT_MAP`** shortnames aligned with am4 **`Aircraft.search`** canonical ids.
+- **`scripts/convert_csv.py`:** **`AIRCRAFT_MAP`** shortnames aligned with am4 **`Aircraft.search`** canonical ids; output files written as **UTF-8** for Windows compatibility.
 - **Airport bulk extract:** stores **every** valid am4 airport; **`min_runway`** applies only when adding a hub through **`upsert_airport_from_am4`**, not during full **`extract_all_airports`**.
 - **Dashboard default bind:** **`python main.py dashboard`** uses **`127.0.0.1`** unless **`--host 0.0.0.0`** (see README).
 - **README:** Docker section, auth / token documentation, extract option table (id max, runway note), breakeven and troubleshooting updates; **Windows (native)** install with **Visual Studio Build Tools** / MSVC (pinned **saqibj/am4** fork), PowerShell quick start, and **WSL** as optional.
 
 ### Fixed
+
+- **Eligible aircraft / add route:** **`available_aircraft_at_hub`** ( **`app/services/fleet_service.py`** ) now subtracts **`SUM(my_routes.num_assigned)`** **globally** per aircraft type. **`my_fleet.quantity`** has no hub column — counting only assignments whose **`origin_id`** matches the form hub wrongly showed aircraft as “free” at a hub when they were assigned elsewhere. Empty-state copy and route validation messages updated accordingly; **`tests/test_fleet_service.py`**, **`tests/test_eligible_aircraft_api.py`**.
 
 - **My Routes** (`/my-routes`): HTMX **`after-request`** on the add-route form was listening to **bubbled** events from child requests (airport/aircraft search), so successful search responses triggered **`form.reset()`** and cleared the hub; shared **`hx-indicator`** also showed **“Saving…”** for those searches. **Guard** `event.detail.elt !== event.currentTarget` on the form handler; **`hx-indicator="false"`** on search inputs; separate **“Loading routes…”** indicator for the inventory panel vs save.
 - **Hub Manager** (`/my-hubs`) and **My Fleet** (`/my-fleet`): same **`after-request`** guard on add forms (and on **Refresh stale hubs**) so bubbled child HTMX cannot run the wrong handler.

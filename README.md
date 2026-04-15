@@ -348,6 +348,17 @@ DXB,CAI,a319neo,1,High frequency
 HKG,IAD,a342,2,Trans-Pacific
 ```
 
+**Fleet quantity is global:** `my_fleet` stores **one row per aircraft type** with a total **`quantity`** (there is no per-hub column). The dashboard treats **available** aircraft as owned quantity minus **`num_assigned` summed across all route origins**, so a type fully assigned from another hub does not appear as spare when adding a route from a different hub.
+
+**OCR export → import files (`scripts/convert_csv.py`):** The game API does not expose your fleet; some workflows OCR screenshots into a CSV with columns **`Hub`**, **`Destination`**, **`Aircraft_Type`**, **`Aircraft_Reg`**, **`Route_Type`**. Run:
+
+```bash
+python scripts/convert_csv.py path/to/am4_routes.csv
+python scripts/convert_csv.py path/to/am4_routes.csv --on-undercount warn
+```
+
+This writes **`fleet.csv`**, **`my_routes.csv`**, and **`mapping_report.txt`** in the current directory. Fleet counts come from **unique registrations per aircraft type**; bad OCR can reuse the same reg for several rows and **under-count** fleet size while routes stay correct. The script compares those counts to a **minimum implied by route rows** (each active route assigns one aircraft of that type) and either **raises** fleet tallies to match (**`--on-undercount bump`**, the default), **warns without changing** (**`warn`**), or **exits with an error** (**`fail`**). It also warns when there are **more rows than unique regs** for a type. Review **`mapping_report.txt`** → **DATA QUALITY WARNINGS** after each run.
+
 ### Docker
 
 Multi-stage **`Dockerfile`**: build tools and **`pip install`** run in a builder stage; the runtime image copies only the virtualenv and runs as **`appuser`** (uid **1000**), without **`gcc`/`cmake`/`git`**. The dashboard defaults to **`--db /app/data/am4ops.db`**. If you still have **`am4_data.db`** in the data volume, rename it once to **`am4ops.db`** (or point **`AM4_OPS_CENTER_DB`** / legacy **`AM4_ROUTEMINE_DB`** at the old path).
@@ -505,7 +516,7 @@ am4-ops-center/
 │   ├── templates/           # Jinja2 HTML templates
 │   └── static/              # favicon; css/ (theme, settings); js/ (theme, settings store, branding, shell)
 ├── docs/                    # Design notes (e.g. UIPRO brief / visual spec)
-├── tests/                   # pytest (UI settings + dashboard HTTP smoke)
+├── tests/                   # pytest (dashboard, fleet, convert_csv, …)
 ├── PRD/                     # Product specs (SQLite naming matches app: am4ops.db / db_path())
 ├── .taskmaster/docs/prd/    # Archived PRD copies (same DB naming conventions)
 ├── exports/                 # CSV/Excel output

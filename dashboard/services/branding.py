@@ -33,12 +33,19 @@ def _ensure_settings_table(conn: sqlite3.Connection) -> None:
     conn.executescript(_SETTINGS_DDL)
 
 
-def _read_logo_rel(conn: sqlite3.Connection) -> str:
+def ensure_branding_schema(conn: sqlite3.Connection) -> None:
+    """Idempotently ensure branding settings schema exists."""
     _ensure_settings_table(conn)
-    row = conn.execute(
-        "SELECT value FROM settings WHERE key = ?",
-        (AIRLINE_LOGO_KEY,),
-    ).fetchone()
+
+
+def _read_logo_rel(conn: sqlite3.Connection) -> str:
+    try:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?",
+            (AIRLINE_LOGO_KEY,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return ""
     if row is None:
         return ""
     return str(row[0] or "").strip()
@@ -146,7 +153,6 @@ def validate_upload(
 
 def get_logo_path(conn: sqlite3.Connection) -> Path | None:
     """Return absolute path to the logo file, or None if unset or missing on disk."""
-    _ensure_settings_table(conn)
     raw = _read_logo_rel(conn)
     if not raw:
         return None

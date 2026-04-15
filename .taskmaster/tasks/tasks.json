@@ -9,7 +9,7 @@
         "testStrategy": "Verify branch exists with `git branch --show-current`. Verify baseline file exists and contains all four sections. Verify commit was made.",
         "priority": "high",
         "dependencies": [],
-        "status": "in-progress",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -20,7 +20,7 @@
         "testStrategy": "1. Run the full test suite. Test count must stay ≥ baseline from task 1, all tests pass.\n2. Start server with `python main.py dashboard`.\n3. Hit `/api/system/status` 10 times in rapid succession via curl. Confirm zero 500s and zero `database is locked` in the server log.\n4. Delete the local `am4ops.db` (back it up first), restart server, load the dashboard. Confirm `_read_logo_rel` does not crash before startup completes the schema init. Restore the backed-up DB after verification.\n5. Inspect logs to confirm `_ensure_settings_table` is called exactly once at startup, not per request.\n\nAfter all verification passes, commit with message `fix: move branding DDL out of request hot path` and report back with diff summary, test count, and verification confirmation.",
         "priority": "high",
         "dependencies": [1],
-        "status": "pending",
+        "status": "in-progress",
         "subtasks": []
       },
       {

@@ -46,6 +46,7 @@ templates = Jinja2Templates(
 async def _app_lifespan(app: FastAPI):
     from dashboard.auth import get_dashboard_auth_token
     from dashboard.db import _apply_pragmas, current_db_path, get_db
+    from dashboard.services.branding import ensure_branding_schema
     from database.extraction_runs import ensure_extraction_runs_schema
     from database.saved_filters import ensure_saved_filters_schema
     from database.settings_dao import ensure_app_settings_schema
@@ -88,6 +89,17 @@ async def _app_lifespan(app: FastAPI):
             logger.info("Schema ensured: saved_filters")
         except Exception:
             logger.exception("ensure_saved_filters_schema failed")
+            raise
+
+        try:
+            c1a = _short_setup_conn()
+            try:
+                ensure_branding_schema(c1a)
+            finally:
+                c1a.close()
+            logger.info("Schema ensured: branding settings")
+        except Exception:
+            logger.exception("ensure_branding_schema failed")
             raise
 
         try:

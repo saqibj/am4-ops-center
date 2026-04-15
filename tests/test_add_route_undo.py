@@ -56,7 +56,8 @@ def test_create_undo_token_60s_expiry(tmp_path: Path) -> None:
         conn.close()
 
 
-def test_create_undo_token_cleans_expired(tmp_path: Path) -> None:
+def test_expired_undo_row_not_removed_by_create_token(tmp_path: Path) -> None:
+    """Expired log rows are no longer opportunistically deleted (Task 9)."""
     conn = _conn(tmp_path)
     try:
         ensure_route_add_undos_schema(conn)
@@ -76,8 +77,41 @@ def test_create_undo_token_cleans_expired(tmp_path: Path) -> None:
         conn.execute("BEGIN IMMEDIATE")
         tok = create_undo_token(conn, rid, None)
         conn.commit()
-        assert fetch_one(conn, "SELECT 1 FROM route_add_undos WHERE token = 'stale'") is None
+        assert fetch_one(conn, "SELECT 1 FROM route_add_undos WHERE token = 'stale'") is not None
         assert fetch_one(conn, "SELECT 1 FROM route_add_undos WHERE token = ?", (tok,)) is not None
+    finally:
+        conn.close()
+
+
+def test_create_undo_token_trims_to_20_rows(tmp_path: Path) -> None:
+    conn = _conn(tmp_path)
+    try:
+        ensure_route_add_undos_schema(conn)
+        for d in range(4, 25):
+            conn.execute("INSERT INTO airports (id, iata) VALUES (?, ?)", (d, f"D{d}"))
+        conn.commit()
+        for d in range(4, 25):
+            conn.execute(
+                """
+                INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned)
+                VALUES (1, ?, 1, 1)
+                """,
+                (d,),
+            )
+        conn.commit()
+        rids = [
+            int(x[0])
+            for x in conn.execute("SELECT id FROM my_routes ORDER BY id ASC").fetchall()
+        ]
+        tokens: list[str] = []
+        for rid in rids:
+            conn.execute("BEGIN IMMEDIATE")
+            tokens.append(create_undo_token(conn, rid, None))
+            conn.commit()
+        n = int(conn.execute("SELECT COUNT(*) FROM route_add_undos").fetchone()[0])
+        assert n == 20
+        assert fetch_one(conn, "SELECT 1 FROM route_add_undos WHERE token = ?", (tokens[0],)) is None
+        assert fetch_one(conn, "SELECT 1 FROM route_add_undos WHERE token = ?", (tokens[-1],)) is not None
     finally:
         conn.close()
 

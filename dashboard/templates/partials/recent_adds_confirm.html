@@ -1,0 +1,38 @@
+{% if missing %}
+<tr id="recent-add-row-{{ token }}" class="bg-amber-950/30">
+    <td colspan="4" class="py-2 text-xs text-amber-200/95">This entry is no longer available.</td>
+</tr>
+{% else %}
+<tr id="recent-add-row-{{ row.token }}" class="bg-slate-800/60 align-top">
+    <td colspan="4" class="py-3 px-2">
+        <p class="text-sm text-slate-100 mb-2">
+            Delete route {{ row.origin_iata }}→{{ row.dest_iata }} (aircraft {{ row.aircraft_short }})?
+        </p>
+        {% if row.fleet_id and row.fleet_safe_to_remove %}
+        <label class="flex items-start gap-2 text-xs text-slate-300 mb-3 cursor-pointer">
+            <input type="checkbox" name="remove_fleet" value="on" form="recent-del-{{ row.token }}"
+                   class="mt-0.5 rounded border-slate-500">
+            <span>Also remove fleet aircraft {{ row.aircraft_short }}{% if row.fleet_qty is not none %} #{{ row.fleet_qty }}{% endif %}</span>
+        </label>
+        {% elif row.fleet_id and not row.fleet_safe_to_remove %}
+        <p class="text-[11px] am4-text-muted mb-3">Other routes use this aircraft — fleet row will be kept.</p>
+        {% endif %}
+        <form id="recent-del-{{ row.token }}"
+              class="flex flex-wrap gap-2"
+              hx-post="/api/routes/recent-adds/{{ row.token }}/delete"
+              hx-swap="none">
+            <button type="submit"
+                    class="rounded-md bg-rose-700/90 hover:bg-rose-600 px-3 py-1 text-xs font-medium text-white">
+                Delete
+            </button>
+            <button type="button"
+                    class="rounded-md am4-bordered px-3 py-1 text-xs am4-text-secondary"
+                    hx-get="/api/routes/recent-adds/{{ row.token }}/row"
+                    hx-target="#recent-add-row-{{ row.token }}"
+                    hx-swap="outerHTML">
+                Cancel
+            </button>
+        </form>
+    </td>
+</tr>
+{% endif %}

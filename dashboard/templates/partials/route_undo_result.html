@@ -7,6 +7,8 @@
         if (inv) htmx.ajax("GET", "/api/routes/inventory", { target: "#add-route-inventory", swap: "innerHTML" });
         var sum = document.getElementById("add-route-routes-summary");
         if (sum) htmx.ajax("GET", "/api/routes/summary", { target: "#add-route-routes-summary", swap: "innerHTML" });
+        var ras = document.getElementById("recent-adds-strip");
+        if (ras) htmx.ajax("GET", "/api/routes/recent-adds", { target: "#recent-adds-strip", swap: "outerHTML" });
       }
     </script>
     {% endif %}

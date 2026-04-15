@@ -1,0 +1,16 @@
+    <div class="rounded-lg border border-slate-600/40 bg-slate-900/30 px-4 py-3">
+        <h4 class="text-sm font-semibold text-slate-200 mb-2">Recent adds</h4>
+        {% if not recent_adds %}
+        <p class="text-xs am4-text-muted">No recent adds in this session yet.</p>
+        {% else %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-slate-700/50">
+                    {% for row in recent_adds %}
+                    {% include "partials/recent_adds_row.html" %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>

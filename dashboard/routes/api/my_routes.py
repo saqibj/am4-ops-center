@@ -26,10 +26,18 @@ from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_
 from dashboard.services.add_route_undo import (
     consume_undo_token,
     create_undo_token,
+    delete_recent_add,
     ensure_route_add_undos_schema,
+    get_recent_add_row,
+    list_recent_adds,
 )
 
 router = APIRouter()
+
+
+def _referer_is_add_route_page(request: Request) -> bool:
+    ref = (request.headers.get("referer") or "")
+    return "/routes/add" in ref
 
 
 def _parse_optional_int_field(raw: str) -> int | None:
@@ -873,7 +881,178 @@ def api_routes_add(
         ctx["flash"] = msg
     elif not ctx.get("flash_err"):
         ctx["flash"] = "Saved route assignment."
-    return templates.TemplateResponse(request, "partials/my_routes_inventory.html", ctx)
+
+    recent_adds: list = []
+    try:
+        c2 = get_db()
+        try:
+            ensure_route_add_undos_schema(c2)
+            recent_adds = list_recent_adds(c2, limit=5)
+        finally:
+            c2.close()
+    except FileNotFoundError:
+        recent_adds = []
+    ctx["recent_adds"] = recent_adds
+
+    tmpl = "partials/my_routes_inventory.html"
+    if _referer_is_add_route_page(request):
+        tmpl = "partials/my_routes_inventory_add_route_response.html"
+    return templates.TemplateResponse(request, tmpl, ctx)
+
+
+@router.get(
+    "/routes/recent-adds",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_recent_adds(request: Request):
+    try:
+        conn = get_db()
+        try:
+            ensure_route_add_undos_schema(conn)
+            rows = list_recent_adds(conn, limit=5)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        rows = []
+    return templates.TemplateResponse(
+        request,
+        "partials/recent_adds_strip.html",
+        {"recent_adds": rows},
+    )
+
+
+@router.get(
+    "/routes/recent-adds/{token}/confirm",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_recent_adds_confirm(request: Request, token: str):
+    try:
+        conn = get_db()
+        try:
+            row = get_recent_add_row(conn, token)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        row = None
+    if not row:
+        return templates.TemplateResponse(
+            request,
+            "partials/recent_adds_confirm.html",
+            {"missing": True, "token": token},
+        )
+    return templates.TemplateResponse(
+        request,
+        "partials/recent_adds_confirm.html",
+        {"row": row, "missing": False, "token": token},
+    )
+
+
+@router.get(
+    "/routes/recent-adds/{token}/row",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_recent_adds_row(request: Request, token: str):
+    try:
+        conn = get_db()
+        try:
+            row = get_recent_add_row(conn, token)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        row = None
+    if not row:
+        return templates.TemplateResponse(
+            request,
+            "partials/recent_adds_row_gone.html",
+            {"token": token},
+        )
+    return templates.TemplateResponse(
+        request,
+        "partials/recent_adds_row.html",
+        {"row": row},
+    )
+
+
+@router.post(
+    "/routes/recent-adds/{token}/delete",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_recent_adds_delete(
+    request: Request,
+    token: str,
+    remove_fleet: str = Form(""),
+):
+    rf = (remove_fleet or "").strip().lower() in ("on", "true", "1", "yes")
+    payload: dict | None = None
+    try:
+        conn = get_db()
+        try:
+            payload = delete_recent_add(conn, token, rf)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        pass
+
+    if not payload:
+        recent_adds_err: list = []
+        try:
+            c3 = get_db()
+            try:
+                ensure_route_add_undos_schema(c3)
+                recent_adds_err = list_recent_adds(c3, limit=5)
+            finally:
+                c3.close()
+        except FileNotFoundError:
+            recent_adds_err = []
+        return templates.TemplateResponse(
+            request,
+            "partials/recent_adds_delete_result.html",
+            {
+                "ok": False,
+                "message": "Already removed.",
+                "recent_adds": recent_adds_err,
+            },
+        )
+
+    try:
+        c = get_db()
+        try:
+            routes = _my_routes_rows(c)
+        finally:
+            c.close()
+    except FileNotFoundError:
+        routes = []
+
+    recent_adds: list = []
+    try:
+        c2 = get_db()
+        try:
+            ensure_route_add_undos_schema(c2)
+            recent_adds = list_recent_adds(c2, limit=5)
+        finally:
+            c2.close()
+    except FileNotFoundError:
+        recent_adds = []
+
+    return templates.TemplateResponse(
+        request,
+        "partials/recent_adds_delete_result.html",
+        {
+            "ok": True,
+            "message": (
+                f"Route {payload['origin']}→{payload['dest']} removed."
+                + (" Fleet row removed." if payload.get("fleet_removed") else "")
+            ),
+            "routes": routes,
+            "recent_adds": recent_adds,
+            "highlight_route_id": None,
+            "success_route": None,
+        },
+    )
 
 
 @router.post(
@@ -903,8 +1082,6 @@ def api_routes_undo(request: Request, token: str):
                     (token,),
                 )
                 if expired:
-                    conn.execute("DELETE FROM route_add_undos WHERE token = ?", (token,))
-                    conn.commit()
                     feedback = "Undo window expired."
                 else:
                     feedback = "Already undone."

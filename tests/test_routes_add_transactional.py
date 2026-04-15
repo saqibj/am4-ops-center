@@ -54,7 +54,11 @@ def test_routes_add_existing_fleet_happy_path(tmp_path, monkeypatch, auth_header
     )
     assert r.status_code == 200
     assert 'data-routes-error="1"' not in r.text
-    assert "Added" in r.text or "Merged" in r.text
+    assert (
+        "Added" in r.text
+        or "Merged" in r.text
+        or "route-add-flash-undo" in r.text
+    )
 
     conn = get_connection(db_path)
     n = conn.execute("SELECT COUNT(*) FROM my_routes WHERE origin_id=1 AND dest_id=2 AND aircraft_id=1").fetchone()[0]

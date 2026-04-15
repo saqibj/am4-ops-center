@@ -1,0 +1,13 @@
+<div id="route-add-flash-undo" class="mb-4 rounded-lg border px-4 py-3 {% if undo_ok %}border-emerald-500/35 bg-emerald-950/25{% else %}border-amber-500/35 bg-amber-950/20{% endif %}">
+    <p class="text-sm {% if undo_ok %}text-emerald-300/95{% else %}text-amber-200/95{% endif %}">{{ undo_feedback }}</p>
+    {% if undo_ok %}
+    <script>
+      if (window.htmx) {
+        var inv = document.getElementById("add-route-inventory");
+        if (inv) htmx.ajax("GET", "/api/routes/inventory", { target: "#add-route-inventory", swap: "innerHTML" });
+        var sum = document.getElementById("add-route-routes-summary");
+        if (sum) htmx.ajax("GET", "/api/routes/summary", { target: "#add-route-routes-summary", swap: "innerHTML" });
+      }
+    </script>
+    {% endif %}
+</div>

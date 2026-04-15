@@ -74,3 +74,16 @@ Files matched by grep for `from ... import ... get_connection`:
 - `tests/test_route_validator.py`
 - `tests/test_routes_add_transactional.py`
 - `tests/test_settings_dao.py`
+
+## After
+
+- Command: `pytest`
+- Result: `174 passed`
+- Runtime: `43.81s`
+- Active DB path: `C:\Users\Saqib Jawaid\AppData\Local\am4-ops-center\AM4OpsCenter\am4ops.db`
+- `journal_mode=wal`
+- `synchronous=2`
+- `busy_timeout=5000`
+- `wal_autocheckpoint=1000`
+
+Concurrent refresh behavior after the overhaul is stable: read-heavy dashboard paths now use dedicated read connections while writes are serialized through a writer lease, so reads continue to succeed during an active write transaction (`read_during_write=1` validation) and hub refresh writes release lock pressure between 50-row batches; in addition, single-hub refresh now runs as a tracked background job with progress polling and duplicate-job prevention, so the UI remains responsive while refresh execution proceeds asynchronously.

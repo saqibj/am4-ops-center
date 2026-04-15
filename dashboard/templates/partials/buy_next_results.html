@@ -29,6 +29,7 @@
                     hx-vals='{"sort": "total_desc"}'>Total/d</th>
                 <th class="text-right py-2 px-2">Payback</th>
                 <th class="text-left py-2 px-2">Currently</th>
+                <th class="w-8 max-w-[2rem] py-2 px-1"></th>
             </tr>
         </thead>
         <tbody>
@@ -58,6 +59,15 @@
                     <span class="text-blue-300" title="You fly this route with a different aircraft">{{ r.current_ac_shortname }}</span>
                     {% endif %}
                 </td>
+                {% if r.match_tier != 'exact' and r.match_tier != 'route' and r.destination %}
+                <td class="py-1 px-1 text-center w-8 max-w-[2rem]">
+                    <a href="/routes/add?{{ {'hub': hub, 'destination': r.destination, 'aircraft': r.ac_shortname}|urlencode }}"
+                       class="inline-block text-[14px] leading-none am4-text-muted hover:text-[var(--accent)] no-underline"
+                       title="Add route for {{ r.ac_shortname }} to {{ r.destination }}">➕</a>
+                </td>
+                {% else %}
+                <td class="py-1 px-1 w-8 max-w-[2rem]"></td>
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>

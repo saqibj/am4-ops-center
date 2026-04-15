@@ -321,6 +321,42 @@ def _insert_batches(
     conn.commit()
 
 
+# Keep hub-refresh write transactions short so other writers can interleave.
+_HUB_REFRESH_WRITE_BATCH_SIZE = 50
+
+
+def _insert_batches_chunked(
+    conn: sqlite3.Connection,
+    route_rows: list[dict],
+    demand_pairs: dict[tuple[int, int], tuple],
+    *,
+    batch_size: int = _HUB_REFRESH_WRITE_BATCH_SIZE,
+    run_id: int | None = None,
+) -> None:
+    if batch_size < 1:
+        batch_size = 1
+    for i in range(0, len(route_rows), batch_size):
+        chunk = route_rows[i : i + batch_size]
+        batch: list[dict] = []
+        chunk_keys: set[tuple[int, int]] = set()
+        for r in chunk:
+            row = dict(r)
+            row["run_id"] = run_id
+            batch.append(row)
+            chunk_keys.add((int(row["origin_id"]), int(row["dest_id"])))
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.executemany(ROUTE_INSERT_SQL, batch)
+            for key in chunk_keys:
+                tup = demand_pairs.get(key)
+                if tup is not None:
+                    conn.execute(DEMAND_UPSERT_SQL, tup)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+
 def _aircraft_rows_from_db(conn: sqlite3.Connection) -> list[dict]:
     """Same shape as extract_all_aircraft() output for extract_routes_for_hub."""
     rows = conn.execute(
@@ -500,7 +536,7 @@ def refresh_single_hub_conn(conn: sqlite3.Connection, cfg: UserConfig, hub_iata:
         rr, dd = extract_routes_for_hub(
             iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label
         )
-        _insert_batches(conn, rr, _demands_to_map(dd), run_id=run_id)
+        _insert_batches_chunked(conn, rr, _demands_to_map(dd), run_id=run_id)
         sync_my_routes_extraction_flags(conn)
         save_extract_config(conn, cfg)
         snap_n = insert_snapshots_for_run(conn, run_id, [ap_id])

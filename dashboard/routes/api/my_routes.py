@@ -700,11 +700,11 @@ def api_routes_add(
                 else:
                     n = int(num_assigned) if num_assigned else 1
                     n = max(1, min(999, n))
-                    avail = available_aircraft_at_hub(conn, hub_id, ac_id)
+                    avail = available_aircraft_at_hub(conn, ac_id)
                     if n > avail:
                         msg = (
-                            f"Only {avail} of this aircraft type available at hub "
-                            f"{hub_iata.strip().upper()} (fleet minus assignments); cannot assign {n}."
+                            f"Only {avail} of this aircraft type available "
+                            f"(fleet minus assignments across all hubs); cannot assign {n}."
                         )
                         use_flash_err = True
                         conn.rollback()

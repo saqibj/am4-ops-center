@@ -66,12 +66,14 @@ def lookup_route_distance_km(
 
 def available_aircraft_at_hub(
     conn: sqlite3.Connection,
-    hub_airport_id: int,
     aircraft_id: int,
 ) -> int:
     """
-    Planes of ``aircraft_id`` still free at ``hub_airport_id``: ``my_fleet.quantity`` minus
-    ``SUM(my_routes.num_assigned)`` for that origin and aircraft. Returns ``0`` if not in fleet.
+    Unassigned planes of ``aircraft_id``: ``my_fleet.quantity`` minus
+    ``SUM(my_routes.num_assigned)`` across all route origins for that aircraft.
+
+    Fleet quantity is global per aircraft type (no hub column in ``my_fleet``); ``num_assigned``
+    totals are global across the network. Returns ``0`` if not in fleet.
     """
     row = conn.execute(
         "SELECT COALESCE(quantity, 0) FROM my_fleet WHERE aircraft_id = ?",
@@ -82,9 +84,9 @@ def available_aircraft_at_hub(
         """
         SELECT COALESCE(SUM(num_assigned), 0)
         FROM my_routes
-        WHERE origin_id = ? AND aircraft_id = ?
+        WHERE aircraft_id = ?
         """,
-        (hub_airport_id, aircraft_id),
+        (aircraft_id,),
     ).fetchone()
     asg = int(row2[0] or 0) if row2 else 0
     return max(0, qty - asg)
@@ -98,8 +100,8 @@ def eligible_aircraft_empty_reason(
 ) -> str:
     """Human-readable explanation when ``get_eligible_aircraft`` returns no rows.
 
-    Picks the most specific case: no fleet, all units assigned at this hub, or
-    runway/range blocks every type that still has free units at the hub.
+    Picks the most specific case: no fleet, all units of every type assigned globally, or
+    runway/range blocks every type that still has free units.
     """
     hub = hub_iata.strip().upper()
 
@@ -118,12 +120,15 @@ def eligible_aircraft_empty_reason(
     any_avail_at_hub = False
     for row in conn.execute("SELECT aircraft_id FROM my_fleet"):
         aid = int(row[0])
-        if available_aircraft_at_hub(conn, hub_id, aid) >= 1:
+        if available_aircraft_at_hub(conn, aid) >= 1:
             any_avail_at_hub = True
             break
 
     if not any_avail_at_hub:
-        return f"All your aircraft at {hub} are already assigned to other routes."
+        return (
+            "All your aircraft of every type are already assigned to routes "
+            f"(nothing remaining for new routes from {hub})."
+        )
 
     return f"No aircraft at {hub} can fly this route (range or runway)."
 
@@ -141,8 +146,8 @@ def get_eligible_aircraft(
 
     - Runway: ``aircraft.rwy`` must be ``<=`` both airport ``rwy`` values when those values are
       non-null; if an airport ``rwy`` is null, that endpoint is not used to reject aircraft.
-    - Availability at the hub: ``my_fleet.quantity - SUM(my_routes.num_assigned)`` for rows with
-      ``origin_id`` = hub must be > 0 (assigned counts are per hub origin, not global).
+    - Availability: ``my_fleet.quantity - SUM(my_routes.num_assigned)`` for that aircraft type
+      across all origins must be > 0 (fleet quantity is global; assignments are global totals).
 
     Each dict includes ``eligible_direct`` (range covers ``distance_km``) and
     ``eligible_with_stopover`` (true when a direct flight is out of range for the aircraft).
@@ -201,14 +206,13 @@ def get_eligible_aircraft(
             ac.type AS ac_type,
             ac.capacity,
             mf.quantity AS owned_count,
-            COALESCE(assign.assigned_at_hub, 0) AS assigned_at_hub,
+            COALESCE(assign.assigned_total, 0) AS assigned_total,
             COALESCE(rc.route_count, 0) AS current_route_count
         FROM my_fleet mf
         INNER JOIN aircraft ac ON ac.id = mf.aircraft_id
         LEFT JOIN (
-            SELECT aircraft_id, SUM(num_assigned) AS assigned_at_hub
+            SELECT aircraft_id, SUM(num_assigned) AS assigned_total
             FROM my_routes
-            WHERE origin_id = ?
             GROUP BY aircraft_id
         ) assign ON assign.aircraft_id = ac.id
         LEFT JOIN (
@@ -217,10 +221,10 @@ def get_eligible_aircraft(
             WHERE origin_id = ?
             GROUP BY aircraft_id
         ) rc ON rc.aircraft_id = ac.id
-        WHERE mf.quantity > COALESCE(assign.assigned_at_hub, 0)
+        WHERE mf.quantity > COALESCE(assign.assigned_total, 0)
         ORDER BY ac.shortname COLLATE NOCASE
         """,
-        (hub_id, hub_id),
+        (hub_id,),
     ).fetchall()
 
     out: list[dict[str, Any]] = []
@@ -228,8 +232,8 @@ def get_eligible_aircraft(
 
     for row in rows:
         ac_id = int(row["aircraft_id"])
-        # Authoritative availability at this hub (must match my_fleet − assignments at origin).
-        avail_at_hub = available_aircraft_at_hub(conn, hub_id, ac_id)
+        # Authoritative availability (my_fleet − global assignments; matches WHERE above).
+        avail_at_hub = available_aircraft_at_hub(conn, ac_id)
         if avail_at_hub < 1:
             continue
 

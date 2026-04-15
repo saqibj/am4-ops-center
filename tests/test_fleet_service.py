@@ -1,10 +1,10 @@
-"""Tests for app.services.fleet_service.get_eligible_aircraft."""
+"""Tests for app.services.fleet_service (eligible aircraft and availability)."""
 
 from __future__ import annotations
 
 import pytest
 
-from app.services.fleet_service import get_eligible_aircraft
+from app.services.fleet_service import available_aircraft_at_hub, get_eligible_aircraft
 from database.schema import create_schema, get_connection
 
 
@@ -46,7 +46,7 @@ def test_get_eligible_aircraft_filters_and_counts(tmp_path) -> None:
     rows = get_eligible_aircraft(conn, "KHI", "DXB", 5000.0)
     by_sn = {r["shortname"]: r for r in rows}
 
-    assert "a1" not in by_sn  # fully assigned at hub
+    assert "a1" not in by_sn  # fully assigned (fleet global)
     assert "a5" not in by_sn  # runway 3500 > KHI 3000
 
     assert by_sn["a2"]["available_count"] == 3
@@ -60,6 +60,41 @@ def test_get_eligible_aircraft_filters_and_counts(tmp_path) -> None:
     assert by_sn["a4"]["eligible_direct"] is False
     assert by_sn["a4"]["eligible_with_stopover"] is True
     assert by_sn["a4"]["stopover_hint"] is not None
+
+    conn.close()
+
+
+def test_available_aircraft_at_hub_uses_global_assignments(tmp_path) -> None:
+    """Assignments at another hub consume the global fleet count; no \"free\" planes at DXB."""
+    db = tmp_path / "t.db"
+    conn = get_connection(db)
+    create_schema(conn)
+
+    conn.execute(
+        "INSERT INTO airports (id, iata, rwy) VALUES (1, 'LHR', 4000), (2, 'DXB', 4000)"
+    )
+    a320_id = 322
+    conn.execute(
+        """
+        INSERT INTO aircraft (id, shortname, name, type, range_km, rwy, capacity)
+        VALUES (?, 'A320', 'Airbus A320', 'PAX', 5000, 1500, 180)
+        """,
+        (a320_id,),
+    )
+    conn.execute(
+        "INSERT INTO my_fleet (aircraft_id, quantity) VALUES (?, 2)",
+        (a320_id,),
+    )
+    conn.execute(
+        """
+        INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned)
+        VALUES (1, 2, ?, 2)
+        """,
+        (a320_id,),
+    )
+    conn.commit()
+
+    assert available_aircraft_at_hub(conn, a320_id) == 0
 
     conn.close()
 

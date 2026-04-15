@@ -110,7 +110,10 @@ def test_eligible_aircraft_empty_reason_in_html(tmp_path, monkeypatch) -> None:
     )
     assert r.status_code == 200
     assert "data-empty-reason" in r.text
-    assert "All your aircraft at KHI are already assigned to other routes." in r.text
+    assert (
+        "All your aircraft of every type are already assigned to routes "
+        "(nothing remaining for new routes from KHI)."
+    ) in r.text
 
 
 def test_eligible_aircraft_empty_html_inline_fleet_markup(tmp_path, monkeypatch) -> None:
@@ -146,7 +149,10 @@ def test_eligible_aircraft_empty_html_inline_fleet_markup(tmp_path, monkeypatch)
         headers={"Accept": "text/html"},
     )
     assert r.status_code == 200
-    assert "All your aircraft at KHI are already assigned to other routes." in r.text
+    assert (
+        "All your aircraft of every type are already assigned to routes "
+        "(nothing remaining for new routes from KHI)."
+    ) in r.text
     assert 'data-inline-fleet-entry="1"' in r.text
     assert "inline_fleet_quantity" in r.text
     assert 'form="add-route-main"' in r.text
@@ -156,7 +162,7 @@ def test_eligible_aircraft_empty_html_inline_fleet_markup(tmp_path, monkeypatch)
 def test_eligible_aircraft_fully_assigned_single_unit_json_reason(
     tmp_path, monkeypatch
 ) -> None:
-    """1× aircraft fully assigned at hub: empty list, 'all assigned' reason (not 'no fleet')."""
+    """1× aircraft fully assigned: empty list, 'all assigned' reason (not 'no fleet')."""
     db_path = tmp_path / "elig_full1.db"
     conn = get_connection(db_path)
     create_schema(conn)
@@ -194,9 +200,9 @@ def test_eligible_aircraft_fully_assigned_single_unit_json_reason(
     assert r.status_code == 200
     data = r.json()
     assert data["aircraft"] == []
-    assert (
-        data["empty_reason"]
-        == "All your aircraft at KHI are already assigned to other routes."
+    assert data["empty_reason"] == (
+        "All your aircraft of every type are already assigned to routes "
+        "(nothing remaining for new routes from KHI)."
     )
     assert "don't own any aircraft" not in (data["empty_reason"] or "").lower()
 
@@ -244,7 +250,7 @@ def test_eligible_aircraft_fully_assigned_single_unit_html_inline_expands(
     assert "— Choose aircraft —" not in r.text
     assert "No eligible aircraft" in r.text
     assert 'data-inline-fleet-entry="1"' in r.text
-    assert "All your aircraft at KHI are already assigned" in r.text
+    assert "nothing remaining for new routes from KHI" in r.text
 
 
 def test_eligible_aircraft_no_fleet_global_json_reason(tmp_path, monkeypatch) -> None:

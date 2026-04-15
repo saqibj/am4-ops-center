@@ -1,0 +1,37 @@
+<div id="route-add-flash-undo"
+     class="mb-4 rounded-lg border border-emerald-500/35 bg-emerald-950/25 px-4 py-3"
+     {% if expires_at_ms %}data-expires-at-ms="{{ expires_at_ms }}"{% endif %}>
+    <p class="text-sm text-emerald-300/95 font-medium">
+        Route {{ undo_origin }}→{{ undo_dest }} added.
+        <button type="button"
+                class="ml-2 inline-flex items-center rounded-md bg-emerald-700/90 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1 text-xs font-semibold text-white transition-opacity"
+                hx-post="/api/routes/undo/{{ undo_token }}"
+                hx-target="#route-add-flash-undo"
+                hx-swap="outerHTML">
+            Undo (<span data-undo-countdown>{{ seconds_remaining }}</span>s)
+        </button>
+    </p>
+    {% if flash_supplement %}
+    <p class="text-xs am4-text-secondary mt-2">{{ flash_supplement }}</p>
+    {% endif %}
+    <script>
+      (function () {
+        var root = document.getElementById("route-add-flash-undo");
+        if (!root) return;
+        var span = root.querySelector("[data-undo-countdown]");
+        var btn = root.querySelector("button[type=button]");
+        if (!span || !btn) return;
+        var untilMs = parseInt(root.getAttribute("data-expires-at-ms") || "0", 10);
+        var until = untilMs > 0 ? untilMs : Date.now() + (parseInt(span.textContent, 10) || 0) * 1000;
+        var t = setInterval(function () {
+          var left = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+          span.textContent = String(left);
+          if (left <= 0) {
+            clearInterval(t);
+            btn.setAttribute("disabled", "disabled");
+            btn.style.opacity = "0.5";
+          }
+        }, 1000);
+      })();
+    </script>
+</div>

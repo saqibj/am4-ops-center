@@ -16,6 +16,9 @@
         </div>
     </div>
     {% endif %}
+    {% if undo_token %}
+    {% include "partials/add_route_flash.html" %}
+    {% endif %}
     {% if flash %}
     <p class="am4-accent text-sm mb-4">{{ flash }}</p>
     {% endif %}

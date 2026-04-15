@@ -17,6 +17,7 @@ from app.services.hubs import (
 
 from config import UserConfig
 from dashboard.db import base_context, fetch_all, fetch_one, get_db
+from dashboard.services.add_route_undo import ensure_route_add_undos_schema, list_recent_adds
 from database.extraction_runs import list_completed_runs
 from database.schema import load_extract_config
 from dashboard.hub_freshness import STALE_AFTER_DAYS
@@ -471,6 +472,16 @@ def page_add_route(
     ac_u = (aircraft or "").strip().lower()
     default_hub = hub_u if hub_u and hub_u in hubs else (hubs[0] if hubs else "")
     ctx = base_context(request, None)
+    recent_adds: list = []
+    try:
+        conn = get_db()
+        try:
+            ensure_route_add_undos_schema(conn)
+            recent_adds = list_recent_adds(conn, limit=5)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        recent_adds = []
     ctx.update(
         {
             "hubs": hubs,
@@ -478,6 +489,7 @@ def page_add_route(
             "prefill_destination": dest_u,
             "prefill_aircraft": ac_u,
             "airports": _airports_with_iata(),
+            "recent_adds": recent_adds,
         }
     )
     return templates.TemplateResponse(request, "pages/add_route.html", ctx)

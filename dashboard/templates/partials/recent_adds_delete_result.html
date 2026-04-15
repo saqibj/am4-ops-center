@@ -1,0 +1,21 @@
+{% if ok %}
+<div id="recent-adds-strip" hx-swap-oob="true">
+{% include "partials/recent_adds_strip_inner.html" %}
+</div>
+<div id="add-route-inventory" hx-swap-oob="true">
+{% include "partials/my_routes_inventory.html" %}
+</div>
+<script>
+  if (window.htmx) {
+    var sum = document.getElementById("add-route-routes-summary");
+    if (sum) htmx.ajax("GET", "/api/routes/summary", { target: "#add-route-routes-summary", swap: "innerHTML" });
+  }
+</script>
+{% else %}
+<div id="recent-adds-strip" hx-swap-oob="true">
+    <div class="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-2 mb-2">
+        <p class="text-xs text-amber-200/95">{{ message }}</p>
+    </div>
+    {% include "partials/recent_adds_strip_inner.html" %}
+</div>
+{% endif %}

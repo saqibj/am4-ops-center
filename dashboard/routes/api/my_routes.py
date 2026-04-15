@@ -23,8 +23,21 @@ from dashboard.server import templates
 from database.schema import ensure_my_routes_inventory_schema
 
 from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_routes_rows
+from dashboard.services.add_route_undo import (
+    consume_undo_token,
+    create_undo_token,
+    delete_recent_add,
+    ensure_route_add_undos_schema,
+    get_recent_add_row,
+    list_recent_adds,
+)
 
 router = APIRouter()
+
+
+def _referer_is_add_route_page(request: Request) -> bool:
+    ref = (request.headers.get("referer") or "")
+    return "/routes/add" in ref
 
 
 def _parse_optional_int_field(raw: str) -> int | None:
@@ -605,10 +618,17 @@ def api_routes_add(
     msg: str | None = None
     use_flash_err = False
     success_route: dict[str, str | int] | None = None
+    undo_token: str | None = None
+    undo_origin: str = ""
+    undo_dest: str = ""
+    seconds_remaining: int = 60
+    expires_at_ms: int | None = None
+    flash_supplement: str | None = None
     try:
         conn = get_db()
         try:
             ensure_my_routes_inventory_schema(conn)
+            ensure_route_add_undos_schema(conn)
             conn.execute("BEGIN IMMEDIATE")
             hub = fetch_one(
                 conn,
@@ -635,6 +655,11 @@ def api_routes_add(
                 hub_id = int(hub["id"])
                 dest_id = int(dest["id"])
                 ac_id = int(ac["id"])
+                fleet_row_before = fetch_one(
+                    conn,
+                    "SELECT id FROM my_fleet WHERE aircraft_id = ? LIMIT 1",
+                    [ac_id],
+                )
                 iq = _parse_inline_fleet_quantity(inline_fleet_quantity)
                 if iq > 0:
                     fn = (inline_fleet_notes or "").strip() or None
@@ -726,7 +751,6 @@ def api_routes_add(
                                 ex_needed,
                             ),
                         )
-                        conn.commit()
                         after = fetch_one(
                             conn,
                             """
@@ -768,6 +792,44 @@ def api_routes_add(
                         if vr["warnings"]:
                             parts.append(" ".join(vr["warnings"]))
                         msg = " ".join(parts)
+                        if prev is None and rid_row:
+                            fleet_id_for_undo: int | None = None
+                            if iq > 0 and fleet_row_before is None:
+                                fr = fetch_one(
+                                    conn,
+                                    "SELECT id FROM my_fleet WHERE aircraft_id = ? LIMIT 1",
+                                    [ac_id],
+                                )
+                                if fr:
+                                    fleet_id_for_undo = int(fr["id"])
+                            rid = int(rid_row["id"])
+                            undo_token = create_undo_token(conn, rid, fleet_id_for_undo)
+                            undo_origin = hub_u
+                            undo_dest = dest_u
+                            exp = fetch_one(
+                                conn,
+                                """
+                                SELECT
+                                    CAST(strftime('%s', expires_at) AS INTEGER) AS eu,
+                                    CAST(strftime('%s', 'now') AS INTEGER) AS nowu
+                                FROM route_add_undos
+                                WHERE token = ?
+                                """,
+                                (undo_token,),
+                            )
+                            if exp and exp["eu"] is not None and exp["nowu"] is not None:
+                                eu = int(exp["eu"])
+                                nowu = int(exp["nowu"])
+                                seconds_remaining = max(0, eu - nowu)
+                                expires_at_ms = eu * 1000
+                            supp_only: list[str] = []
+                            if iq > 0:
+                                supp_only.append(f"Added {iq} × {aircraft.strip()} to fleet.")
+                            if vr["warnings"]:
+                                supp_only.append(" ".join(vr["warnings"]))
+                            flash_supplement = " ".join(supp_only).strip() or None
+                            msg = None
+                        conn.commit()
             if not hub or not dest or not ac:
                 conn.rollback()
         except sqlite3.OperationalError:
@@ -806,11 +868,233 @@ def api_routes_add(
         or "missing" in msg
     ):
         ctx["flash_err"] = msg
+    elif undo_token:
+        ctx["undo_token"] = undo_token
+        ctx["undo_origin"] = undo_origin
+        ctx["undo_dest"] = undo_dest
+        ctx["seconds_remaining"] = seconds_remaining
+        if expires_at_ms is not None:
+            ctx["expires_at_ms"] = expires_at_ms
+        if flash_supplement:
+            ctx["flash_supplement"] = flash_supplement
     elif msg:
         ctx["flash"] = msg
     elif not ctx.get("flash_err"):
         ctx["flash"] = "Saved route assignment."
-    return templates.TemplateResponse(request, "partials/my_routes_inventory.html", ctx)
+
+    recent_adds: list = []
+    try:
+        c2 = get_db()
+        try:
+            ensure_route_add_undos_schema(c2)
+            recent_adds = list_recent_adds(c2, limit=5)
+        finally:
+            c2.close()
+    except FileNotFoundError:
+        recent_adds = []
+    ctx["recent_adds"] = recent_adds
+
+    tmpl = "partials/my_routes_inventory.html"
+    if _referer_is_add_route_page(request):
+        tmpl = "partials/my_routes_inventory_add_route_response.html"
+    return templates.TemplateResponse(request, tmpl, ctx)
+
+
+@router.get(
+    "/routes/recent-adds",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_recent_adds(request: Request):
+    try:
+        conn = get_db()
+        try:
+            ensure_route_add_undos_schema(conn)
+            rows = list_recent_adds(conn, limit=5)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        rows = []
+    return templates.TemplateResponse(
+        request,
+        "partials/recent_adds_strip.html",
+        {"recent_adds": rows},
+    )
+
+
+@router.get(
+    "/routes/recent-adds/{token}/confirm",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_recent_adds_confirm(request: Request, token: str):
+    try:
+        conn = get_db()
+        try:
+            row = get_recent_add_row(conn, token)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        row = None
+    if not row:
+        return templates.TemplateResponse(
+            request,
+            "partials/recent_adds_confirm.html",
+            {"missing": True, "token": token},
+        )
+    return templates.TemplateResponse(
+        request,
+        "partials/recent_adds_confirm.html",
+        {"row": row, "missing": False, "token": token},
+    )
+
+
+@router.get(
+    "/routes/recent-adds/{token}/row",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_recent_adds_row(request: Request, token: str):
+    try:
+        conn = get_db()
+        try:
+            row = get_recent_add_row(conn, token)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        row = None
+    if not row:
+        return templates.TemplateResponse(
+            request,
+            "partials/recent_adds_row_gone.html",
+            {"token": token},
+        )
+    return templates.TemplateResponse(
+        request,
+        "partials/recent_adds_row.html",
+        {"row": row},
+    )
+
+
+@router.post(
+    "/routes/recent-adds/{token}/delete",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_recent_adds_delete(
+    request: Request,
+    token: str,
+    remove_fleet: str = Form(""),
+):
+    rf = (remove_fleet or "").strip().lower() in ("on", "true", "1", "yes")
+    payload: dict | None = None
+    try:
+        conn = get_db()
+        try:
+            payload = delete_recent_add(conn, token, rf)
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        pass
+
+    if not payload:
+        recent_adds_err: list = []
+        try:
+            c3 = get_db()
+            try:
+                ensure_route_add_undos_schema(c3)
+                recent_adds_err = list_recent_adds(c3, limit=5)
+            finally:
+                c3.close()
+        except FileNotFoundError:
+            recent_adds_err = []
+        return templates.TemplateResponse(
+            request,
+            "partials/recent_adds_delete_result.html",
+            {
+                "ok": False,
+                "message": "Already removed.",
+                "recent_adds": recent_adds_err,
+            },
+        )
+
+    try:
+        c = get_db()
+        try:
+            routes = _my_routes_rows(c)
+        finally:
+            c.close()
+    except FileNotFoundError:
+        routes = []
+
+    recent_adds: list = []
+    try:
+        c2 = get_db()
+        try:
+            ensure_route_add_undos_schema(c2)
+            recent_adds = list_recent_adds(c2, limit=5)
+        finally:
+            c2.close()
+    except FileNotFoundError:
+        recent_adds = []
+
+    return templates.TemplateResponse(
+        request,
+        "partials/recent_adds_delete_result.html",
+        {
+            "ok": True,
+            "message": (
+                f"Route {payload['origin']}→{payload['dest']} removed."
+                + (" Fleet row removed." if payload.get("fleet_removed") else "")
+            ),
+            "routes": routes,
+            "recent_adds": recent_adds,
+            "highlight_route_id": None,
+            "success_route": None,
+        },
+    )
+
+
+@router.post(
+    "/routes/undo/{token}",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_routes_undo(request: Request, token: str):
+    feedback: str = "Already undone."
+    ok = False
+    try:
+        conn = get_db()
+        try:
+            payload = consume_undo_token(conn, token)
+            if payload:
+                feedback = (
+                    f"Route {payload['origin']}→{payload['dest']} removed."
+                )
+                ok = True
+            else:
+                expired = fetch_one(
+                    conn,
+                    """
+                    SELECT 1 AS x FROM route_add_undos
+                    WHERE token = ? AND expires_at <= datetime('now')
+                    """,
+                    (token,),
+                )
+                if expired:
+                    feedback = "Undo window expired."
+                else:
+                    feedback = "Already undone."
+        finally:
+            conn.close()
+    except FileNotFoundError:
+        feedback = "Database not found."
+
+    return templates.TemplateResponse(
+        request,
+        "partials/route_undo_result.html",
+        {"undo_feedback": feedback, "undo_ok": ok},
+    )
 
 
 @router.post(

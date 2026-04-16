@@ -46,7 +46,7 @@ For a **prebuilt app** (no compiler, no `pip install am4`):
 
 ## 📸 Screenshots
 
-> Screenshots coming soon. The dashboard has **17** main pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Scenarios, Fleet Planner, Buy Next, My Fleet, My Routes, Fleet Health, Demand utilization, Extraction deltas, Hub ROI, Hub Manager, Contributions, Heatmap, and **Settings**.
+> Screenshots coming soon. The dashboard has **18** main pages: Overview, Hub Explorer, Aircraft, Route Analyzer, Scenarios, Fleet Planner, Buy Next, **Buy Next global**, My Fleet, My Routes, Fleet Health, Demand utilization, Extraction deltas, Hub ROI, Hub Manager, Contributions, Heatmap, and **Settings** (plus **Add route** at `/routes/add`).
 
 ---
 
@@ -58,9 +58,9 @@ For a **prebuilt app** (no compiler, no `pip install am4`):
 - **3,900+ airports** — complete airport database with runway, market tier, hub costs
 - **SQLite storage** — 3.8M+ route rows queryable offline
 - **FastAPI dashboard** — web UI with **light / dark / system** themes, semantic styling (`theme.css`, `am4-*` utilities), Tailwind CSS (CDN) + HTMX (no page reloads)
-- **17 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, **Scenarios** (fuel/CO₂ vs extraction baselines), Fleet Planner, **Buy Next** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Fleet Health**, **Demand utilization**, **Extraction deltas** (compare route snapshots between two extractions), **Hub ROI**, **Hub Manager** (managed hubs, per-hub / stale refresh), Contributions, Heatmap, and **Settings** (`/settings`: themes, airline branding, default landing page, UI density, notification toggles; stored in browser **`localStorage`**)
+- **17 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, **Scenarios** (fuel/CO₂ vs extraction baselines), Fleet Planner, **Buy Next** / **Buy Next global** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Fleet Health**, **Demand utilization**, **Extraction deltas** (compare route snapshots between two extractions), **Hub ROI**, **Hub Manager** (managed hubs; per-hub and **stale** refresh run as **background jobs** with progress — no long-blocking HTTP request), Contributions, Heatmap, and **Settings** (`/settings`: themes, airline branding, default landing page, UI density, notification toggles; stored in browser **`localStorage`**)
 - **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; CSV import defaults to **merge**; **`--replace`** overwrites counts; dashboard forms match the same semantics
-- **CLI `recommend`** / **Buy Next** (`/buy-next`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**)
+- **CLI `recommend`** / **Buy Next** (`/buy-next`, `/buy-next/global`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**); eligible rows include a **➕** link to **`/routes/add`** with hub, destination, and aircraft **prefilled**
 - **CSV/Excel export** — dump tables for spreadsheet analysis
 - **Fully offline** — after initial setup, no internet needed
 
@@ -101,7 +101,7 @@ For a **prebuilt app** (no compiler, no `pip install am4`):
 ## 🔧 Prerequisites
 
 - **OS:** Windows 10/11 (native), WSL Ubuntu, native Linux, or macOS
-- **Python:** 3.10–3.12 (3.12.x recommended; 3.13+ not supported)
+- **Python:** 3.10–3.14 (matches **`pyproject.toml`** / installer; **3.12.x** is the usual dev / Docker baseline if building **am4** from source gives trouble on newer interpreters)
 - **Build tools (compile am4 C++ / pybind11):**
   - **Linux / WSL:** `build-essential`, `cmake`, `python3-dev`
   - **Windows (native):** [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the **Desktop development with C++** workload (MSVC, Windows SDK). **CMake** is included in that workload; **Git for Windows** for cloning.
@@ -435,14 +435,15 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 | Route Analyzer | `/route-analyzer` | All aircraft ranked for a specific origin → destination |
 | Scenarios | `/scenarios` | Fuel/CO2 what-if slider vs extracted baseline costs |
 | Fleet Planner | `/fleet-planner` | Budget-based aircraft / route suggestions |
-| Buy Next | `/buy-next` | Payback-ranked purchases, top routes, optional multi-hub allocator |
+| Buy Next | `/buy-next` | Payback-ranked purchases, top routes, optional multi-hub allocator; **➕** opens **Add route** with prefilled hub / dest / aircraft |
+| Buy Next (global) | `/buy-next/global` | Same flat table across **all** hubs; **Hub** column; **➕** deep link to **Add route** |
 | My Fleet | `/my-fleet` | `my_fleet` table: quantities, assigned vs free, buy/sell, CSV |
 | My Routes | `/my-routes` | `my_routes` assignments, merge on add, duplicate hints |
 | Fleet Health | `/fleet-health` | Profit gap vs best aircraft/config on each assigned route |
 | Demand utilization | `/demand-utilization` | Offered Y/J/F seats vs route demand with underserved/wasted flags |
 | Extraction deltas | `/extraction-deltas` | Compare two extraction snapshots: new/removed/movers/flip counts |
 | Hub ROI | `/hub-roi` | Per-hub capital deployed, daily profit, payback, worst-hub highlight |
-| Hub Manager | `/my-hubs` | Managed hubs (`my_hubs`): add IATA, per-hub refresh, **stale** refresh (OK extract older than 7 days), remove |
+| Hub Manager | `/my-hubs` | Managed hubs (`my_hubs`): add IATA, per-hub / **stale** refresh as **background jobs** (status + progress), remove |
 | Contributions | `/contributions` | Routes sorted by alliance contribution |
 | Heatmap | `/heatmap` | Map visualization of profitable destinations |
 | Settings | `/settings` | Light/dark/system theme, density, landing page, notifications, branding; stored in **`localStorage`** |
@@ -454,7 +455,7 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 - **Settings:** `dashboard/static/js/settings-store.js` (persistence) and `dashboard/ui_settings.py` (shared schema / allowlists for server use)
 - **Charts:** Chart.js
 - **Maps:** Leaflet.js
-- **Database:** SQLite
+- **Database:** SQLite (**WAL**, concurrent reads + serialized writes for dashboard safety under load)
 - **Core Engine:** am4 (C++ with pybind11 Python bindings)
 
 ### Tests
@@ -464,7 +465,7 @@ pip install -e ".[dev]"
 pytest tests/
 ```
 
-Covers UI settings parsing/sanitization, HTTP smoke checks for static assets, **`/`** and **`/settings`**, HTMX **`after-request`** elt guards on **`/my-routes`**, **`/my-hubs`**, and **`/my-fleet`**, **`POST /api/*`** bearer-token auth, schema/migrations, fleet recommend breakeven, and related regressions (see **`tests/`**).
+Covers UI settings parsing/sanitization, HTTP smoke checks for static assets, **`/`** and **`/settings`**, HTMX **`after-request`** elt guards on **`/my-routes`**, **`/my-hubs`**, and **`/my-fleet`**, **`POST /api/*`** bearer-token auth, schema/migrations, fleet recommend breakeven, add-route / hub APIs, and related regressions (see **`tests/`**).
 
 ---
 
@@ -499,6 +500,7 @@ am4-ops-center/
 │   └── routes.py            # Bulk route computation (RoutesSearch)
 ├── database/
 │   ├── schema.py            # SQLite tables, indexes, views
+│   ├── refresh_jobs.py      # Hub refresh background job rows
 │   └── queries.py           # Predefined SQL queries
 ├── exporters/
 │   ├── csv_export.py        # CSV export
@@ -548,12 +550,12 @@ Human-readable notes and optional one-off snippets are under [`app/db/migrations
 | Issue | Fix |
 |-------|-----|
 | `am4` build fails on Windows (MSVC / `cl.exe` not found) | Install **Visual Studio Build Tools** with **Desktop development with C++**, then run `pip install` from **x64 Native Tools Command Prompt for VS** (see [Windows (native with MSVC)](#windows-native-with-msvc)). If it still fails, try WSL or compare your pinned **am4** commit with `requirements.in`. |
-| `am4` build fails on Python 3.13+ | Use Python 3.10–3.12 |
+| `am4` build fails on a given Python version | Try **3.12.x** (see [Prerequisites](#prerequisites)); ensure MSVC / build tools match your platform |
 | `ModuleNotFoundError: am4` or Hub Manager flash **“The am4 package is not available…”** | Use **Python 3.10–3.12**, create/activate a venv (`python3 -m venv .venv` then `source .venv/bin/activate`, or on Windows `py -3.12 -m venv .venv` then `.\.venv\Scripts\Activate.ps1`), run `pip install -r requirements.txt`, and start the dashboard with **that** interpreter (`python main.py dashboard …`). The UI loads without `am4`, but **add hub** and **refresh** need it. |
 | Segfault on import | Must call `init()` before any am4 module usage |
 | `init()` downloads data files | Normal on first run — needs internet connection once |
 | Extraction is slow | Default is `--workers 4`; try `--workers 1` if you see instability or on very large extracts |
-| SQLite locked | Close other DB connections, enable WAL mode |
+| SQLite locked / write contention | The app uses **WAL** and separate read/write access; close stray **`sqlite3`** shells or other tools holding the DB open. If issues persist, retry after other processes release the file |
 | Dashboard blank page | Check **`AM4_OPS_CENTER_DB`** (or legacy **`AM4_ROUTEMINE_DB`**) points to an existing `.db` file |
 | **`401`** on **`POST /api/*`** (curl, custom clients, or broken HTMX) | Send **`Authorization: Bearer <token>`** matching **`AM4_OPS_CENTER_TOKEN`**, legacy **`AM4_ROUTEMINE_TOKEN`**, or the token printed at server startup; the HTML UI sets **`hx-headers`** on **`<body>`** automatically |
 | Can’t reach the dashboard from another device | Expected with the default bind address — use `--host 0.0.0.0` only on trusted networks; set **`AM4_OPS_CENTER_TOKEN`** (or legacy **`AM4_ROUTEMINE_TOKEN`**) and use HTTPS or a reverse proxy if exposing beyond localhost (see [Launch Dashboard](#launch-dashboard)) |

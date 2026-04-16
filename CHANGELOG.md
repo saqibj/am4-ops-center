@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Hub refresh (background jobs):** SQLite **`refresh_jobs`** tracks per-hub **`extract --refresh-hubs`** work with **`pending` / `running` / `completed` / `failed`**, **`progress_pct`**, and timestamps. Refresh runs in a **background thread**; the UI **polls** job status instead of holding a long HTTP request. Orphaned **`running`** rows are marked **`failed`** on dashboard startup after a crash or restart.
+- **Buy Next → Add route:** each eligible row in **Buy Next** (`/buy-next`) and **Buy Next global** (`/buy-next/global`) has a **➕** link to **`/routes/add`** with **`hub`**, **`destination`**, and **`aircraft`** query params so the add-route form prefills hub, destination, and aircraft.
+
 - **`scripts/convert_csv.py` — OCR data quality:** compares fleet counts (from unique `Aircraft_Reg` per type) to **route-implied minimums** (sum of route rows per aircraft type) and optional **registration-uniqueness** warnings when OCR duplicates or garbles regs. New flag **`--on-undercount {warn,bump,fail}`** (default **`bump`**) to warn only, raise fleet tallies to the implied minimum, or exit non-zero. **`mapping_report.txt`** gains a **DATA QUALITY WARNINGS** section. **`tests/test_convert_csv.py`** covers clean input, bump/warn/fail, and unmapped types.
 - **Environment variables:** canonical **`AM4_OPS_CENTER_DB`** and **`AM4_OPS_CENTER_TOKEN`**; legacy **`AM4_ROUTEMINE_DB`** and **`AM4_ROUTEMINE_TOKEN`** remain supported (canonical wins when both are set). Implemented in **`app/env_compat.py`**; **`docker-compose.yml`** and **`.env.example`** prefer the new names.
 - **Windows release pipeline:** `.github/workflows/release.yml` publishes a GitHub Release on semver tags `v*.*.*` with the **am4** wheel and **AM4 Ops Center** installer; `build-am4-wheel` / `build-installer` no longer auto-run on every `v*` tag to avoid duplicate wheel builds. Root **README** adds **Install (Windows 11)**; **`docs/DEVELOPMENT.md`** and **`packaging/SMOKE_TEST.md`** support developers and pre-release QA.
@@ -43,6 +46,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- **SQLite concurrency (dashboard):** **WAL** mode with **separate read connections** (`get_read_conn`) and a **single serialized write connection** (`get_write_conn` lease) so concurrent page loads and API reads do not block each other; hub refresh **writes in chunks** to reduce writer hold time. Connections use **`check_same_thread=False`** where background workers need them. See **`PRD/perf-baseline-phase2.md`** / **`PRD/perf-flamegraphs-phase2.md`** for post-overhaul metrics notes.
+- **Hub refresh extraction:** progress callbacks batch work for smoother concurrent dashboard use alongside **`refresh_single_hub`**.
+- **Request path:** branding-related DDL moved off the hot path for typical dashboard requests.
+
 - **SQLite defaults & documentation:** canonical database file **`am4ops.db`** with CLI/dashboard default path from **`app.paths.db_path()`** (and optional **`AM4OPS_DATA_DIR`** / **`AM4_OPS_CENTER_DB`** / legacy **`AM4_ROUTEMINE_DB`**). **`.taskmaster/docs/prd/`**, **`PRD/perf-flamegraphs-phase2.md`**, and related spec snippets were updated from legacy **`am4_data.db`** wording; diagram and sample **`argparse`** blocks now use **`DEFAULT_DB_PATH = str(db_path())`** where appropriate. **README** and **SETUP-GUIDE:** **Direct SQLite Queries** spell out **`sqlite3`** with **`db_path()`** on Bash, PowerShell, **`cmd.exe`**, and Docker. **README** project tree lists **`.taskmaster/docs/prd/`** and PRD naming conventions; **Contributing** references both spec locations. **Docker** uses **`/app/data/am4ops.db`** (migration note there for volumes still named **`am4_data.db`**). Test fixtures use a nonexistent **`no_am4ops.db`** path for absent-DB cases.
 
 - **Buy Next (`/buy-next`, `/api/buy-next`):** flat sortable **route × aircraft × seat config** table with required hub and budget; columns for qty affordable, total daily profit, profit yield ($/d per $1M), and payback days; six sort options (A/C price asc/desc, profit/day asc/desc, yield, total daily profit at budget); default sort A/C price high→low; default row limit **15** with **Show all matches** (up to **500**); **`my_routes`** highlights — blue tint when you fly the route with another aircraft, dim with **✓ same** when hub+dest+aircraft already assigned; toggle to hide routes you already operate; 🏆 marks the row with the highest total daily profit at your budget regardless of sort. Implementation in **`dashboard/routes/api/recommendations.py`** and **`dashboard/templates/partials/buy_next_results.html`**.
@@ -56,10 +63,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- **SQLite:** shared connections are safe for use across threads where required (e.g. background hub refresh worker).
+
 - **Eligible aircraft / add route:** **`available_aircraft_at_hub`** ( **`app/services/fleet_service.py`** ) now subtracts **`SUM(my_routes.num_assigned)`** **globally** per aircraft type. **`my_fleet.quantity`** has no hub column — counting only assignments whose **`origin_id`** matches the form hub wrongly showed aircraft as “free” at a hub when they were assigned elsewhere. Empty-state copy and route validation messages updated accordingly; **`tests/test_fleet_service.py`**, **`tests/test_eligible_aircraft_api.py`**.
 
 - **My Routes** (`/my-routes`): HTMX **`after-request`** on the add-route form was listening to **bubbled** events from child requests (airport/aircraft search), so successful search responses triggered **`form.reset()`** and cleared the hub; shared **`hx-indicator`** also showed **“Saving…”** for those searches. **Guard** `event.detail.elt !== event.currentTarget` on the form handler; **`hx-indicator="false"`** on search inputs; separate **“Loading routes…”** indicator for the inventory panel vs save.
 - **Hub Manager** (`/my-hubs`) and **My Fleet** (`/my-fleet`): same **`after-request`** guard on add forms (and on **Refresh stale hubs**) so bubbled child HTMX cannot run the wrong handler.
+
+### Removed
+
+- **Fleet / cache:** unused cache-invalidation helper after the SQLite access refactor.
 
 ---
 

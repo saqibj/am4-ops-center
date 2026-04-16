@@ -50,7 +50,7 @@ def get_read_conn() -> sqlite3.Connection:
     p = current_db_path()
     if not p.exists():
         raise FileNotFoundError(f"Database not found: {p}")
-    conn = sqlite3.connect(str(p))
+    conn = sqlite3.connect(str(p), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     _apply_pragmas(conn)
     from dashboard.middleware.profiling import instrument_connection

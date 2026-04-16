@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import sqlite3
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -19,7 +20,7 @@ from app.state import (
 from commands.airline import _aircraft_id, _norm_keys
 from config import UserConfig
 from database.schema import create_schema, get_connection
-from dashboard.db import base_context
+from dashboard.db import base_context, get_read_conn
 from dashboard.server import templates
 from dashboard.setup_flow import get_progress, start_extraction
 
@@ -27,7 +28,14 @@ router = APIRouter(tags=["setup"])
 
 
 def _ctx(request: Request, step: int, title: str) -> dict:
-    ctx = base_context(request, None)
+    conn: sqlite3.Connection | None = None
+    try:
+        conn = get_read_conn()
+    except FileNotFoundError:
+        pass
+    ctx = base_context(request, conn)
+    if conn is not None:
+        conn.close()
     ctx.update(
         {
             "step": step,

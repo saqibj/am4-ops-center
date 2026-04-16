@@ -165,6 +165,7 @@ CREATE INDEX IF NOT EXISTS idx_ra_valid_profit ON route_aircraft(is_valid, profi
 CREATE INDEX IF NOT EXISTS idx_ra_route_profit ON route_aircraft(origin_id, dest_id, aircraft_id, is_valid, profit_per_ac_day);
 CREATE INDEX IF NOT EXISTS idx_ra_od_valid_profit ON route_aircraft(origin_id, dest_id, is_valid, profit_per_ac_day DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_profit ON route_aircraft(origin_id, is_valid, profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_dest_profit ON route_aircraft(origin_id, is_valid, dest_id, profit_per_ac_day DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_valid_contribution ON route_aircraft(is_valid, contribution DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_aircraft_valid_partial ON route_aircraft(aircraft_id) WHERE is_valid = 1;
 
@@ -175,6 +176,9 @@ CREATE TABLE IF NOT EXISTS my_fleet (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     aircraft_id     INTEGER NOT NULL UNIQUE,
     quantity        INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 1 AND quantity <= 999),
+    engine          TEXT,
+    mods            TEXT,
+    purchase_price  INTEGER,
     notes           TEXT,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -243,6 +247,9 @@ SELECT
     mf.id,
     mf.aircraft_id,
     mf.quantity,
+    mf.engine,
+    mf.mods,
+    mf.purchase_price,
     mf.notes,
     mf.created_at,
     mf.updated_at,
@@ -357,6 +364,9 @@ SELECT
     mf.id,
     mf.aircraft_id,
     mf.quantity,
+    mf.engine,
+    mf.mods,
+    mf.purchase_price,
     mf.notes,
     mf.created_at,
     mf.updated_at,
@@ -718,6 +728,7 @@ CREATE INDEX IF NOT EXISTS idx_ra_valid_profit ON route_aircraft(is_valid, profi
 CREATE INDEX IF NOT EXISTS idx_ra_route_profit ON route_aircraft(origin_id, dest_id, aircraft_id, is_valid, profit_per_ac_day);
 CREATE INDEX IF NOT EXISTS idx_ra_od_valid_profit ON route_aircraft(origin_id, dest_id, is_valid, profit_per_ac_day DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_profit ON route_aircraft(origin_id, is_valid, profit_per_ac_day DESC);
+CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_dest_profit ON route_aircraft(origin_id, is_valid, dest_id, profit_per_ac_day DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_valid_contribution ON route_aircraft(is_valid, contribution DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_aircraft_valid_partial ON route_aircraft(aircraft_id) WHERE is_valid = 1;
 """
@@ -895,6 +906,37 @@ def _migrate_my_routes_needs_extraction_refresh(conn: sqlite3.Connection) -> boo
     return True
 
 
+def _migrate_route_aircraft_heatmap_index(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_dest_profit
+        ON route_aircraft(origin_id, is_valid, dest_id, profit_per_ac_day DESC)
+        """
+    )
+
+
+def _migrate_my_fleet_optional_columns(conn: sqlite3.Connection) -> bool:
+    """Return True if any optional my_fleet column was added."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(my_fleet)").fetchall()}
+    changed = False
+    if "engine" not in cols:
+        conn.execute("ALTER TABLE my_fleet ADD COLUMN engine TEXT")
+        changed = True
+    if "mods" not in cols:
+        conn.execute("ALTER TABLE my_fleet ADD COLUMN mods TEXT")
+        changed = True
+    if "purchase_price" not in cols:
+        conn.execute("ALTER TABLE my_fleet ADD COLUMN purchase_price INTEGER")
+        changed = True
+    return changed
+
+
+def ensure_my_fleet_optional_schema(conn: sqlite3.Connection) -> None:
+    """Idempotent: add optional my_fleet columns and refresh views if needed."""
+    if _migrate_my_fleet_optional_columns(conn):
+        _recreate_dashboard_views(conn)
+
+
 def ensure_my_routes_inventory_schema(conn: sqlite3.Connection) -> None:
     """Idempotent: add ``needs_extraction_refresh`` to ``my_routes`` and refresh ``v_my_routes`` if needed."""
     if _migrate_my_routes_needs_extraction_refresh(conn):
@@ -933,7 +975,9 @@ def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
         ensure_route_aircraft_baseline_prices(conn)
         ensure_extraction_runs_schema(conn)
         _migrate_route_aircraft_unique(conn)
+        _migrate_route_aircraft_heatmap_index(conn)
         _migrate_my_routes_needs_extraction_refresh(conn)
+        _migrate_my_fleet_optional_columns(conn)
         ensure_route_aircraft_indexes(conn)
         ensure_app_settings_schema(conn)
         _recreate_dashboard_views(conn)

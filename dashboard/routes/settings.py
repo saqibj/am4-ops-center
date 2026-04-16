@@ -5,11 +5,11 @@ from __future__ import annotations
 import sqlite3
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from dashboard.auth import check_auth_token
-from dashboard.db import base_context, get_db
+from dashboard.db import base_context, get_db, get_read_db
 from dashboard.server import templates
 from dashboard.services.branding import remove_logo, save_logo, set_airline_name
 from database.settings_dao import get_game_mode, set_game_mode
@@ -52,10 +52,13 @@ def post_settings_game_mode(
 
 
 @router.get("/settings/branding", response_class=HTMLResponse)
-def get_settings_branding(request: Request):
+def get_settings_branding(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+):
     err = (request.query_params.get("err") or "").strip()
     ok = (request.query_params.get("ok") or "").strip()
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     ctx["flash_err"] = err or None
     ctx["flash"] = ok or None
     return templates.TemplateResponse(request, "settings/branding.html", ctx)

@@ -673,24 +673,49 @@ def api_contributions(
 def api_heatmap_data(hub: str = Query(""), top_n: int = Query(100, ge=10, le=500)) -> list[dict]:
     if not hub.strip():
         return []
+    hub_iata = hub.strip().upper()
+
+    conn = get_read_conn()
+    try:
+        hub_row = fetch_one(
+            conn,
+            "SELECT id FROM airports WHERE iata = ? LIMIT 1",
+            [hub_iata],
+        )
+        if not hub_row:
+            return []
+        origin_id = int(hub_row["id"])
+    except FileNotFoundError:
+        return []
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     sql = """
-        SELECT ap.iata AS iata, ap.name AS name, ap.lat AS lat, ap.lng AS lng,
-               MAX(ra.profit_per_ac_day) AS profit_per_ac_day,
-               GROUP_CONCAT(DISTINCT ac.shortname) AS aircraft_sample
-        FROM route_aircraft ra
-        JOIN airports orig ON ra.origin_id = orig.id
-        JOIN airports ap ON ra.dest_id = ap.id
-        JOIN aircraft ac ON ra.aircraft_id = ac.id
-        WHERE ra.is_valid = 1 AND UPPER(orig.iata) = UPPER(?)
-        AND ap.lat IS NOT NULL AND ap.lng IS NOT NULL
-        GROUP BY ap.id
-        ORDER BY profit_per_ac_day DESC
-        LIMIT ?
+        WITH top_dest AS (
+            SELECT ra.dest_id AS dest_id,
+                   MAX(ra.profit_per_ac_day) AS profit_per_ac_day
+            FROM route_aircraft ra
+            WHERE ra.is_valid = 1 AND ra.origin_id = ?
+            GROUP BY ra.dest_id
+            ORDER BY profit_per_ac_day DESC
+            LIMIT ?
+        )
+        SELECT ap.iata AS iata,
+               ap.name AS name,
+               ap.lat AS lat,
+               ap.lng AS lng,
+               td.profit_per_ac_day AS profit_per_ac_day
+        FROM top_dest td
+        JOIN airports ap ON td.dest_id = ap.id
+        WHERE ap.lat IS NOT NULL AND ap.lng IS NOT NULL
+        ORDER BY td.profit_per_ac_day DESC
     """
     conn = get_read_conn()
     try:
-        rows = fetch_all(conn, sql, [hub.strip(), top_n])
+        rows = fetch_all(conn, sql, [origin_id, top_n])
     finally:
         conn.close()
 
@@ -709,7 +734,7 @@ def api_heatmap_data(hub: str = Query(""), top_n: int = Query(100, ge=10, le=500
                 "iata": r["iata"],
                 "name": r["name"] or "",
                 "profit": p,
-                "aircraft": r["aircraft_sample"] or "",
+                "aircraft": "",
                 "t": t,
             }
         )
@@ -721,26 +746,41 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
     """HTML+script panel driven by /api/heatmap-data JSON (same shape as inline markers)."""
     if not hub.strip():
         return HTMLResponse("<p class='am4-text-secondary p-4'>Select a hub.</p>")
+    hub_iata = hub.strip().upper()
 
     conn = get_read_conn()
     try:
+        hub_row = fetch_one(
+            conn,
+            "SELECT id FROM airports WHERE iata = ? LIMIT 1",
+            [hub_iata],
+        )
+        if not hub_row:
+            return HTMLResponse("<p class='am4-text-secondary p-4'>Unknown hub.</p>")
+        origin_id = int(hub_row["id"])
         rows = fetch_all(
             conn,
             """
-            SELECT ap.iata AS iata, ap.name AS name, ap.lat AS lat, ap.lng AS lng,
-                   MAX(ra.profit_per_ac_day) AS profit_per_ac_day,
-                   GROUP_CONCAT(DISTINCT ac.shortname) AS aircraft_sample
-            FROM route_aircraft ra
-            JOIN airports orig ON ra.origin_id = orig.id
-            JOIN airports ap ON ra.dest_id = ap.id
-            JOIN aircraft ac ON ra.aircraft_id = ac.id
-            WHERE ra.is_valid = 1 AND UPPER(orig.iata) = UPPER(?)
-            AND ap.lat IS NOT NULL AND ap.lng IS NOT NULL
-            GROUP BY ap.id
-            ORDER BY profit_per_ac_day DESC
-            LIMIT ?
+            WITH top_dest AS (
+                SELECT ra.dest_id AS dest_id,
+                       MAX(ra.profit_per_ac_day) AS profit_per_ac_day
+                FROM route_aircraft ra
+                WHERE ra.is_valid = 1 AND ra.origin_id = ?
+                GROUP BY ra.dest_id
+                ORDER BY profit_per_ac_day DESC
+                LIMIT ?
+            )
+            SELECT ap.iata AS iata,
+                   ap.name AS name,
+                   ap.lat AS lat,
+                   ap.lng AS lng,
+                   td.profit_per_ac_day AS profit_per_ac_day
+            FROM top_dest td
+            JOIN airports ap ON td.dest_id = ap.id
+            WHERE ap.lat IS NOT NULL AND ap.lng IS NOT NULL
+            ORDER BY td.profit_per_ac_day DESC
             """,
-            [hub.strip(), top_n],
+            [origin_id, top_n],
         )
     finally:
         conn.close()
@@ -762,7 +802,7 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
                 "iata": r["iata"],
                 "name": r["name"] or "",
                 "profit": p,
-                "aircraft": r["aircraft_sample"] or "",
+                "aircraft": "",
                 "t": t,
             }
         )

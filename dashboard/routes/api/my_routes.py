@@ -20,7 +20,7 @@ from dashboard.auth import check_auth_token
 from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db, get_read_db
 from dashboard.server import templates
 
-from database.schema import ensure_my_routes_inventory_schema
+from database.schema import ensure_my_fleet_optional_schema, ensure_my_routes_inventory_schema
 
 from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_routes_rows
 from dashboard.services.add_route_undo import (
@@ -608,6 +608,9 @@ def api_routes_add(
     num_assigned: int = Form(1),
     notes: str = Form(""),
     inline_fleet_quantity: str = Form(""),
+    inline_fleet_engine: str = Form(""),
+    inline_fleet_mods: str = Form(""),
+    inline_fleet_purchase_price: str = Form(""),
     inline_fleet_notes: str = Form(""),
     route_config_y: str = Form(""),
     route_config_j: str = Form(""),
@@ -628,6 +631,7 @@ def api_routes_add(
         conn = get_db()
         try:
             ensure_my_routes_inventory_schema(conn)
+            ensure_my_fleet_optional_schema(conn)
             ensure_route_add_undos_schema(conn)
             conn.execute("BEGIN IMMEDIATE")
             hub = fetch_one(
@@ -662,13 +666,28 @@ def api_routes_add(
                 )
                 iq = _parse_inline_fleet_quantity(inline_fleet_quantity)
                 if iq > 0:
+                    ipp = None
+                    ipp_raw = (inline_fleet_purchase_price or "").strip()
+                    if ipp_raw:
+                        ipp = max(0, int(ipp_raw))
                     fn = (inline_fleet_notes or "").strip() or None
                     conn.execute(
                         """
-                        INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
-                        VALUES (?, ?, ?, datetime('now'))
+                        INSERT INTO my_fleet (aircraft_id, quantity, engine, mods, purchase_price, notes, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
                         ON CONFLICT(aircraft_id) DO UPDATE SET
                             quantity = MIN(999, my_fleet.quantity + excluded.quantity),
+                            engine = CASE
+                                WHEN excluded.engine IS NOT NULL AND TRIM(excluded.engine) != ''
+                                THEN excluded.engine
+                                ELSE my_fleet.engine
+                            END,
+                            mods = CASE
+                                WHEN excluded.mods IS NOT NULL AND TRIM(excluded.mods) != ''
+                                THEN excluded.mods
+                                ELSE my_fleet.mods
+                            END,
+                            purchase_price = COALESCE(excluded.purchase_price, my_fleet.purchase_price),
                             notes = CASE
                                 WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
                                 THEN excluded.notes
@@ -676,7 +695,14 @@ def api_routes_add(
                             END,
                             updated_at = datetime('now')
                         """,
-                        (ac_id, iq, fn),
+                        (
+                            ac_id,
+                            iq,
+                            (inline_fleet_engine or "").strip() or None,
+                            (inline_fleet_mods or "").strip() or None,
+                            ipp,
+                            fn,
+                        ),
                     )
 
                 vcfg = _validate_route_config_from_form(
@@ -842,6 +868,9 @@ def api_routes_add(
             conn.close()
     except FileNotFoundError:
         msg = "Database not found."
+    except ValueError:
+        msg = "Inline fleet purchase price must be a whole number."
+        use_flash_err = True
     except sqlite3.OperationalError:
         msg = "Database missing my_routes table — run extract or upgrade schema."
 

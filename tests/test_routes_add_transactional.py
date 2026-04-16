@@ -81,6 +81,9 @@ def test_routes_add_inline_fleet_and_route(tmp_path, monkeypatch, auth_headers) 
             "num_assigned": "1",
             "notes": "r",
             "inline_fleet_quantity": "2",
+            "inline_fleet_engine": "engine IV",
+            "inline_fleet_mods": "speed,fuel",
+            "inline_fleet_purchase_price": "123456789",
             "inline_fleet_notes": "fleet n",
             "route_config_y": "150",
             "route_config_j": "10",
@@ -94,10 +97,15 @@ def test_routes_add_inline_fleet_and_route(tmp_path, monkeypatch, auth_headers) 
     assert "Awaiting extraction" in r.text or "extraction" in r.text.lower()
 
     conn = get_connection(db_path)
-    q = conn.execute("SELECT quantity FROM my_fleet WHERE aircraft_id=1").fetchone()[0]
+    q, eng, mods, price = conn.execute(
+        "SELECT quantity, engine, mods, purchase_price FROM my_fleet WHERE aircraft_id=1"
+    ).fetchone()
     n = conn.execute("SELECT num_assigned FROM my_routes WHERE origin_id=1 AND dest_id=2").fetchone()[0]
     conn.close()
     assert int(q) == 2
+    assert eng == "engine IV"
+    assert mods == "speed,fuel"
+    assert int(price) == 123456789
     assert int(n) == 1
 
 

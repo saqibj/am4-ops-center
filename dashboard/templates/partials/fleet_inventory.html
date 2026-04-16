@@ -20,6 +20,9 @@
                     <th scope="col" class="text-right px-3 py-3">Free</th>
                     <th scope="col" class="text-right px-3 py-3">Each</th>
                     <th scope="col" class="text-right px-3 py-3">Total</th>
+                    <th scope="col" class="text-right px-3 py-3">Purchase</th>
+                    <th scope="col" class="text-left px-3 py-3">Engine</th>
+                    <th scope="col" class="text-left px-3 py-3">Mods</th>
                     <th scope="col" class="text-left px-3 py-3">Notes</th>
                     <th scope="col" class="text-right px-3 py-3">Buy / Sell</th>
                     <th scope="col" class="text-right px-3 py-3"></th>
@@ -35,6 +38,9 @@
                     <td class="px-3 py-3 text-right font-mono text-sky-300/80">{{ f.free }}</td>
                     <td class="px-3 py-3 text-right font-mono am4-text-secondary">${{ "{:,.0f}".format(f.unit_cost | float) }}</td>
                     <td class="px-3 py-3 text-right font-mono am4-text-secondary">${{ "{:,.0f}".format(f.total_value | float) }}</td>
+                    <td class="px-3 py-3 text-right font-mono am4-text-secondary">{% if f.purchase_price is not none %}${{ "{:,.0f}".format(f.purchase_price | float) }}{% else %}—{% endif %}</td>
+                    <td class="px-3 py-3 am4-text-muted max-w-[8rem] truncate">{{ f.engine or '—' }}</td>
+                    <td class="px-3 py-3 am4-text-muted max-w-[8rem] truncate">{{ f.mods or '—' }}</td>
                     <td class="px-3 py-3 am4-text-muted max-w-[8rem] truncate">{{ f.notes or '—' }}</td>
                     <td class="px-3 py-3 text-right">
                         <div class="flex flex-col sm:flex-row gap-1 justify-end items-end sm:items-center">

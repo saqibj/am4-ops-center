@@ -96,29 +96,47 @@ def api_hub_summary(
     if not hub.strip():
         return HTMLResponse("")
 
-    q = """
-        SELECT COUNT(*) AS n,
-               AVG(profit_per_ac_day) AS avg_profit,
-               MAX(profit_per_ac_day) AS best_profit
-        FROM v_best_routes WHERE hub = ?
-    """
-    params: list = [hub.strip()]
-    if atype:
-        q += " AND UPPER(ac_type) = UPPER(?)"
-        params.append(atype)
-    q += " AND profit_per_ac_day >= ?"
-    params.append(min_profit)
-    if max_dist > 0:
-        q += " AND distance_km <= ?"
-        params.append(max_dist)
-    if max_flight_hrs > 0:
-        q += " AND flight_time_hrs <= ?"
-        params.append(max_flight_hrs)
-    if _truthy_stopover_hide(hide_stopovers):
-        q += " AND needs_stopover = 0"
-
+    # Aggregate from route_aircraft filtered by origin_id — not FROM v_best_routes. The view joins
+    # every row to dest + aircraft; SQLite then planned a path that scanned huge portions of the
+    # join (~seconds on multi-million route_aircraft). Filtering by hub after all joins prevents
+    # using idx_ra_origin_valid_profit; direct origin_id + is_valid + profit uses a covering seek.
     conn = get_read_conn()
     try:
+        origin = fetch_one(
+            conn,
+            "SELECT id FROM airports WHERE TRIM(iata) = TRIM(?) LIMIT 1",
+            [hub.strip()],
+        )
+        origin_id = int(origin["id"]) if origin else -1
+
+        q = """
+            SELECT COUNT(*) AS n,
+                   AVG(ra.profit_per_ac_day) AS avg_profit,
+                   MAX(ra.profit_per_ac_day) AS best_profit
+            FROM route_aircraft ra
+        """
+        params: list = []
+        if atype:
+            q += " JOIN aircraft ac ON ra.aircraft_id = ac.id"
+        q += """
+            WHERE ra.is_valid = 1
+              AND ra.origin_id = ?
+        """
+        params.append(origin_id)
+        q += " AND ra.profit_per_ac_day >= ?"
+        params.append(min_profit)
+        if atype:
+            q += " AND UPPER(ac.type) = UPPER(?)"
+            params.append(atype)
+        if max_dist > 0:
+            q += " AND ra.distance_km <= ?"
+            params.append(max_dist)
+        if max_flight_hrs > 0:
+            q += " AND ra.flight_time_hrs <= ?"
+            params.append(max_flight_hrs)
+        if _truthy_stopover_hide(hide_stopovers):
+            q += " AND ra.needs_stopover = 0"
+
         row = fetch_one(conn, q, params)
     finally:
         conn.close()

@@ -227,19 +227,22 @@ def _freshness_dot_class(tier: str) -> str:
     return "bg-slate-500"
 
 
-# Per-origin_id MAX(extracted_at) uses index-friendly GROUP BY origin_id; outer GROUP BY
-# hub IATA preserves semantics if multiple origin_ids ever shared one IATA code.
+# Hub list comes from v_my_hubs (my_hubs + airports), not from DISTINCT origin_id in
+# route_aircraft — otherwise orphan route rows kept a "ghost" hub in freshness UI.
+# Per-origin_id MAX(extracted_at) is still grouped in a subquery; LEFT JOIN so hubs with
+# no valid routes yet still appear (latest NULL). Outer GROUP BY hub IATA if multiple
+# my_hubs rows ever shared one IATA.
 _HUB_FRESHNESS_SQL = """
-    SELECT UPPER(TRIM(a.iata)) AS hub, MAX(mx.latest) AS latest
-    FROM (
+    SELECT UPPER(TRIM(v.iata)) AS hub, MAX(mx.latest) AS latest
+    FROM v_my_hubs v
+    LEFT JOIN (
         SELECT origin_id, MAX(extracted_at) AS latest
         FROM route_aircraft
         WHERE is_valid = 1
         GROUP BY origin_id
-    ) AS mx
-    JOIN airports a ON mx.origin_id = a.id
-    WHERE a.iata IS NOT NULL AND TRIM(a.iata) != ''
-    GROUP BY UPPER(TRIM(a.iata))
+    ) AS mx ON mx.origin_id = v.airport_id
+    WHERE v.iata IS NOT NULL AND TRIM(v.iata) != ''
+    GROUP BY UPPER(TRIM(v.iata))
 """
 
 

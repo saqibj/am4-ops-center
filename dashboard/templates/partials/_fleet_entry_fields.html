@@ -20,6 +20,21 @@
     <input type="text" name="notes" placeholder="Optional"
            class="am4-input rounded-md px-3 py-2 min-w-[12rem]">
 </div>
+<div>
+    <label class="block text-xs am4-text-secondary mb-1">Engine (optional)</label>
+    <input type="text" name="engine" placeholder="e.g. engine IV"
+           class="am4-input rounded-md px-3 py-2 min-w-[10rem]">
+</div>
+<div>
+    <label class="block text-xs am4-text-secondary mb-1">Mods (optional)</label>
+    <input type="text" name="mods" placeholder="speed,fuel,co2"
+           class="am4-input rounded-md px-3 py-2 min-w-[10rem]">
+</div>
+<div>
+    <label class="block text-xs am4-text-secondary mb-1">Purchase price</label>
+    <input type="number" name="purchase_price" min="0" step="1" placeholder="Optional"
+           class="am4-input rounded-md px-3 py-2 w-36 font-mono">
+</div>
 {% elif variant == 'inline_route' %}
 <div class="space-y-4" data-inline-fleet-entry="1" data-route-hub="{{ hub }}" data-route-dest="{{ dest }}">
     <script type="application/json" class="arf-aircraft-meta">{{ aircraft_meta_json }}</script>
@@ -123,7 +138,7 @@
         </div>
 
         <div class="am4-bordered rounded-lg p-3 am4-sunken space-y-2">
-            <p class="text-xs am4-text-secondary uppercase tracking-wider">Mods (reference — not saved to DB yet)</p>
+            <p class="text-xs am4-text-secondary uppercase tracking-wider">Fleet metadata (saved to my_fleet)</p>
             <div class="flex flex-wrap gap-4 text-sm am4-text-secondary">
                 <label class="inline-flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" id="arf-mod-speed" class="h-4 w-4 rounded border am4-border" data-inline-fleet-field="1">
@@ -139,10 +154,16 @@
                 </label>
             </div>
             <div>
-                <label class="block text-xs am4-text-secondary mb-1">Engine / variant note (optional)</label>
-                <input type="text" id="arf-engine-note" placeholder="e.g. engine IV — for your notes only"
+                <label class="block text-xs am4-text-secondary mb-1">Engine / variant (optional)</label>
+                <input type="text" name="inline_fleet_engine" id="arf-engine-note" form="add-route-main" placeholder="e.g. engine IV"
                        class="am4-input rounded-md px-3 py-2 min-w-[16rem] max-w-full" data-inline-fleet-field="1">
             </div>
+            <div>
+                <label class="block text-xs am4-text-secondary mb-1">Purchase price (optional)</label>
+                <input type="number" name="inline_fleet_purchase_price" id="arf-purchase-price" form="add-route-main" min="0" step="1"
+                       class="am4-input rounded-md px-3 py-2 w-40 font-mono" data-inline-fleet-field="1">
+            </div>
+            <input type="hidden" name="inline_fleet_mods" id="arf-mods" form="add-route-main" value="">
         </div>
 
         <p id="arf-gate-hint" class="text-xs text-amber-400/90 min-h-[1rem]"></p>

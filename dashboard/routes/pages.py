@@ -6,7 +6,7 @@ import sqlite3
 
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
 from app.services.hubs import (
@@ -16,7 +16,7 @@ from app.services.hubs import (
 )
 
 from config import UserConfig
-from dashboard.db import base_context, fetch_all, fetch_one, get_read_conn
+from dashboard.db import base_context, fetch_all, fetch_one, get_read_conn, get_read_db
 from dashboard.services.add_route_undo import ensure_route_add_undos_schema, list_recent_adds
 from database.extraction_runs import list_completed_runs
 from database.schema import load_extract_config
@@ -133,7 +133,14 @@ def page_index(request: Request):
         top_routes = []
         top_hubs = []
 
-    ctx = base_context(request, None)
+    conn_ctx = None
+    try:
+        conn_ctx = get_read_conn()
+    except FileNotFoundError:
+        pass
+    ctx = base_context(request, conn_ctx)
+    if conn_ctx is not None:
+        conn_ctx.close()
     ctx.update(
         {
             "stats": stats,
@@ -147,48 +154,48 @@ def page_index(request: Request):
 
 
 @router.get("/hub-explorer", response_class=HTMLResponse)
-def page_hub_explorer(request: Request):
-    ctx = base_context(request, None)
+def page_hub_explorer(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx.update({"hubs": _hubs_with_names()})
     return templates.TemplateResponse(request, "hub_explorer.html", ctx)
 
 
 @router.get("/aircraft", response_class=HTMLResponse)
-def page_aircraft(request: Request):
+def page_aircraft(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
     try:
-        conn = get_read_conn()
+        db_conn = get_read_conn()
         try:
             aircraft = fetch_all(
-                conn,
+                db_conn,
                 "SELECT shortname, name, type, cost FROM aircraft ORDER BY shortname",
             )
         finally:
-            conn.close()
+            db_conn.close()
     except (FileNotFoundError, sqlite3.OperationalError):
         aircraft = []
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     ctx.update({"aircraft": aircraft})
     return templates.TemplateResponse(request, "aircraft.html", ctx)
 
 
 @router.get("/route-analyzer", response_class=HTMLResponse)
-def page_route_analyzer(request: Request):
+def page_route_analyzer(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
     try:
-        conn = get_read_conn()
+        db_conn = get_read_conn()
         try:
-            origins = fetch_all(conn, SQL_EXPLORER_HUBS_WITH_META)
+            origins = fetch_all(db_conn, SQL_EXPLORER_HUBS_WITH_META)
         finally:
-            conn.close()
+            db_conn.close()
     except FileNotFoundError:
         origins = []
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     ctx.update({"origins": origins})
     return templates.TemplateResponse(request, "route_analyzer.html", ctx)
 
 
 @router.get("/fleet-planner", response_class=HTMLResponse)
-def page_fleet_planner(request: Request):
-    ctx = base_context(request, None)
+def page_fleet_planner(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
     ctx.update(_saved_filters_bar_context("fleet-planner"))
     return templates.TemplateResponse(request, "fleet_planner.html", ctx)
@@ -197,12 +204,13 @@ def page_fleet_planner(request: Request):
 @router.get("/buy-next", response_class=HTMLResponse)
 def page_buy_next(
     request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
     hub: str = "",
     dest: str = "",
     destination: str = "",
     distance_km: str = "",
 ):
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     ctx.update({"hubs": _origin_hub_iatas_for_fleet_plan()})
     ctx.update(_saved_filters_bar_context("buy-next"))
     ctx["preset_hub"] = (hub or "").strip().upper()
@@ -212,26 +220,26 @@ def page_buy_next(
 
 
 @router.get("/buy-next/global", response_class=HTMLResponse)
-def page_buy_next_global(request: Request):
-    ctx = base_context(request, None)
+def page_buy_next_global(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx.update(_saved_filters_bar_context("buy-next-global"))
     return templates.TemplateResponse(request, "buy_next_global.html", ctx)
 
 
 @router.get("/my-fleet", response_class=HTMLResponse)
-def page_my_fleet(request: Request):
+def page_my_fleet(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
     try:
-        conn = get_read_conn()
+        db_conn = get_read_conn()
         try:
             aircraft = fetch_all(
-                conn,
+                db_conn,
                 "SELECT shortname, name FROM aircraft ORDER BY shortname",
             )
         finally:
-            conn.close()
+            db_conn.close()
     except (FileNotFoundError, sqlite3.OperationalError):
         aircraft = []
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     ctx.update({"aircraft": aircraft})
     return templates.TemplateResponse(request, "my_fleet.html", ctx)
 
@@ -256,8 +264,8 @@ def _airports_with_iata() -> list[dict]:
 
 
 @router.get("/my-hubs", response_class=HTMLResponse)
-def page_my_hubs(request: Request):
-    ctx = base_context(request, None)
+def page_my_hubs(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx["stale_after_days"] = STALE_AFTER_DAYS
     return templates.TemplateResponse(request, "my_hubs.html", ctx)
 
@@ -276,31 +284,31 @@ def _explorer_hub_iatas() -> list[str]:
 
 
 @router.get("/fleet-health", response_class=HTMLResponse)
-def page_fleet_health(request: Request):
-    ctx = base_context(request, None)
+def page_fleet_health(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx.update({"hubs": _explorer_hub_iatas()})
     ctx.update(_saved_filters_bar_context("fleet-health"))
     return templates.TemplateResponse(request, "fleet_health.html", ctx)
 
 
 @router.get("/demand-utilization", response_class=HTMLResponse)
-def page_demand_utilization(request: Request):
-    ctx = base_context(request, None)
+def page_demand_utilization(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx.update({"hubs": _explorer_hub_iatas()})
     ctx.update(_saved_filters_bar_context("demand-utilization"))
     return templates.TemplateResponse(request, "demand_utilization.html", ctx)
 
 
 @router.get("/extraction-deltas", response_class=HTMLResponse)
-def page_extraction_deltas(request: Request):
-    ctx = base_context(request, None)
+def page_extraction_deltas(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx.update({"hubs": _explorer_hub_iatas()})
     try:
-        conn = get_read_conn()
+        db_conn = get_read_conn()
         try:
-            ctx["extraction_runs"] = list_completed_runs(conn, limit=100)
+            ctx["extraction_runs"] = list_completed_runs(db_conn, limit=100)
         finally:
-            conn.close()
+            db_conn.close()
     except FileNotFoundError:
         ctx["extraction_runs"] = []
     ctx.update(_saved_filters_bar_context("extraction-deltas"))
@@ -386,25 +394,25 @@ def _hub_roi_summary() -> dict:
 
 
 @router.get("/hub-roi", response_class=HTMLResponse)
-def page_hub_roi(request: Request):
-    ctx = base_context(request, None)
+def page_hub_roi(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx.update(_hub_roi_summary())
     return templates.TemplateResponse(request, "hub_roi.html", ctx)
 
 
 @router.get("/scenarios", response_class=HTMLResponse)
-def page_scenarios(request: Request):
-    ctx = base_context(request, None)
+def page_scenarios(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx.update({"hubs": _explorer_hub_iatas()})
     try:
-        conn = get_read_conn()
+        db_conn = get_read_conn()
         try:
-            cfg = load_extract_config(conn)
+            cfg = load_extract_config(db_conn)
             if cfg:
                 df, dc = float(cfg.fuel_price), float(cfg.co2_price)
             else:
                 row = fetch_one(
-                    conn,
+                    db_conn,
                     "SELECT fuel_price, co2_price FROM route_aircraft WHERE fuel_price IS NOT NULL LIMIT 1",
                 )
                 if row and row.get("fuel_price") is not None:
@@ -413,7 +421,7 @@ def page_scenarios(request: Request):
                 else:
                     df, dc = UserConfig().fuel_price, UserConfig().co2_price
         finally:
-            conn.close()
+            db_conn.close()
     except FileNotFoundError:
         df, dc = UserConfig().fuel_price, UserConfig().co2_price
     ctx["default_fuel"] = df
@@ -425,18 +433,19 @@ def page_scenarios(request: Request):
 @router.get("/my-routes", response_class=HTMLResponse)
 def page_my_routes(
     request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
     highlight: str = Query("", description="Route row id to emphasize"),
     fresh: str = Query("", description="Set when returning from add-route flow"),
 ):
     try:
-        conn = get_read_conn()
+        db_conn = get_read_conn()
         try:
             aircraft = fetch_all(
-                conn,
+                db_conn,
                 "SELECT shortname, name FROM aircraft ORDER BY shortname",
             )
         finally:
-            conn.close()
+            db_conn.close()
     except (FileNotFoundError, sqlite3.OperationalError):
         aircraft = []
     inv_url = "/api/routes/inventory"
@@ -447,7 +456,7 @@ def page_my_routes(
         q["fresh"] = fresh.strip()
     if q:
         inv_url += "?" + urlencode(q)
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     ctx.update(
         {
             "airports": _airports_with_iata(),
@@ -461,6 +470,7 @@ def page_my_routes(
 @router.get("/routes/add", response_class=HTMLResponse)
 def page_add_route(
     request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
     hub: str = Query("", description="Prefill origin hub IATA"),
     destination: str = Query("", description="Prefill destination IATA"),
     dest: str = Query("", description="Alias for destination"),
@@ -471,15 +481,15 @@ def page_add_route(
     dest_u = (destination or dest or "").strip().upper()
     ac_u = (aircraft or "").strip().lower()
     default_hub = hub_u if hub_u and hub_u in hubs else (hubs[0] if hubs else "")
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     recent_adds: list = []
     try:
-        conn = get_read_conn()
+        db_conn = get_read_conn()
         try:
-            ensure_route_add_undos_schema(conn)
-            recent_adds = list_recent_adds(conn, limit=5)
+            ensure_route_add_undos_schema(db_conn)
+            recent_adds = list_recent_adds(db_conn, limit=5)
         finally:
-            conn.close()
+            db_conn.close()
     except FileNotFoundError:
         recent_adds = []
     ctx.update(
@@ -496,12 +506,12 @@ def page_add_route(
 
 
 @router.get("/contributions", response_class=HTMLResponse)
-def page_contributions(request: Request):
+def page_contributions(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
     try:
-        conn = get_read_conn()
+        db_conn = get_read_conn()
         try:
             hubs = fetch_all(
-                conn,
+                db_conn,
                 """
                 SELECT h.iata AS hub FROM v_my_hubs h
                 WHERE h.is_active = 1 AND h.last_extract_status = 'ok'
@@ -510,26 +520,26 @@ def page_contributions(request: Request):
                 """,
             )
         finally:
-            conn.close()
+            db_conn.close()
     except FileNotFoundError:
         hubs = []
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     ctx.update({"hubs": [h["hub"] for h in hubs]})
     return templates.TemplateResponse(request, "contributions.html", ctx)
 
 
 @router.get("/heatmap", response_class=HTMLResponse)
-def page_heatmap(request: Request):
+def page_heatmap(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
     hl = _hubs_with_names()
     default_hub = hl[0]["iata"] if hl else ""
-    ctx = base_context(request, None)
+    ctx = base_context(request, conn)
     ctx.update({"hubs": hl, "default_hub": default_hub})
     return templates.TemplateResponse(request, "heatmap.html", ctx)
 
 
 @router.get("/settings", response_class=HTMLResponse)
-def page_settings(request: Request):
-    ctx = base_context(request, None)
+def page_settings(request: Request, conn: sqlite3.Connection | None = Depends(get_read_db)):
+    ctx = base_context(request, conn)
     ctx["landing_paths"] = sorted(ALLOWED_LANDING_PATHS)
     ctx["app_version"] = _package_version()
     return templates.TemplateResponse(request, "settings.html", ctx)

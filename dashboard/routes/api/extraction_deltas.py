@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse
 
 from dashboard.db import fetch_all, get_read_db
+from dashboard.extraction_delta_diff import SnapshotMap, compute_extraction_delta_view
 from dashboard.server import templates
 
 router = APIRouter()
@@ -26,9 +27,9 @@ _SNAPSHOT_ROWS_SQL = """
 
 def _snapshot_map(
     conn, run_id: int, hub_filter: str | None
-) -> dict[tuple[int, int, int], dict]:
+) -> SnapshotMap:
     rows = fetch_all(conn, _SNAPSHOT_ROWS_SQL, [run_id])
-    out: dict[tuple[int, int, int], dict] = {}
+    out: SnapshotMap = {}
     hf = hub_filter.strip().upper() if hub_filter and hub_filter.strip() else None
     for r in rows:
         if hf and str(r.get("hub_iata") or "").strip().upper() != hf:
@@ -36,14 +37,6 @@ def _snapshot_map(
         k = (int(r["origin_id"]), int(r["dest_id"]), int(r["aircraft_id"]))
         out[k] = dict(r)
     return out
-
-
-def _pct_change(pa: float | None, pb: float | None) -> float:
-    a = float(pa or 0)
-    b = float(pb or 0)
-    if abs(a) < 1e-9:
-        return float("inf") if abs(b) > 1e-9 else 0.0
-    return (b - a) / abs(a) * 100.0
 
 
 @router.get("/extraction-deltas", response_class=HTMLResponse)
@@ -95,59 +88,7 @@ def api_extraction_deltas(
 
     ma = _snapshot_map(conn, older, hub)
     mb = _snapshot_map(conn, newer, hub)
-
-    keys_a = set(ma.keys())
-    keys_b = set(mb.keys())
-
-    appeared = [mb[k] for k in sorted(keys_b - keys_a)]
-    disappeared = [ma[k] for k in sorted(keys_a - keys_b)]
-
-    movers: list[dict] = []
-    flip_to_profit = 0
-    flip_to_loss = 0
-    for k in keys_a & keys_b:
-        ra, rb = ma[k], mb[k]
-        pa = float(ra.get("profit_per_ac_day") or 0)
-        pb = float(rb.get("profit_per_ac_day") or 0)
-        va = int(ra.get("is_valid") or 0)
-        vb = int(rb.get("is_valid") or 0)
-        if va == 0 and vb == 1 and pb > 0:
-            flip_to_profit += 1
-        if va == 1 and vb == 0:
-            flip_to_loss += 1
-        pct = _pct_change(pa, pb)
-        if pct == float("inf") or abs(pct) >= min_pct:
-            movers.append(
-                {
-                    "hub": ra["hub_iata"],
-                    "dest": ra["dest_iata"],
-                    "ac": ra["ac_short"],
-                    "profit_a": pa,
-                    "profit_b": pb,
-                    "pct": pct,
-                    "pct_display": "∞" if pct == float("inf") else f"{pct:+.1f}%",
-                    "valid_a": va,
-                    "valid_b": vb,
-                }
-            )
-    movers.sort(key=lambda x: abs(x["profit_b"] - x["profit_a"]), reverse=True)
-
-    hub_deltas: dict[str, list[float]] = {}
-    for k in keys_a & keys_b:
-        ra, rb = ma[k], mb[k]
-        h = str(ra.get("hub_iata") or "")
-        pa = float(ra.get("profit_per_ac_day") or 0)
-        pb = float(rb.get("profit_per_ac_day") or 0)
-        hub_deltas.setdefault(h, []).append(pb - pa)
-
-    hub_avg = [
-        {
-            "hub": h,
-            "avg_delta": sum(v) / len(v) if v else 0.0,
-            "n": len(v),
-        }
-        for h, v in sorted(hub_deltas.items(), key=lambda x: -abs(sum(x[1]) / len(x[1]) if x[1] else 0))
-    ][:20]
+    delta = compute_extraction_delta_view(ma, mb, min_pct, limit)
 
     return templates.TemplateResponse(
         request,
@@ -159,14 +100,6 @@ def api_extraction_deltas(
             "run_b": newer,
             "min_pct": min_pct,
             "hub_filter": hub.strip(),
-            "appeared": appeared[:limit],
-            "disappeared": disappeared[:limit],
-            "movers": movers[:limit],
-            "n_appeared": len(appeared),
-            "n_disappeared": len(disappeared),
-            "n_movers": len(movers),
-            "flip_to_profit": flip_to_profit,
-            "flip_to_loss": flip_to_loss,
-            "hub_avg": hub_avg,
+            **delta,
         },
     )

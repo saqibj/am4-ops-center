@@ -13,6 +13,7 @@ from database.schema import (
     clear_route_tables,
     create_schema,
     derived_total_planes,
+    ensure_my_fleet_optional_schema,
     get_connection,
     load_extract_config,
     migrate_add_unique_constraints,
@@ -259,6 +260,49 @@ def test_derived_total_planes_none_when_fleet_empty(tmp_path) -> None:
     conn.execute("INSERT INTO my_fleet (aircraft_id, quantity) VALUES (1, 10)")
     conn.commit()
     assert derived_total_planes(conn) == 10
+    conn.close()
+
+
+def test_my_fleet_optional_columns_added_idempotently(tmp_path) -> None:
+    db = tmp_path / "fleet_optional.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        """
+        CREATE TABLE my_fleet (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aircraft_id INTEGER NOT NULL UNIQUE,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            notes TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE aircraft (
+            id INTEGER PRIMARY KEY,
+            shortname TEXT NOT NULL,
+            name TEXT NOT NULL,
+            type TEXT NOT NULL,
+            cost INTEGER
+        )
+        """
+    )
+    conn.execute("INSERT INTO aircraft (id, shortname, name, type, cost) VALUES (1, 'b738', 'B737-800', 'PAX', 100)")
+    conn.execute("INSERT INTO my_fleet (aircraft_id, quantity, notes) VALUES (1, 2, 'n')")
+    conn.commit()
+
+    ensure_my_fleet_optional_schema(conn)
+    ensure_my_fleet_optional_schema(conn)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(my_fleet)").fetchall()}
+    assert {"engine", "mods", "purchase_price"}.issubset(cols)
+    row = conn.execute(
+        "SELECT aircraft_id, quantity, notes, engine, mods, purchase_price FROM my_fleet WHERE aircraft_id = 1"
+    ).fetchone()
+    assert row is not None
+    assert int(row[0]) == 1
+    assert int(row[1]) == 2
+    assert row[2] == "n"
+    assert row[3] is None and row[4] is None and row[5] is None
     conn.close()
 
 

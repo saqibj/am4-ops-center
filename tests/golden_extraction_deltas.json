@@ -1,0 +1,53 @@
+{
+  "appeared": [
+    {
+      "ac_short": "738",
+      "aircraft_id": 1,
+      "dest_iata": "SFO",
+      "dest_id": 202,
+      "hub_iata": "LHR",
+      "income": 1,
+      "is_valid": 1,
+      "origin_id": 100,
+      "profit_per_ac_day": 800.0
+    }
+  ],
+  "disappeared": [
+    {
+      "ac_short": "738",
+      "aircraft_id": 1,
+      "dest_iata": "MIA",
+      "dest_id": 201,
+      "hub_iata": "LHR",
+      "income": 1,
+      "is_valid": 1,
+      "origin_id": 100,
+      "profit_per_ac_day": 500.0
+    }
+  ],
+  "flip_to_loss": 0,
+  "flip_to_profit": 0,
+  "hub_avg": [
+    {
+      "avg_delta": 200.0,
+      "hub": "LHR",
+      "n": 1
+    }
+  ],
+  "movers": [
+    {
+      "ac": "738",
+      "dest": "BOS",
+      "hub": "LHR",
+      "pct": 20.0,
+      "pct_display": "+20.0%",
+      "profit_a": 1000.0,
+      "profit_b": 1200.0,
+      "valid_a": 1,
+      "valid_b": 1
+    }
+  ],
+  "n_appeared": 1,
+  "n_disappeared": 1,
+  "n_movers": 1
+}

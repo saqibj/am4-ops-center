@@ -1,0 +1,37 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: C:\Users\Saqib Jawaid\Projects\am4-ops-center
+configfile: pyproject.toml
+plugins: anyio-4.13.0
+collected 175 items
+
+tests\test_add_route_page.py .                                           [  0%]
+tests\test_add_route_undo.py ..........                                  [  6%]
+tests\test_airports_extract.py ..                                        [  7%]
+tests\test_app_state.py .                                                [  8%]
+tests\test_backup_cmd.py .                                               [  8%]
+tests\test_branding.py .............                                     [ 16%]
+tests\test_buy_next_add_route_link.py .......                            [ 20%]
+tests\test_buy_next_api.py ...................                           [ 30%]
+tests\test_convert_csv.py .....                                          [ 33%]
+tests\test_dashboard_auth.py .......                                     [ 37%]
+tests\test_dashboard_http.py ............                                [ 44%]
+tests\test_eligible_aircraft_api.py .........                            [ 49%]
+tests\test_env_compat.py .........                                       [ 54%]
+tests\test_fleet_atomic.py ...                                           [ 56%]
+tests\test_fleet_recommend.py ..                                         [ 57%]
+tests\test_fleet_service.py ....                                         [ 60%]
+tests\test_heatmap_popup.py .                                            [ 60%]
+tests\test_hub_extraction_lock.py ....                                   [ 62%]
+tests\test_hubs_service.py ....                                          [ 65%]
+tests\test_recent_adds.py .........                                      [ 70%]
+tests\test_route_validator.py ........                                   [ 74%]
+tests\test_routes_add_transactional.py ....                              [ 77%]
+tests\test_safe_error_message.py ....                                    [ 79%]
+tests\test_schema.py .............                                       [ 86%]
+tests\test_settings_dao.py .....                                         [ 89%]
+tests\test_setup_wizard.py ...                                           [ 91%]
+tests\test_strip_vcs_from_lock.py ..                                     [ 92%]
+tests\test_ui_settings.py .............                                  [100%]
+
+======================= 175 passed in 262.87s (0:04:22) =======================

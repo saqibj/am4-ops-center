@@ -37,11 +37,13 @@
     var modS = root.querySelector("#arf-mod-speed");
     var modF = root.querySelector("#arf-mod-fuel");
     var modC = root.querySelector("#arf-mod-co2");
+    var mods = root.querySelector("#arf-mods");
     var hubDisp = root.querySelector("#arf-hub-display");
     var hubOv = root.querySelector("#arf-hub-override");
     var hubIn = root.querySelector("#arf-hub-override-input");
     var notes = root.querySelector("#arf-notes");
     var eng = root.querySelector("#arf-engine-note");
+    var purchase = root.querySelector("#arf-purchase-price");
     var cancelBtn = root.querySelector("#arf-cancel");
 
     function serializeState() {
@@ -55,6 +57,7 @@
         gv(ac),
         gv(qty),
         gv(notes),
+        gv(purchase),
         gv(y),
         gv(j),
         gv(f),
@@ -73,6 +76,7 @@
       if (ac) ac.value = "";
       if (qty) qty.value = "1";
       if (notes) notes.value = "";
+      if (purchase) purchase.value = "";
       if (y) y.value = "";
       if (j) j.value = "";
       if (f) f.value = "";
@@ -82,6 +86,7 @@
       if (modF) modF.checked = false;
       if (modC) modC.checked = false;
       if (eng) eng.value = "";
+      if (mods) mods.value = "";
       if (hubOv) hubOv.checked = false;
       syncHubUi();
       onAcChange();
@@ -118,6 +123,13 @@
           pax.classList.remove("opacity-50");
         }
       }
+      if (mods) {
+        var out = [];
+        if (modS && modS.checked) out.push("speed");
+        if (modF && modF.checked) out.push("fuel");
+        if (modC && modC.checked) out.push("co2");
+        mods.value = out.join(",");
+      }
       if (est && m && qty) {
         var q = Math.max(1, num(qty.value) || 1);
         var c = num(m.cost);
@@ -132,6 +144,13 @@
 
     function gate() {
       if (!ac || !qty) return;
+      if (mods) {
+        var modsOut = [];
+        if (modS && modS.checked) modsOut.push("speed");
+        if (modF && modF.checked) modsOut.push("fuel");
+        if (modC && modC.checked) modsOut.push("co2");
+        mods.value = modsOut.join(",");
+      }
       var sn = ac.value.trim().toLowerCase();
       var qv = num(qty.value);
       var m = sn ? meta[sn] : null;
@@ -197,11 +216,15 @@
     [
       ac,
       qty,
+      purchase,
       y,
       j,
       f,
       cl,
       ch,
+      modS,
+      modF,
+      modC,
       hubOv,
       hubIn,
     ].forEach(function (el) {

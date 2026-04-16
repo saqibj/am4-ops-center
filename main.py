@@ -33,16 +33,6 @@ from database.schema import apply_route_aircraft_baseline_prices_at_path, get_co
 DEFAULT_DB_PATH = str(db_path())
 
 
-def _invalidate_dashboard_static_caches() -> None:
-    """Clear in-process dashboard caches after DB writes (extract / import / baseline)."""
-    try:
-        from dashboard.static_dashboard_cache import invalidate_static_dashboard_caches
-
-        invalidate_static_dashboard_caches()
-    except Exception:
-        pass
-
-
 def _print_baseline_prices_updated(db_path: str) -> None:
     elapsed = apply_route_aircraft_baseline_prices_at_path(db_path)
     print(f"Baseline prices updated in {elapsed:.1f}s")
@@ -113,7 +103,6 @@ def cmd_extract(args: argparse.Namespace) -> None:
         refresh_hubs(args.db, cfg, hub_list)
         print(f"Refreshed routes for {len(hub_list)} hub(s).")
         _print_baseline_prices_updated(args.db)
-        _invalidate_dashboard_static_caches()
         return
 
     if not args.all_hubs and not args.hubs:
@@ -204,7 +193,6 @@ def cmd_fleet(args: argparse.Namespace) -> None:
     if args.fleet_cmd == "import":
         mode = "replace" if getattr(args, "replace", False) else "merge"
         fleet_import(args.db, args.file, mode=mode)
-        _invalidate_dashboard_static_caches()
     elif args.fleet_cmd == "export":
         fleet_export(args.db, args.output)
     else:
@@ -313,7 +301,6 @@ def cmd_refresh_baseline(args: argparse.Namespace) -> None:
         print(f"Error: database not found: {p}", file=sys.stderr)
         sys.exit(2)
     _print_baseline_prices_updated(str(p))
-    _invalidate_dashboard_static_caches()
 
 
 def main() -> None:

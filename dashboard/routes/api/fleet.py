@@ -13,6 +13,7 @@ from dashboard.errors import safe_error_message
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_fleet_rows
+from database.schema import ensure_my_fleet_optional_schema
 
 router = APIRouter()
 
@@ -26,6 +27,7 @@ def api_fleet_inventory(
         fleets = []
     else:
         try:
+            ensure_my_fleet_optional_schema(conn)
             fleets = _my_fleet_rows(conn)
         except sqlite3.OperationalError:
             fleets = []
@@ -50,6 +52,7 @@ def api_fleet_summary(
         free_row = {"free_total": 0}
     else:
         try:
+            ensure_my_fleet_optional_schema(conn)
             row = fetch_one(
                 conn,
                 """
@@ -125,12 +128,16 @@ def api_fleet_add(
     request: Request,
     aircraft: str = Form(""),
     quantity: int = Form(1),
+    engine: str = Form(""),
+    mods: str = Form(""),
+    purchase_price: str = Form(""),
     notes: str = Form(""),
 ):
     msg: str | None = None
     try:
         conn = get_db()
         try:
+            ensure_my_fleet_optional_schema(conn)
             ac = fetch_one(
                 conn,
                 "SELECT id FROM aircraft WHERE LOWER(TRIM(shortname)) = LOWER(TRIM(?)) LIMIT 1",
@@ -141,6 +148,10 @@ def api_fleet_add(
             else:
                 q = int(quantity) if quantity else 1
                 q = max(1, min(999, q))
+                pp = None
+                pp_raw = (purchase_price or "").strip()
+                if pp_raw:
+                    pp = max(0, int(pp_raw))
                 prev = fetch_one(
                     conn,
                     "SELECT quantity FROM my_fleet WHERE aircraft_id = ?",
@@ -148,10 +159,21 @@ def api_fleet_add(
                 )
                 conn.execute(
                     """
-                    INSERT INTO my_fleet (aircraft_id, quantity, notes, updated_at)
-                    VALUES (?, ?, ?, datetime('now'))
+                    INSERT INTO my_fleet (aircraft_id, quantity, engine, mods, purchase_price, notes, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
                     ON CONFLICT(aircraft_id) DO UPDATE SET
                         quantity = MIN(999, my_fleet.quantity + excluded.quantity),
+                        engine = CASE
+                            WHEN excluded.engine IS NOT NULL AND TRIM(excluded.engine) != ''
+                            THEN excluded.engine
+                            ELSE my_fleet.engine
+                        END,
+                        mods = CASE
+                            WHEN excluded.mods IS NOT NULL AND TRIM(excluded.mods) != ''
+                            THEN excluded.mods
+                            ELSE my_fleet.mods
+                        END,
+                        purchase_price = COALESCE(excluded.purchase_price, my_fleet.purchase_price),
                         notes = CASE
                             WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
                             THEN excluded.notes
@@ -159,7 +181,14 @@ def api_fleet_add(
                         END,
                         updated_at = datetime('now')
                     """,
-                    (int(ac["id"]), q, notes.strip() or None),
+                    (
+                        int(ac["id"]),
+                        q,
+                        (engine or "").strip() or None,
+                        (mods or "").strip() or None,
+                        pp,
+                        notes.strip() or None,
+                    ),
                 )
                 conn.commit()
                 after = fetch_one(
@@ -175,6 +204,8 @@ def api_fleet_add(
             conn.close()
     except FileNotFoundError:
         msg = "Database not found."
+    except ValueError:
+        msg = "Purchase price must be a whole number."
     except sqlite3.OperationalError:
         msg = "Database missing my_fleet table — run extract or upgrade schema."
 
@@ -379,6 +410,7 @@ def api_fleet_json(
     if conn is None:
         return []
     try:
+        ensure_my_fleet_optional_schema(conn)
         rows = _my_fleet_rows(conn)
     except sqlite3.OperationalError:
         return []
@@ -389,6 +421,9 @@ def api_fleet_json(
             "ac_name": r["ac_name"],
             "ac_type": r.get("ac_type"),
             "quantity": r["quantity"],
+            "engine": r.get("engine"),
+            "mods": r.get("mods"),
+            "purchase_price": r.get("purchase_price"),
             "assigned": r.get("assigned", 0),
             "free": r.get("free", 0),
             "unit_cost": r.get("unit_cost", 0),

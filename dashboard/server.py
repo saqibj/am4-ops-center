@@ -129,6 +129,26 @@ async def _app_lifespan(app: FastAPI):
             raise
 
         try:
+            c_set = _short_setup_conn()
+            try:
+                c_set.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+                row = c_set.execute("SELECT value FROM settings WHERE key = 'setup_complete'").fetchone()
+                if not row:
+                    try:
+                        hubs_count = c_set.execute("SELECT COUNT(*) FROM my_hubs").fetchone()[0]
+                        if hubs_count > 0:
+                            c_set.execute("INSERT INTO settings (key, value) VALUES ('setup_complete', 'true')")
+                    except sqlite3.OperationalError:
+                        pass
+                c_set.commit()
+            finally:
+                c_set.close()
+            logger.info("Schema ensured: settings (with backfill)")
+        except Exception:
+            logger.exception("ensure settings schema failed")
+            raise
+
+        try:
             c1c = _short_setup_conn()
             try:
                 ensure_refresh_jobs_schema(c1c)
@@ -248,6 +268,14 @@ def redirect_fleet():
 @app.get("/contribution", include_in_schema=False)
 def redirect_contribution():
     return RedirectResponse(url="/contributions", status_code=307)
+
+
+@app.get("/setup/rerun", include_in_schema=False)
+def rerun_setup():
+    from app.state import reset_setup
+
+    reset_setup()
+    return RedirectResponse(url="/setup", status_code=303)
 
 
 from dashboard.routes import api_routes, pages, setup as setup_routes

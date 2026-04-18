@@ -214,3 +214,23 @@ def setup_complete(request: Request):
     mark_setup_complete()
     return RedirectResponse(url="/", status_code=307)
 
+
+@router.get("/setup/rerun")
+def setup_rerun(request: Request):
+    try:
+        conn = dbm.get_write_conn()
+        try:
+            conn.execute(
+                """
+                INSERT INTO settings(key, value)
+                VALUES('setup_complete', 'false')
+                ON CONFLICT(key) DO UPDATE SET value = 'false'
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return RedirectResponse(url="/setup", status_code=303)
+

@@ -106,6 +106,7 @@ def extract_routes_for_hub(
     user: Any,
     options: Any,
     game_mode_label: str,
+    fleet_ci: dict[int, int] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Return (route_aircraft rows as dicts, route_demands rows as dicts)."""
     from am4.utils.aircraft import Aircraft
@@ -223,7 +224,7 @@ def extract_routes_for_hub(
                     "needs_stopover": 1 if acr.needs_stopover else 0,
                     "stopover_iata": stop_iata,
                     "total_distance": total_dist,
-                    "ci": int(acr.ci),
+                    "ci": fleet_ci.get(ac.id, int(acr.ci)) if fleet_ci else int(acr.ci),
                     "warnings": json.dumps([w.to_str() for w in acr.warnings]),
                     "is_valid": 1 if acr.valid else 0,
                     "game_mode": game_mode_label,
@@ -376,6 +377,15 @@ def _aircraft_rows_from_db(conn: sqlite3.Connection) -> list[dict]:
         {"id": int(r["id"]), "shortname": r["shortname"], "name": r["name"], "type": r["type"]}
         for r in rows
     ]
+
+
+def _fleet_ci_map(conn: sqlite3.Connection) -> dict[int, int]:
+    """Build {aircraft_id: ci} from my_fleet. Returns empty dict if table missing."""
+    try:
+        rows = conn.execute("SELECT aircraft_id, ci FROM my_fleet").fetchall()
+        return {int(r[0]): int(r[1]) for r in rows}
+    except sqlite3.OperationalError:
+        return {}
 
 
 def upsert_airport_from_am4(
@@ -541,11 +551,13 @@ def refresh_single_hub_conn(
 
         _delete_routes_for_origin(conn, ap_id)
         aircraft_rows = _aircraft_rows_from_db(conn)
+        fleet_ci = _fleet_ci_map(conn)
         user = build_am4_user(cfg, conn=conn)
         options = _aircraft_route_options(cfg)
         game_mode_label = read_game_mode(conn)
         rr, dd = extract_routes_for_hub(
-            iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label
+            iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label,
+            fleet_ci=fleet_ci,
         )
         _insert_batches_chunked(
             conn,
@@ -646,6 +658,8 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
 
     print(f"[3/3] Computing routes for {len(hubs)} hubs × {len(aircraft_rows)} aircraft (workers={cfg.max_workers})…")
 
+    fleet_ci = _fleet_ci_map(conn)
+
     total_routes = 0
     total_demand_rows = 0
 
@@ -656,7 +670,8 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
             user, options = _build_user_and_options()
             for hub in tqdm(hubs):
                 rr, dd = extract_routes_for_hub(
-                    hub, aircraft_rows, cfg, user, options, game_mode_label
+                    hub, aircraft_rows, cfg, user, options, game_mode_label,
+                    fleet_ci=fleet_ci,
                 )
                 _insert_batches(conn, rr, _demands_to_map(dd), run_id=run_id)
                 total_routes += len(rr)
@@ -669,7 +684,8 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
                     def _task(h: str = hub) -> tuple[list[dict], list[dict]]:
                         user, options = _build_user_and_options()
                         return extract_routes_for_hub(
-                            h, aircraft_rows, cfg, user, options, game_mode_label
+                            h, aircraft_rows, cfg, user, options, game_mode_label,
+                            fleet_ci=fleet_ci,
                         )
 
                     futs[ex.submit(_task)] = hub

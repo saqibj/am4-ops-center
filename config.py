@@ -16,6 +16,7 @@ class UserConfig:
     """Player-specific settings that affect calculations."""
 
     game_mode: GameMode = GameMode.EASY
+    #: Fallback CI for aircraft not in my_fleet. Per-aircraft CI from my_fleet.ci takes precedence.
     cost_index: int = 200
     reputation: float = 87.0
     fuel_price: float = 700.0

@@ -39,10 +39,10 @@
                 <td class="px-3 py-2 font-mono">{{ r.aircraft }}</td>
                 <td class="px-3 py-2 am4-text-secondary">{{ r.ac_type }}</td>
                 <td class="px-3 py-2 text-right font-mono am4-accent">${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</td>
-                <td class="px-3 py-2 text-right font-mono text-emerald-300">${{ "{:,.0f}".format(r.contribution or 0) }}</td>
+                <td class="px-3 py-2 text-right font-mono text-emerald-300">${{ "{:,.2f}".format(r.contribution or 0) }}</td>
                 <td class="px-3 py-2 text-right font-mono am4-text-secondary">
                     {% if r.contrib_ratio is not none %}
-                    {{ "%.3f"|format(r.contrib_ratio) }}
+                    {{ "%.6f"|format(r.contrib_ratio) }}
                     {% else %}
                     —
                     {% endif %}

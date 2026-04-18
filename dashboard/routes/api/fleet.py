@@ -433,3 +433,46 @@ def api_fleet_json(
         }
         for r in rows
     ]
+
+
+@router.patch(
+    "/fleet/{fleet_id}/ci",
+    response_class=HTMLResponse,
+    dependencies=[Depends(check_auth_token)],
+)
+def api_fleet_ci_update(request: Request, fleet_id: int, ci: int = Form(...)):
+    def _render_input(val: int, extra_class: str = "") -> HTMLResponse:
+        html = f'''
+        <div class="relative inline-flex items-center">
+            <input type="number" name="ci" value="{val}" min="0" max="200" step="1"
+                   hx-patch="/api/fleet/{fleet_id}/ci"
+                   hx-trigger="change"
+                   hx-target="#fleet-ci-{fleet_id}"
+                   class="am4-input rounded px-1 py-1 w-16 font-mono text-xs text-right {extra_class}">
+        </div>
+        '''
+        return HTMLResponse(html)
+
+    if not (0 <= ci <= 200):
+        return _render_input(ci, "border-red-500 focus:border-red-500")
+
+    try:
+        conn = get_db()
+        try:
+            cur = conn.execute(
+                "UPDATE my_fleet SET ci = ?, updated_at = datetime('now') WHERE id = ?",
+                (ci, int(fleet_id)),
+            )
+            conn.commit()
+            if cur.rowcount == 0:
+                return HTMLResponse("Row not found", status_code=404)
+        finally:
+            conn.close()
+    except Exception as e:
+        return HTMLResponse(str(e), status_code=500)
+
+    # Success: add a temporary green border to indicate save
+    return _render_input(
+        ci,
+        "border-emerald-500/50 focus:border-emerald-500/50 transition-colors duration-500"
+    )

@@ -59,8 +59,8 @@ For a **prebuilt app** (no compiler, no `pip install am4`):
 - **SQLite storage** — 3.8M+ route rows queryable offline
 - **FastAPI dashboard** — web UI with **light / dark / system** themes, semantic styling (`theme.css`, `am4-*` utilities), Tailwind CSS (CDN) + HTMX (no page reloads)
 - **17 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, **Scenarios** (fuel/CO₂ vs extraction baselines), Fleet Planner, **Buy Next** / **Buy Next global** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Fleet Health**, **Demand utilization**, **Extraction deltas** (compare route snapshots between two extractions), **Hub ROI**, **Hub Manager** (managed hubs; per-hub and **stale** refresh run as **background jobs** with progress — no long-blocking HTTP request), Contributions, Heatmap, and **Settings** (`/settings`: themes, airline branding, default landing page, UI density, notification toggles; stored in browser **`localStorage`**)
-- **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; CSV import defaults to **merge**; **`--replace`** overwrites counts; dashboard forms match the same semantics
-- **CLI `recommend`** / **Buy Next** (`/buy-next`, `/buy-next/global`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**); eligible rows include a **➕** link to **`/routes/add`** with hub, destination, and aircraft **prefilled**
+- **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; each saved route stores **`route_type`** (**PAX**, **VIP**, **Cargo**, or **Charter**); VIP profit uses AM4-style pricing derived from stored PAX economics; CSV import defaults to **merge**; optional **`route_type`** column on route imports; **`--replace`** overwrites counts; dashboard forms match the same semantics
+- **CLI `recommend`** / **Buy Next** (`/buy-next`, `/buy-next/global`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**); **`route_type`** filter (cargo vs non-cargo aircraft, VIP profit when VIP is selected); eligible rows include a **➕** link to **`/routes/add`** with hub, destination, aircraft, and **`route_type`** **prefilled**
 - **CSV/Excel export** — dump tables for spreadsheet analysis
 - **Fully offline** — after initial setup, no internet needed
 
@@ -341,11 +341,11 @@ a319neo,19,Short-haul workhorse
 erj172,11,Regional routes
 ```
 
-**Routes CSV format:** `hub,destination,aircraft,num_assigned,notes`
+**Routes CSV format:** `hub,destination,aircraft,num_assigned,notes` — optional **`route_type`** (`pax`, `vip`, `cargo`, or `charter`; default **pax** if omitted)
 ```csv
-KHI,BCN,a342,2,Premium route
-DXB,CAI,a319neo,1,High frequency
-HKG,IAD,a342,2,Trans-Pacific
+KHI,BCN,a342,2,Premium route,vip
+DXB,CAI,a319neo,1,High frequency,pax
+HKG,IAD,a342,2,Trans-Pacific,cargo
 ```
 
 **Fleet quantity is global:** `my_fleet` stores **one row per aircraft type** with a total **`quantity`** (there is no per-hub column). The dashboard treats **available** aircraft as owned quantity minus **`num_assigned` summed across all route origins**, so a type fully assigned from another hub does not appear as spare when adding a route from a different hub.
@@ -430,22 +430,23 @@ GROUP BY origin_id ORDER BY avg_profit DESC LIMIT 5;
 | Page | URL | Description |
 |------|-----|-------------|
 | Overview | `/` | Stats, top routes, quick links, freshness card |
-| Hub Explorer | `/hub-explorer` | Routes from a hub, filterable by aircraft/type/profit |
+| Hub Explorer | `/hub-explorer` | Routes from a hub; **`my_routes`** overlay (saved type, VIP-adjusted profit where applicable); **Saved as** / **My assignments only**; hub summary **Your routes / day** |
 | Aircraft | `/aircraft` | Aircraft list plus cost-breakdown stacked chart |
 | Route Analyzer | `/route-analyzer` | All aircraft ranked for a specific origin → destination |
 | Scenarios | `/scenarios` | Fuel/CO2 what-if slider vs extracted baseline costs |
 | Fleet Planner | `/fleet-planner` | Budget-based aircraft / route suggestions |
-| Buy Next | `/buy-next` | Payback-ranked purchases, top routes, optional multi-hub allocator; **➕** opens **Add route** with prefilled hub / dest / aircraft |
-| Buy Next (global) | `/buy-next/global` | Same flat table across **all** hubs; **Hub** column; **➕** deep link to **Add route** |
+| Buy Next | `/buy-next` | **`route_type`** filter; payback-ranked purchases, top routes, optional multi-hub allocator; **➕** opens **Add route** with prefilled hub / dest / aircraft / **route_type** |
+| Buy Next (global) | `/buy-next/global` | Same flat table across **all** hubs; **Hub** column; **`route_type`** filter; **➕** deep link to **Add route** |
 | My Fleet | `/my-fleet` | `my_fleet` table: quantities, assigned vs free, buy/sell, CSV |
-| My Routes | `/my-routes` | `my_routes` assignments, merge on add, duplicate hints |
+| My Routes | `/my-routes` | **`route_type`** column and filter; VIP-adjusted profit; `my_routes` assignments, merge on add, duplicate hints |
 | Fleet Health | `/fleet-health` | Profit gap vs best aircraft/config on each assigned route |
 | Demand utilization | `/demand-utilization` | Offered Y/J/F seats vs route demand with underserved/wasted flags |
 | Extraction deltas | `/extraction-deltas` | Compare two extraction snapshots: new/removed/movers/flip counts |
-| Hub ROI | `/hub-roi` | Per-hub capital deployed, daily profit, payback, worst-hub highlight |
+| Hub ROI | `/hub-roi` | Per-hub capital deployed, **VIP-adjusted** daily profit from `my_routes`, payback, worst-hub highlight |
 | Hub Manager | `/my-hubs` | Managed hubs (`my_hubs`): add IATA, per-hub / **stale** refresh as **background jobs** (status + progress), remove |
 | Contributions | `/contributions` | Routes sorted by alliance contribution |
-| Heatmap | `/heatmap` | Map visualization of profitable destinations |
+| Heatmap | `/heatmap` | Map visualization of profitable destinations; VIP overlay when your assignment is VIP |
+| Add route | `/routes/add` | Save **`my_routes`** with **`route_type`**; eligible aircraft by type; **Top extracted** uses VIP-adjusted profit when VIP is selected |
 | Settings | `/settings` | Light/dark/system theme, density, landing page, notifications, branding; stored in **`localStorage`** |
 
 ### Tech Stack

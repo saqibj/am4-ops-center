@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Route type (PAX / VIP / Cargo / Charter) for saved assignments (`my_routes`):**
+  - **Schema:** `my_routes.route_type` (`TEXT NOT NULL DEFAULT 'pax'`), SQLite triggers enforcing `pax` / `vip` / `cargo` / `charter`; migration in `database/schema.py`; CSV import accepts optional **`route_type`** column (`commands/airline.py`).
+  - **VIP pricing:** `app/core/vip_pricing.py` — VIP ticket prices and profit derived from stored PAX `route_aircraft` economics (AM4 formulae); `adjust_rows_for_route_type()` for catalog/inventory rows.
+  - **Buy Next** (`/buy-next`) **and** **Buy Next global** (`/buy-next/global`): **`route_type`** selector (replaces legacy aircraft-type-only filter); cargo vs non-cargo aircraft filtering; VIP profit recomputation when VIP is selected; results badge; **➕** deep links to **`/routes/add`** include **`route_type`**.
+  - **Add route** (`/routes/add` and inline form on **My Routes**): **`route_type`** dropdown; **`GET /api/routes/eligible-aircraft`** filters by type; **Top extracted** panel (`/api/routes/pair-coverage`) uses VIP-adjusted profit when VIP is selected; `POST /api/routes/add` persists **`route_type`**.
+  - **My Routes** (`/my-routes`): **Type** column (badges), **Show route type** filter, VIP-adjusted profit columns, summary **type breakdown** and filtered stats; **`GET /api/routes/inventory`** / **`GET /api/routes/summary`** accept optional **`route_type`** query param; **`GET /api/routes/json`** includes **`route_type`**.
+  - **Hub Explorer** (`/hub-explorer`): hub catalog queries **`LEFT JOIN my_routes`**; VIP (and related) profit overlay for rows you operate; **Saved as** column; **My assignments only** checkbox; hub summary **Your routes / day** card (VIP-adjusted from `my_routes`); bar chart uses the same overlay.
+  - **Hub ROI** (`/hub-roi`): per-hub **daily profit** from **`my_routes_daily_profit_by_hub()`** (VIP-adjusted), not a raw `route_aircraft` × assignment join only.
+  - **Global heatmap** (`/heatmap`): per-destination coloring uses best profit after the same **VIP overlay** when your assignment is VIP.
+  - **Navigation:** **Buy next global** entry under **ROUTES** (alongside Buy next), linking to **`/buy-next/global`**.
+  - **Tests:** `tests/test_vip_pricing.py`, `tests/test_my_routes_route_type_schema.py`, `tests/test_buy_next_api.py`, `tests/test_my_routes_inventory_api.py`, `tests/test_buy_next_add_route_link.py`, and related HTTP/template coverage.
+
 - **Hub refresh (background jobs):** SQLite **`refresh_jobs`** tracks per-hub **`extract --refresh-hubs`** work with **`pending` / `running` / `completed` / `failed`**, **`progress_pct`**, and timestamps. Refresh runs in a **background thread**; the UI **polls** job status instead of holding a long HTTP request. Orphaned **`running`** rows are marked **`failed`** on dashboard startup after a crash or restart.
 - **Buy Next → Add route:** each eligible row in **Buy Next** (`/buy-next`) and **Buy Next global** (`/buy-next/global`) has a **➕** link to **`/routes/add`** with **`hub`**, **`destination`**, and **`aircraft`** query params so the add-route form prefills hub, destination, and aircraft.
 
@@ -45,6 +57,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Tests:** `test_my_inventory_pages_form_after_request_elt_guard` in **`tests/test_dashboard_http.py`** (HTMX elt guard on **`/my-routes`**, **`/my-hubs`**, **`/my-fleet`** add forms); **`tests/test_buy_next_api.py`** for Buy Next budget parsing, missing DB, and **`limit`** validation; plus dashboard auth, fleet buy/sell concurrency, hub extraction lock, heatmap popup script shape, fleet recommend breakeven, airport extract vs **`min_runway`**, and related coverage.
 
 ### Changed
+
+- **Airline estimated profit (dashboard):** **`_airline_est_profit_from_my_routes()`** sums **`num_assigned × profit_per_ac_day`** using the same **`_my_routes_rows()`** path as **My Routes**, so VIP assignments contribute VIP-adjusted totals (e.g. fleet summary cards).
 
 - **SQLite concurrency (dashboard):** **WAL** mode with **separate read connections** (`get_read_conn`) and a **single serialized write connection** (`get_write_conn` lease) so concurrent page loads and API reads do not block each other; hub refresh **writes in chunks** to reduce writer hold time. Connections use **`check_same_thread=False`** where background workers need them. See **`PRD/perf-baseline-phase2.md`** / **`PRD/perf-flamegraphs-phase2.md`** for post-overhaul metrics notes.
 - **Hub refresh extraction:** progress callbacks batch work for smoother concurrent dashboard use alongside **`refresh_single_hub`**.

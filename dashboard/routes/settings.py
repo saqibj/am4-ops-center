@@ -51,6 +51,15 @@ def post_settings_game_mode(
     )
 
 
+@router.get("/settings/backup", response_class=HTMLResponse)
+def get_settings_backup(
+    request: Request,
+    conn: sqlite3.Connection | None = Depends(get_read_db),
+):
+    ctx = base_context(request, conn)
+    return templates.TemplateResponse(request, "settings/backup.html", ctx)
+
+
 @router.get("/settings/branding", response_class=HTMLResponse)
 def get_settings_branding(
     request: Request,

@@ -1,0 +1,25 @@
+{% if ok %}
+<div class="rounded-md border border-emerald-800/40 bg-emerald-950/20 px-3 py-2 space-y-2 text-emerald-100/95">
+  <p class="font-medium">Restore succeeded</p>
+  <p>{{ message }}</p>
+  {% if manifest %}
+  <ul class="text-xs am4-text-muted list-disc list-inside space-y-0.5">
+    <li>Exported: {{ manifest.get('exported_at', '—') }}</li>
+    <li>Hubs: {{ manifest.get('hub_count', '—') }} · Routes: {{ manifest.get('route_count', '—') }} · Fleet units: {{ manifest.get('fleet_count', '—') }}</li>
+    <li>Game mode: {{ manifest.get('game_mode', '—') }}</li>
+  </ul>
+  {% endif %}
+  {% if warnings %}
+  <div class="text-amber-200/90 text-xs">
+    <p class="font-medium">Warnings</p>
+    <ul class="list-disc list-inside">
+      {% for w in warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="rounded-md border border-rose-800/50 bg-rose-950/30 px-3 py-2 text-rose-100/95 text-sm">
+  {{ message }}
+</div>
+{% endif %}

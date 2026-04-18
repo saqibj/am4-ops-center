@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from dashboard.routes.api import (
     analytics,
+    backup,
     demand_utilization,
     extraction_deltas,
     fleet,
@@ -20,6 +21,7 @@ from dashboard.routes.api import (
 )
 
 router = APIRouter(prefix="/api", tags=["api"])
+router.include_router(backup.router)
 router.include_router(meta.router)
 router.include_router(system.router)
 router.include_router(analytics.router)

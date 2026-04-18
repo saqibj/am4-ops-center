@@ -57,6 +57,11 @@ def _seed_ops_db(
     for r in range(routes):
         aid = (r % 3) + 1
         conn.execute(
+            "INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned) "
+            "VALUES (1, 2, ?, 1)",
+            (aid,),
+        )
+        conn.execute(
             "INSERT INTO route_aircraft (origin_id, dest_id, aircraft_id, distance_km, is_valid) "
             "VALUES (1, 2, ?, 1000, 1)",
             (aid,),
@@ -127,7 +132,7 @@ def test_create_backup_zip_contents_with_logo(tmp_path, monkeypatch) -> None:
         assert man["has_logo"] is True
         assert man["hub_count"] == 2
         assert man["route_count"] == 3
-        assert man["fleet_count"] == 5
+        assert man["fleet_count"] == 1
         assert man["game_mode"] == "realism"
         assert man["schema_version"] == SCHEMA_VERSION
     finally:
@@ -188,15 +193,13 @@ def test_restore_roundtrip(tmp_path, monkeypatch) -> None:
         c = get_connection(db_b)
         try:
             h = c.execute("SELECT COUNT(*) FROM my_hubs").fetchone()[0]
-            r = c.execute(
-                "SELECT COUNT(*) FROM route_aircraft WHERE is_valid = 1"
-            ).fetchone()[0]
-            f = c.execute("SELECT COALESCE(SUM(quantity),0) FROM my_fleet").fetchone()[0]
+            r = c.execute("SELECT COUNT(*) FROM my_routes").fetchone()[0]
+            f = c.execute("SELECT COUNT(*) FROM my_fleet").fetchone()[0]
         finally:
             c.close()
         assert int(h) == 1
         assert int(r) == 2
-        assert int(f) == 3
+        assert int(f) == 1
         pre = db_b.parent / f"{db_b.name}.pre-restore"
         assert pre.is_file()
     finally:

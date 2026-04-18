@@ -36,22 +36,63 @@ class RestoreError(Exception):
     """Raised when a backup archive is invalid or cannot be restored."""
 
 
-def _sql_path_literal(path: Path) -> str:
-    return str(path.resolve()).replace("'", "''")
+BACKUP_TABLES = [
+    "my_hubs",
+    "my_fleet",
+    "my_routes",
+    "settings",
+    "app_settings",
+    "app_state",
+    "extraction_runs",
+    "extract_metadata",
+    "saved_filters",
+    "route_add_undos",
+    "_migrations",
+]
 
 
-def _vacuum_snapshot(source_db_path: Path, dest_path: Path) -> None:
-    if dest_path.exists():
-        dest_path.unlink()
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
-    esc = _sql_path_literal(dest_path)
-    conn = sqlite3.connect(str(source_db_path), timeout=30)
+def _snapshot_db(source_db_path: Path, dest_path: Path) -> None:
+    """Create a minimal backup DB with only user-owned tables."""
+    src = sqlite3.connect(str(source_db_path), timeout=10)
+    dst = sqlite3.connect(str(dest_path))
     try:
-        conn.execute(f"VACUUM INTO '{esc}'")
-    except sqlite3.Error as e:
-        raise BackupError(f"Could not snapshot database: {e}") from e
+        for table in BACKUP_TABLES:
+            # Check table exists in source
+            exists = src.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                (table,)
+            ).fetchone()
+            if not exists:
+                continue
+
+            # Get CREATE TABLE DDL from source
+            ddl = src.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+                (table,)
+            ).fetchone()[0]
+            dst.execute(ddl)
+
+            # Copy all rows
+            rows = src.execute(f"SELECT * FROM [{table}]").fetchall()
+            if rows:
+                placeholders = ",".join("?" * len(rows[0]))
+                dst.executemany(
+                    f"INSERT INTO [{table}] VALUES ({placeholders})",
+                    rows,
+                )
+
+            # Copy indexes for this table
+            indexes = src.execute(
+                "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL",
+                (table,)
+            ).fetchall()
+            for (idx_sql,) in indexes:
+                dst.execute(idx_sql)
+
+        dst.commit()
     finally:
-        conn.close()
+        src.close()
+        dst.close()
 
 
 def _count_or_zero(conn: sqlite3.Connection, sql: str) -> int:
@@ -77,10 +118,8 @@ def _read_logo_rel(conn: sqlite3.Connection) -> str:
 
 def _manifest_counts(conn: sqlite3.Connection) -> tuple[int, int, int, str]:
     hubs = _count_or_zero(conn, "SELECT COUNT(*) FROM my_hubs")
-    routes = _count_or_zero(
-        conn, "SELECT COUNT(*) FROM route_aircraft WHERE is_valid = 1"
-    )
-    fleet = _count_or_zero(conn, "SELECT COALESCE(SUM(quantity), 0) FROM my_fleet")
+    routes = _count_or_zero(conn, "SELECT COUNT(*) FROM my_routes")
+    fleet = _count_or_zero(conn, "SELECT COUNT(*) FROM my_fleet")
     mode = read_game_mode(conn)
     return hubs, routes, fleet, mode
 
@@ -98,7 +137,7 @@ def create_backup(db_path: Path | None = None) -> Path:
     with tempfile.TemporaryDirectory(prefix="am4-backup-") as tdir:
         td = Path(tdir)
         snap = td / "_snapshot.db"
-        _vacuum_snapshot(src, snap)
+        _snapshot_db(src, snap)
 
         snap_conn = sqlite3.connect(str(snap))
         try:
@@ -140,6 +179,9 @@ def create_backup(db_path: Path | None = None) -> Path:
             "fleet_count": fleet,
             "has_logo": has_logo,
             "db_filename": ZIP_DB_NAME,
+            "backup_type": "smart",
+            "excluded_tables": ["route_aircraft", "route_aircraft_snapshot", "route_demands", "airports", "aircraft"],
+            "note": "Computed route data excluded. Re-run hub extractions after restore to rebuild.",
         }
         if has_logo and logo_filename:
             manifest["logo_filename"] = logo_filename

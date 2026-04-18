@@ -765,10 +765,6 @@ def ensure_route_aircraft_indexes(conn: sqlite3.Connection) -> None:
     if row and row[0] and "WHERE" not in row[0].upper():
         conn.execute("DROP INDEX IF EXISTS idx_ra_origin_extracted")
     conn.executescript(ROUTE_AIRCRAFT_INDEX_SQL)
-    try:
-        conn.execute("ANALYZE route_aircraft")
-    except sqlite3.OperationalError:
-        pass
 
 
 AIRCRAFT_NEW_TABLE_SQL = """
@@ -866,6 +862,13 @@ def ensure_route_aircraft_baseline_prices(conn: sqlite3.Connection) -> None:
     """
     if not _table_exists(conn, "route_aircraft"):
         return
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(route_aircraft)").fetchall()}
+    needed = {"fuel_price", "co2_price"}
+    if needed.issubset(cols):
+        row = conn.execute("SELECT COUNT(*) FROM route_aircraft WHERE fuel_price IS NULL OR co2_price IS NULL").fetchone()
+        if row[0] == 0:
+            return
+
     if not _route_aircraft_has_column(conn, "fuel_price"):
         conn.execute("ALTER TABLE route_aircraft ADD COLUMN fuel_price REAL")
     if not _route_aircraft_has_column(conn, "co2_price"):

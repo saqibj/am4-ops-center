@@ -45,7 +45,7 @@ templates = Jinja2Templates(
 @asynccontextmanager
 async def _app_lifespan(app: FastAPI):
     from dashboard.auth import get_dashboard_auth_token
-    from dashboard.db import _apply_pragmas, current_db_path, get_read_conn
+    from dashboard.db import _apply_pragmas, current_db_path, get_read_conn, run_sql_migrations
     from dashboard.services.branding import ensure_branding_schema
     from database.extraction_runs import ensure_extraction_runs_schema
     from database.refresh_jobs import (
@@ -72,6 +72,17 @@ async def _app_lifespan(app: FastAPI):
             c.row_factory = sqlite3.Row
             _apply_pragmas(c)
             return c
+
+        try:
+            c_mig = _short_setup_conn()
+            try:
+                run_sql_migrations(c_mig)
+            finally:
+                c_mig.close()
+            logger.info("SQL migrations applied")
+        except Exception:
+            logger.exception("run_sql_migrations failed")
+            raise
 
         try:
             c0 = _short_setup_conn()

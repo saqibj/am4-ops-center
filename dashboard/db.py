@@ -49,6 +49,33 @@ def _apply_pragmas(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA busy_timeout=5000")
 
 
+def run_sql_migrations(conn: sqlite3.Connection) -> None:
+    """Run SQL migrations in dashboard/db/migrations once per DB."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS _migrations (
+            filename TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        """
+    )
+    migrations_dir = Path(__file__).resolve().parent / "db" / "migrations"
+    if not migrations_dir.exists():
+        return
+
+    migrations_applied = 0
+    for migration_file in sorted(migrations_dir.glob("*.sql")):
+        row = conn.execute("SELECT 1 FROM _migrations WHERE filename = ?", (migration_file.name,)).fetchone()
+        if not row:
+            conn.executescript(migration_file.read_text(encoding="utf-8"))
+            conn.execute("INSERT INTO _migrations (filename) VALUES (?)", (migration_file.name,))
+            migrations_applied += 1
+
+    if migrations_applied > 0:
+        conn.execute("ANALYZE")
+        conn.commit()
+
+
 def get_read_conn() -> sqlite3.Connection:
     p = current_db_path()
     if not p.exists():

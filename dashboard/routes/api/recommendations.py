@@ -7,15 +7,24 @@ import json
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 
+from app.core.vip_pricing import adjust_rows_for_route_type
 from app.services.hubs import SQL_EXPLORER_HUB_IATAS
 
 from commands.fleet_recommend import fleet_recommend_rows
+from core.game_mode import is_realism
 from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_read_conn
 from dashboard.server import templates
 
 from dashboard.routes.api.shared import CONTRIB_SORT, _contrib_order, _query_flag_on
 
 router = APIRouter()
+
+_ROUTE_TYPE_LABELS = {
+    "pax": "Passenger",
+    "vip": "VIP",
+    "cargo": "Cargo",
+    "charter": "Charter",
+}
 
 
 def _parse_optional_float(s: str | None) -> float | None:
@@ -45,9 +54,89 @@ def _parse_buy_next_budget(budget: str | None) -> tuple[int | None, str | None]:
     return val, None
 
 
-def _buy_next_ac_type_filter(ac_type: str) -> str | None:
-    m = {"pax": "PAX", "cargo": "CARGO", "vip": "VIP"}
-    return m.get((ac_type or "").strip().lower())
+_ALLOWED_ROUTE_TYPES = frozenset({"pax", "vip", "cargo", "charter"})
+
+
+def _normalize_buy_next_route_type(raw: str | None) -> str:
+    s = (raw or "").strip().lower()
+    if s in _ALLOWED_ROUTE_TYPES:
+        return s
+    return "pax"
+
+
+def _aircraft_type_filter_for_route_type(route_type: str) -> str | None:
+    """Map route mode to ``aircraft.type`` SQL filter (PAX vs CARGO)."""
+    rt = (route_type or "pax").strip().lower()
+    if rt == "cargo":
+        return "CARGO"
+    if rt in ("pax", "vip", "charter"):
+        return "PAX"
+    return "PAX"
+
+
+def _recompute_buy_next_profit_yield(rows: list[dict]) -> None:
+    for r in rows:
+        cost = int(r.get("ac_cost") or 0)
+        profit_day = float(r.get("profit_per_ac_day") or 0.0)
+        r["profit_yield"] = (profit_day * 1000000.0 / cost) if cost > 0 else 0.0
+
+
+def _sort_buy_next_rows_inplace(rows: list[dict], sort_val: str) -> None:
+    """Mirror SQL ``ORDER BY`` after VIP profit overrides (``total_desc`` uses enrich + finalize)."""
+    if sort_val == "total_desc":
+        return
+
+    def dest_key(r: dict) -> str:
+        return str(r.get("destination") or "").lower()
+
+    def hub_key(r: dict) -> str:
+        return str(r.get("hub_iata") or "").lower()
+
+    if sort_val == "price_desc":
+        rows.sort(
+            key=lambda r: (
+                -int(r.get("ac_cost") or 0),
+                -float(r.get("profit_per_ac_day") or 0.0),
+                dest_key(r),
+                hub_key(r),
+            )
+        )
+    elif sort_val == "price_asc":
+        rows.sort(
+            key=lambda r: (
+                int(r.get("ac_cost") or 0),
+                -float(r.get("profit_per_ac_day") or 0.0),
+                dest_key(r),
+                hub_key(r),
+            )
+        )
+    elif sort_val == "profit_desc":
+        rows.sort(
+            key=lambda r: (
+                -float(r.get("profit_per_ac_day") or 0.0),
+                -int(r.get("ac_cost") or 0),
+                dest_key(r),
+                hub_key(r),
+            )
+        )
+    elif sort_val == "profit_asc":
+        rows.sort(
+            key=lambda r: (
+                float(r.get("profit_per_ac_day") or 0.0),
+                int(r.get("ac_cost") or 0),
+                dest_key(r),
+                hub_key(r),
+            )
+        )
+    elif sort_val == "yield_desc":
+        rows.sort(
+            key=lambda r: (
+                -float(r.get("profit_yield") or 0.0),
+                -float(r.get("profit_per_ac_day") or 0.0),
+                -int(r.get("ac_cost") or 0),
+                hub_key(r),
+            )
+        )
 
 
 def _exclude_owned_from_request(request: Request) -> bool:
@@ -75,6 +164,7 @@ def _buy_next_flat_rows(
     budget_val: int,
     sort: str,
     type_filter: str | None,
+    route_type: str,
     exclude_owned: bool,
     hide_stopovers: bool,
     hide_existing: bool,
@@ -106,6 +196,7 @@ def _buy_next_flat_rows(
            ac.range_km AS ac_range,
            ra.distance_km,
            ra.config_y, ra.config_j, ra.config_f,
+           ra.income AS income_per_trip,
            ra.profit_per_trip,
            ra.trips_per_day,
            ra.profit_per_ac_day,
@@ -169,6 +260,8 @@ def _buy_next_flat_rows(
         sql += " AND mr.id IS NULL"
 
     fetch_limit = limit * 5 if sort == "total_desc" else limit
+    if route_type == "vip":
+        fetch_limit = min(2000, fetch_limit * 15)
     sql += f" ORDER BY {_buy_next_sort_clause(sort)} LIMIT ?"
     params.append(fetch_limit)
     return fetch_all(conn, sql, params)
@@ -346,7 +439,7 @@ def api_buy_next(
     hub: str = Query(""),
     budget: str | None = Query(None),
     sort: str = Query("price_desc"),
-    ac_type: str = Query(""),
+    route_type: str = Query("pax"),
     exclude_owned: int = Query(0),
     hide_stopovers: int = Query(0),
     hide_existing: int = Query(0),
@@ -364,7 +457,8 @@ def api_buy_next(
     }
     sort_val = sort if sort in allowed_sorts else "price_desc"
     budget_val, budget_err = _parse_buy_next_budget(budget)
-    type_filter = _buy_next_ac_type_filter(ac_type)
+    route_rt = _normalize_buy_next_route_type(route_type)
+    type_filter = _aircraft_type_filter_for_route_type(route_rt)
     exclude_owned_flag = _query_flag_on(str(exclude_owned))
     hide_stopovers_flag = _query_flag_on(str(hide_stopovers))
     hide_existing_flag = _query_flag_on(str(hide_existing))
@@ -417,6 +511,7 @@ def api_buy_next(
             budget_val=int(budget_val),
             sort=sort_val,
             type_filter=type_filter,
+            route_type=route_rt,
             exclude_owned=exclude_owned_flag,
             hide_stopovers=hide_stopovers_flag,
             hide_existing=hide_existing_flag,
@@ -424,6 +519,10 @@ def api_buy_next(
             filter_dest_id=filter_dest_id,
             filter_distance_km=filter_dist,
         )
+        if route_rt == "vip":
+            rows = adjust_rows_for_route_type(rows, "vip", is_realism(conn))
+            _recompute_buy_next_profit_yield(rows)
+            _sort_buy_next_rows_inplace(rows, sort_val)
         _enrich_buy_next_rows(rows, int(budget_val))
         rows, truncated = _finalize_buy_next_rows(rows, sort_val, limit)
 
@@ -437,6 +536,8 @@ def api_buy_next(
                 "hub": hub.strip().upper(),
                 "truncated": truncated,
                 "limit": limit,
+                "route_type": route_rt,
+                "route_type_label": _ROUTE_TYPE_LABELS.get(route_rt, route_rt),
             },
         )
     finally:
@@ -448,7 +549,7 @@ def api_buy_next_global(
     request: Request,
     budget: str | None = Query(None),
     sort: str = Query("total_desc"),
-    ac_type: str = Query(""),
+    route_type: str = Query("pax"),
     exclude_owned: int = Query(0),
     hide_stopovers: int = Query(0),
     hide_existing: int = Query(0),
@@ -465,7 +566,8 @@ def api_buy_next_global(
     }
     sort_val = sort if sort in allowed_sorts else "total_desc"
     budget_val, budget_err = _parse_buy_next_budget(budget)
-    type_filter = _buy_next_ac_type_filter(ac_type)
+    route_rt = _normalize_buy_next_route_type(route_type)
+    type_filter = _aircraft_type_filter_for_route_type(route_rt)
     exclude_owned_flag = _query_flag_on(str(exclude_owned))
     hide_stopovers_flag = _query_flag_on(str(hide_stopovers))
     hide_existing_flag = _query_flag_on(str(hide_existing))
@@ -491,11 +593,16 @@ def api_buy_next_global(
             budget_val=int(budget_val),
             sort=sort_val,
             type_filter=type_filter,
+            route_type=route_rt,
             exclude_owned=exclude_owned_flag,
             hide_stopovers=hide_stopovers_flag,
             hide_existing=hide_existing_flag,
             limit=limit,
         )
+        if route_rt == "vip":
+            rows = adjust_rows_for_route_type(rows, "vip", is_realism(conn))
+            _recompute_buy_next_profit_yield(rows)
+            _sort_buy_next_rows_inplace(rows, sort_val)
         _enrich_buy_next_rows(rows, int(budget_val))
         rows, truncated = _finalize_buy_next_rows(rows, sort_val, limit)
 
@@ -508,6 +615,8 @@ def api_buy_next_global(
                 "budget": int(budget_val),
                 "truncated": truncated,
                 "limit": limit,
+                "route_type": route_rt,
+                "route_type_label": _ROUTE_TYPE_LABELS.get(route_rt, route_rt),
             },
         )
     finally:

@@ -7,7 +7,11 @@ from fastapi.testclient import TestClient
 
 import dashboard.db as dashboard_db
 from dashboard.server import app
-from dashboard.routes.api.recommendations import _parse_buy_next_budget
+from dashboard.routes.api.recommendations import (
+    _aircraft_type_filter_for_route_type,
+    _normalize_buy_next_route_type,
+    _parse_buy_next_budget,
+)
 
 
 @pytest.fixture
@@ -40,6 +44,19 @@ def test_parse_buy_next_budget(
     val, err = _parse_buy_next_budget(raw)
     assert val == expected_val
     assert err == expected_err
+
+
+def test_normalize_buy_next_route_type_defaults_unknown() -> None:
+    assert _normalize_buy_next_route_type(None) == "pax"
+    assert _normalize_buy_next_route_type("vip") == "vip"
+    assert _normalize_buy_next_route_type("not-a-mode") == "pax"
+
+
+def test_aircraft_type_filter_for_route_type_maps_to_sql() -> None:
+    assert _aircraft_type_filter_for_route_type("cargo") == "CARGO"
+    assert _aircraft_type_filter_for_route_type("pax") == "PAX"
+    assert _aircraft_type_filter_for_route_type("vip") == "PAX"
+    assert _aircraft_type_filter_for_route_type("charter") == "PAX"
 
 
 def test_buy_next_no_hub_returns_prompt(client: TestClient, absent_am4_db: None) -> None:

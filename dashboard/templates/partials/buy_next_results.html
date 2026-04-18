@@ -1,8 +1,14 @@
 {% if not rows %}
-<p class="am4-text-secondary">No affordable routes match these filters. Try raising the budget or clearing the type filter.</p>
+<p class="am4-text-secondary">No affordable routes match these filters. Try raising the budget or changing the route type filter.</p>
 {% else %}
-<div class="text-xs am4-text-muted mb-2">
-    Showing {{ rows|length }} rows for hub <span class="font-mono am4-accent">{{ hub }}</span> under ${{ "{:,}".format(budget) }} · sort: {{ sort }}
+{% set rt = route_type|default('pax') %}
+<div class="text-xs am4-text-muted mb-2 flex flex-wrap items-center gap-2">
+    <span class="inline-flex items-center rounded px-2 py-0.5 border text-[10px] font-semibold uppercase tracking-wide
+        {% if rt == 'pax' %}bg-emerald-900/45 text-emerald-200 border-emerald-700/55
+        {% elif rt == 'vip' %}bg-purple-900/45 text-purple-200 border-purple-700/55
+        {% elif rt == 'cargo' %}bg-amber-900/45 text-amber-200 border-amber-700/55
+        {% else %}bg-sky-900/45 text-sky-200 border-sky-700/55{% endif %}">{{ route_type_label|default('Passenger') }}</span>
+    <span>Showing {{ rows|length }} rows for hub <span class="font-mono am4-accent">{{ hub }}</span> under ${{ "{:,}".format(budget) }} · sort: {{ sort }}</span>
 </div>
 <div class="overflow-x-auto rounded-lg am4-bordered">
     <table class="am4-table w-full text-xs">

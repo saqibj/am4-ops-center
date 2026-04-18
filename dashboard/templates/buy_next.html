@@ -74,18 +74,18 @@
         </select>
     </div>
     <div>
-        <label class="block text-xs am4-text-secondary mb-1">Type</label>
-        <select name="ac_type"
-                title="Aircraft type"
+        <label class="block text-xs am4-text-secondary mb-1">Route type</label>
+        <select name="route_type"
+                title="Route type (pricing mode)"
                 hx-get="/api/buy-next"
                 hx-target="#buynext-results"
                 hx-include="#buynext-filters"
                 hx-indicator="#buynext-spinner"
                 class="am4-input rounded-md px-3 py-2">
-            <option value="">All</option>
-            <option value="pax">Passenger</option>
-            <option value="cargo">Cargo</option>
+            <option value="pax" selected>Passenger</option>
             <option value="vip">VIP</option>
+            <option value="cargo">Cargo</option>
+            <option value="charter">Charter</option>
         </select>
     </div>
     <div>

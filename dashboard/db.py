@@ -15,6 +15,9 @@ from database.settings_dao import read_game_mode
 from dateutil import parser as date_parser
 from fastapi import Request
 
+# Highest numbered SQL migration under ``dashboard/db/migrations/``; bump when schema changes.
+SCHEMA_VERSION = 4
+
 HTML_DB_NOT_FOUND = (
     "<p class='text-amber-400'>Database not found. Configure AM4_OPS_CENTER_DB "
     "(or legacy AM4_ROUTEMINE_DB) or run an extract.</p>"
@@ -112,6 +115,27 @@ def _ensure_write_conn() -> sqlite3.Connection:
             _WRITE_CONN_RAW = conn
             _WRITE_CONN_PATH = want
     return _WRITE_CONN_RAW
+
+
+def prepare_for_db_file_replacement() -> None:
+    """Close the shared writer SQLite connection so the DB file can be replaced on disk.
+
+    Blocks until no other thread holds an active write lease, then drops the cached
+    connection. Intended for restore flows (single-user local app).
+    """
+    global _WRITE_CONN_RAW, _WRITE_CONN_PATH
+    _WRITE_CONN_GUARD.acquire()
+    try:
+        with _WRITE_INIT_GUARD:
+            if _WRITE_CONN_RAW is not None:
+                try:
+                    _WRITE_CONN_RAW.close()
+                except sqlite3.Error:
+                    pass
+                _WRITE_CONN_RAW = None
+                _WRITE_CONN_PATH = None
+    finally:
+        _WRITE_CONN_GUARD.release()
 
 
 def get_write_conn():

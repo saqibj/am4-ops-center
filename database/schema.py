@@ -168,6 +168,9 @@ CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_profit ON route_aircraft(origin_i
 CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_dest_profit ON route_aircraft(origin_id, is_valid, dest_id, profit_per_ac_day DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_valid_contribution ON route_aircraft(is_valid, contribution DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_aircraft_valid_partial ON route_aircraft(aircraft_id) WHERE is_valid = 1;
+CREATE INDEX IF NOT EXISTS idx_ra_origin_extracted
+ON route_aircraft (origin_id, extracted_at)
+WHERE is_valid = 1;
 
 DROP TABLE IF EXISTS fleet_route_assignment;
 DROP TABLE IF EXISTS fleet_aircraft;
@@ -748,11 +751,19 @@ CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_profit ON route_aircraft(origin_i
 CREATE INDEX IF NOT EXISTS idx_ra_origin_valid_dest_profit ON route_aircraft(origin_id, is_valid, dest_id, profit_per_ac_day DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_valid_contribution ON route_aircraft(is_valid, contribution DESC);
 CREATE INDEX IF NOT EXISTS idx_ra_aircraft_valid_partial ON route_aircraft(aircraft_id) WHERE is_valid = 1;
+CREATE INDEX IF NOT EXISTS idx_ra_origin_extracted
+ON route_aircraft (origin_id, extracted_at)
+WHERE is_valid = 1;
 """
 
 
 def ensure_route_aircraft_indexes(conn: sqlite3.Connection) -> None:
     """Apply CREATE INDEX IF NOT EXISTS for route_aircraft (idempotent). Call after schema upgrades."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_ra_origin_extracted'"
+    ).fetchone()
+    if row and row[0] and "WHERE" not in row[0].upper():
+        conn.execute("DROP INDEX IF EXISTS idx_ra_origin_extracted")
     conn.executescript(ROUTE_AIRCRAFT_INDEX_SQL)
     try:
         conn.execute("ANALYZE route_aircraft")

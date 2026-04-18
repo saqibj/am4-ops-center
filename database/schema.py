@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS my_routes (
     aircraft_id     INTEGER NOT NULL,
     num_assigned    INTEGER NOT NULL DEFAULT 1 CHECK (num_assigned >= 1 AND num_assigned <= 999),
     notes           TEXT,
+    route_type      TEXT NOT NULL DEFAULT 'pax',
     needs_extraction_refresh INTEGER NOT NULL DEFAULT 0 CHECK (needs_extraction_refresh IN (0, 1)),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -206,6 +207,20 @@ CREATE TABLE IF NOT EXISTS my_routes (
 CREATE INDEX IF NOT EXISTS idx_my_routes_origin ON my_routes(origin_id);
 CREATE INDEX IF NOT EXISTS idx_my_routes_dest ON my_routes(dest_id);
 CREATE INDEX IF NOT EXISTS idx_my_routes_ac ON my_routes(aircraft_id);
+
+CREATE TRIGGER IF NOT EXISTS trg_my_routes_route_type_check
+BEFORE INSERT ON my_routes
+BEGIN
+  SELECT RAISE(ABORT, 'Invalid route_type')
+  WHERE NEW.route_type NOT IN ('pax', 'vip', 'cargo', 'charter');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_my_routes_route_type_check_update
+BEFORE UPDATE OF route_type ON my_routes
+BEGIN
+  SELECT RAISE(ABORT, 'Invalid route_type')
+  WHERE NEW.route_type NOT IN ('pax', 'vip', 'cargo', 'charter');
+END;
 
 CREATE TABLE IF NOT EXISTS my_hubs (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -290,6 +305,7 @@ SELECT
     mr.aircraft_id,
     mr.num_assigned,
     mr.notes,
+    mr.route_type,
     mr.needs_extraction_refresh,
     mr.created_at,
     mr.updated_at,
@@ -407,6 +423,7 @@ SELECT
     mr.aircraft_id,
     mr.num_assigned,
     mr.notes,
+    mr.route_type,
     mr.needs_extraction_refresh,
     mr.created_at,
     mr.updated_at,
@@ -906,6 +923,38 @@ def _migrate_my_routes_needs_extraction_refresh(conn: sqlite3.Connection) -> boo
     return True
 
 
+def _migrate_my_routes_route_type(conn: sqlite3.Connection) -> bool:
+    """Return True if ``route_type`` was added (views must be recreated)."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(my_routes)").fetchall()}
+    if "route_type" in cols:
+        return False
+    conn.execute(
+        "ALTER TABLE my_routes ADD COLUMN route_type TEXT NOT NULL DEFAULT 'pax'"
+    )
+    return True
+
+
+def _ensure_my_routes_route_type_triggers(conn: sqlite3.Connection) -> None:
+    """Enforce ``route_type`` values on insert/update (idempotent)."""
+    conn.executescript(
+        """
+CREATE TRIGGER IF NOT EXISTS trg_my_routes_route_type_check
+BEFORE INSERT ON my_routes
+BEGIN
+  SELECT RAISE(ABORT, 'Invalid route_type')
+  WHERE NEW.route_type NOT IN ('pax', 'vip', 'cargo', 'charter');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_my_routes_route_type_check_update
+BEFORE UPDATE OF route_type ON my_routes
+BEGIN
+  SELECT RAISE(ABORT, 'Invalid route_type')
+  WHERE NEW.route_type NOT IN ('pax', 'vip', 'cargo', 'charter');
+END;
+"""
+    )
+
+
 def _migrate_route_aircraft_heatmap_index(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
@@ -938,8 +987,14 @@ def ensure_my_fleet_optional_schema(conn: sqlite3.Connection) -> None:
 
 
 def ensure_my_routes_inventory_schema(conn: sqlite3.Connection) -> None:
-    """Idempotent: add ``needs_extraction_refresh`` to ``my_routes`` and refresh ``v_my_routes`` if needed."""
+    """Idempotent: add ``my_routes`` inventory columns and refresh ``v_my_routes`` if needed."""
+    changed = False
     if _migrate_my_routes_needs_extraction_refresh(conn):
+        changed = True
+    if _migrate_my_routes_route_type(conn):
+        changed = True
+    _ensure_my_routes_route_type_triggers(conn)
+    if changed:
         _recreate_dashboard_views(conn)
 
 
@@ -977,7 +1032,9 @@ def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
         _migrate_route_aircraft_unique(conn)
         _migrate_route_aircraft_heatmap_index(conn)
         _migrate_my_routes_needs_extraction_refresh(conn)
+        _migrate_my_routes_route_type(conn)
         _migrate_my_fleet_optional_columns(conn)
+        _ensure_my_routes_route_type_triggers(conn)
         ensure_route_aircraft_indexes(conn)
         ensure_app_settings_schema(conn)
         _recreate_dashboard_views(conn)

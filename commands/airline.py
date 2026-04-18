@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from commands.fleet_recommend import fleet_recommend_rows
+from database.my_routes_dao import upsert_my_route_from_csv_import
 from database.schema import create_schema, get_connection
 
 
@@ -186,34 +187,17 @@ def routes_import(db_path: str, file_path: str, *, mode: str = "merge") -> None:
                 errors.append(f"line {lineno}: unknown aircraft {ac!r}")
                 continue
             notes = row.get("notes") or None
-            if mode == "replace":
-                conn.execute(
-                    """
-                    INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
-                    VALUES (?, ?, ?, ?, ?, datetime('now'))
-                    ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
-                        num_assigned = excluded.num_assigned,
-                        notes = COALESCE(excluded.notes, my_routes.notes),
-                        updated_at = datetime('now')
-                    """,
-                    (oid, did, aid, n, notes),
-                )
-            else:
-                conn.execute(
-                    """
-                    INSERT INTO my_routes (origin_id, dest_id, aircraft_id, num_assigned, notes, updated_at)
-                    VALUES (?, ?, ?, ?, ?, datetime('now'))
-                    ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
-                        num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
-                        notes = CASE
-                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
-                            THEN excluded.notes
-                            ELSE my_routes.notes
-                        END,
-                        updated_at = datetime('now')
-                    """,
-                    (oid, did, aid, n, notes),
-                )
+            rt = row.get("route_type")
+            upsert_my_route_from_csv_import(
+                conn,
+                origin_id=oid,
+                dest_id=did,
+                aircraft_id=aid,
+                num_assigned=n,
+                notes=notes,
+                mode="replace" if mode == "replace" else "merge",
+                route_type=rt if rt else None,
+            )
             n_ok += 1
     conn.commit()
     conn.close()

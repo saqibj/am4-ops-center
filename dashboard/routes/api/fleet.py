@@ -421,6 +421,7 @@ def api_fleet_json(
             "ac_name": r["ac_name"],
             "ac_type": r.get("ac_type"),
             "quantity": r["quantity"],
+            "ci": r["ci"],
             "engine": r.get("engine"),
             "mods": r.get("mods"),
             "purchase_price": r.get("purchase_price"),

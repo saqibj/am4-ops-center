@@ -34,8 +34,18 @@
       <a href="/routes/add" class="am4-item {% if path.startswith('/routes/add') %}is-active{% endif %}">
         <span>Add route</span><kbd>⌘N</kbd>
       </a>
-      <a href="/buy-next" class="am4-item {% if path.startswith('/buy-next') %}is-active{% endif %}">
+      <a href="/buy-next" class="am4-item {% if path == '/buy-next' %}is-active{% endif %}">
         <span>Buy next</span><kbd>⌘K</kbd>
+      </a>
+      <a href="/buy-next/global" class="am4-item {% if path.startswith('/buy-next/global') %}is-active{% endif %}">
+        <span class="inline-flex items-center gap-1.5">
+          <svg class="w-4 h-4 shrink-0 opacity-90" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+          Buy next global
+        </span>
+        <kbd>⌘G</kbd>
       </a>
       <a href="/contributions" class="am4-item {% if path.startswith('/contributions') %}is-active{% endif %}">
         <span>Profitability</span><kbd>⌘P</kbd>
@@ -129,6 +139,7 @@
         "3": "/heatmap",
         "r": "/my-routes",
         "n": "/routes/add",
+        "g": "/buy-next/global",
         "f": "/my-fleet",
       };
       const target = routes[key];

@@ -25,7 +25,11 @@ from core.game_mode import is_realism
 from database.my_routes_dao import normalize_route_type
 from database.schema import ensure_my_fleet_optional_schema, ensure_my_routes_inventory_schema
 
-from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_routes_rows
+from dashboard.routes.api.shared import (
+    _my_routes_rows,
+    _my_routes_summary_stats,
+    _parse_my_routes_type_filter,
+)
 from dashboard.services.add_route_undo import (
     consume_undo_token,
     create_undo_token,
@@ -616,18 +620,20 @@ def api_routes_inventory(
     conn: sqlite3.Connection | None = Depends(get_read_db),
     highlight: str = Query("", description="Emphasize row with this id"),
     fresh: str = Query("", description="Unused; reserved for future UX hints"),
+    route_type: str = Query("", description="Filter by stored route type"),
 ):
     """``highlight`` / ``fresh`` support query params from the My Routes page (return from add-route)."""
     del fresh  # reserved for future toast/banner behavior
     highlight_route_id: int | None = None
     if highlight.strip().isdigit():
         highlight_route_id = int(highlight.strip())
+    rt_filt = _parse_my_routes_type_filter(route_type)
     if conn is None:
         routes = []
     else:
         try:
             ensure_my_routes_inventory_schema(conn)
-            routes = _my_routes_rows(conn)
+            routes = _my_routes_rows(conn, route_type_filter=rt_filt)
         except sqlite3.OperationalError:
             routes = []
     return templates.TemplateResponse(
@@ -644,28 +650,29 @@ def api_routes_inventory(
 def api_routes_summary(
     request: Request,
     conn: sqlite3.Connection | None = Depends(get_read_db),
+    route_type: str = Query("", description="Filter stats by stored route type"),
 ):
+    rt_filt = _parse_my_routes_type_filter(route_type)
     if conn is None:
-        row = {"nrows": 0, "assigned": 0}
-        est = 0.0
+        stats = {
+            "nrows": 0,
+            "assigned": 0,
+            "est_profit": 0.0,
+            "type_counts": {},
+            "type_counts_line": "",
+        }
     else:
         try:
-            row = fetch_one(
-                conn,
-                """
-                SELECT COUNT(*) AS nrows, COALESCE(SUM(num_assigned), 0) AS assigned
-                FROM my_routes
-                """,
-            )
-            est = _airline_est_profit_from_my_routes(conn)
+            ensure_my_routes_inventory_schema(conn)
+            stats = _my_routes_summary_stats(conn, route_type_filter=rt_filt)
         except sqlite3.OperationalError:
-            row = {"nrows": 0, "assigned": 0}
-            est = 0.0
-    stats = {
-        "nrows": int(row["nrows"] or 0) if row else 0,
-        "assigned": int(row["assigned"] or 0) if row else 0,
-        "est_profit": est,
-    }
+            stats = {
+                "nrows": 0,
+                "assigned": 0,
+                "est_profit": 0.0,
+                "type_counts": {},
+                "type_counts_line": "",
+            }
     return templates.TemplateResponse(
         request,
         "partials/my_routes_summary.html",
@@ -1236,7 +1243,11 @@ def api_routes_undo(request: Request, token: str):
     response_class=HTMLResponse,
     dependencies=[Depends(check_auth_token)],
 )
-def api_routes_delete(request: Request, my_route_id: int = Form(...)):
+def api_routes_delete(
+    request: Request,
+    my_route_id: int = Form(...),
+    route_type: str = Form(""),
+):
     try:
         conn = get_db()
         try:
@@ -1255,10 +1266,12 @@ def api_routes_delete(request: Request, my_route_id: int = Form(...)):
             },
         )
 
+    rt_filt = _parse_my_routes_type_filter(route_type)
     try:
         c = get_db()
         try:
-            routes = _my_routes_rows(c)
+            ensure_my_routes_inventory_schema(c)
+            routes = _my_routes_rows(c, route_type_filter=rt_filt)
         finally:
             c.close()
     except FileNotFoundError:
@@ -1293,6 +1306,7 @@ def api_routes_json(
             "hub": r["hub"],
             "destination": r["destination"],
             "aircraft": r["aircraft"],
+            "route_type": r.get("route_type"),
             "num_assigned": r["num_assigned"],
             "notes": r["notes"],
             "profit_per_ac_day": r["profit_per_ac_day"],

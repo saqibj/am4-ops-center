@@ -147,6 +147,9 @@
 
 <div class="mb-8">
     <h3 class="text-lg font-semibold mb-2">Your routes</h3>
+    <form id="my-routes-filters" class="hidden" aria-hidden="true">
+        <input type="hidden" name="route_type" value="">
+    </form>
     <span id="add-route-inv-load-spinner" class="htmx-indicator am4-accent text-sm mb-2 inline-block">Loading…</span>
     <div id="add-route-inventory"
          hx-get="/api/routes/inventory"

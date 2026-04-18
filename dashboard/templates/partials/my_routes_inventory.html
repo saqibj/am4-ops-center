@@ -35,6 +35,7 @@
                 <tr>
                     <th scope="col" class="text-left px-4 py-3">Hub</th>
                     <th scope="col" class="text-left px-4 py-3">Dest</th>
+                    <th scope="col" class="text-left px-4 py-3">Type</th>
                     <th scope="col" class="text-left px-4 py-3">Aircraft</th>
                     <th scope="col" class="text-right px-4 py-3">#</th>
                     <th scope="col" class="text-right px-4 py-3">Profit/ac/d</th>
@@ -57,6 +58,13 @@
                         </div>
                     </td>
                     <td class="px-4 py-3">{{ airport_badge_expanded(r.destination, name=r.dest_name or '', fullname=r.dest_fullname or '', country=r.dest_country or '') }}</td>
+                    <td class="px-4 py-3 align-top">
+                        <span class="inline-flex items-center rounded px-2 py-0.5 border text-[10px] font-semibold uppercase tracking-wide
+                            {% if r.route_type == 'pax' %}bg-emerald-900/45 text-emerald-200 border-emerald-700/55
+                            {% elif r.route_type == 'vip' %}bg-purple-900/45 text-purple-200 border-purple-700/55
+                            {% elif r.route_type == 'cargo' %}bg-amber-900/45 text-amber-200 border-amber-700/55
+                            {% else %}bg-sky-900/45 text-sky-200 border-sky-700/55{% endif %}">{{ r.route_type_label or 'PAX' }}</span>
+                    </td>
                     <td class="px-4 py-3 font-mono am4-text-secondary">{{ r.aircraft }}</td>
                     <td class="px-4 py-3 text-right font-mono">{{ r.num_assigned }}</td>
                     <td class="px-4 py-3 text-right font-mono {% if (r.profit_per_ac_day or 0) >= 0 %}am4-accent{% else %}am4-text-negative{% endif %}">
@@ -70,8 +78,9 @@
                         <form hx-post="/api/routes/delete"
                               hx-target="#routes-inventory"
                               hx-swap="innerHTML"
+                              hx-include="#my-routes-filters"
                               hx-confirm="Delete this route row?"
-                              hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/routes/summary', { target: '#routes-summary', swap: 'innerHTML' })"
+                              hx-on::after-request="if (event.detail.successful) htmx.ajax('GET', '/api/routes/summary', { target: '#routes-summary', swap: 'innerHTML', values: { route_type: (document.getElementById('my-route-type-filter')||{value:''}).value } })"
                               class="inline">
                             <input type="hidden" name="my_route_id" value="{{ r.id }}">
                             <button type="submit" class="am4-link-danger text-xs underline hover:underline">Remove</button>

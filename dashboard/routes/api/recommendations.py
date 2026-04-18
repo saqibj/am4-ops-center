@@ -15,7 +15,12 @@ from core.game_mode import is_realism
 from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_read_conn
 from dashboard.server import templates
 
-from dashboard.routes.api.shared import CONTRIB_SORT, _contrib_order, _query_flag_on
+from dashboard.routes.api.shared import (
+    CONTRIB_SORT,
+    _contrib_order,
+    apply_user_assignment_profit_to_catalog_rows,
+    _query_flag_on,
+)
 
 router = APIRouter()
 
@@ -25,6 +30,66 @@ _ROUTE_TYPE_LABELS = {
     "cargo": "Cargo",
     "charter": "Charter",
 }
+
+
+def _heatmap_destination_rows(conn, origin_id: int, top_n: int) -> list[dict]:
+    """Top ``top_n`` destinations by best per-aircraft profit at origin (VIP-adjusted when in ``my_routes``)."""
+    sql = """
+        SELECT ra.dest_id,
+               ra.profit_per_ac_day,
+               ra.distance_km,
+               ra.config_y, ra.config_j, ra.config_f,
+               ra.profit_per_trip,
+               ra.trips_per_day,
+               ra.income AS trip_income,
+               ra.contribution,
+               ra.income_per_ac_day,
+               LOWER(TRIM(mr.route_type)) AS user_route_type
+        FROM route_aircraft ra
+        LEFT JOIN my_routes mr ON mr.origin_id = ra.origin_id
+            AND mr.dest_id = ra.dest_id
+            AND mr.aircraft_id = ra.aircraft_id
+        WHERE ra.is_valid = 1 AND ra.origin_id = ?
+    """
+    raw = fetch_all(conn, sql, [origin_id])
+    adjusted = apply_user_assignment_profit_to_catalog_rows(raw, conn)
+    best: dict[int, float] = {}
+    for r in adjusted:
+        did = int(r["dest_id"])
+        p = float(r.get("profit_per_ac_day") or 0)
+        if did not in best or p > best[did]:
+            best[did] = p
+    ranked = sorted(best.items(), key=lambda x: -x[1])[:top_n]
+    dest_ids = [d for d, _ in ranked]
+    if not dest_ids:
+        return []
+    ph = ",".join(["?"] * len(dest_ids))
+    airports = fetch_all(
+        conn,
+        f"""
+        SELECT id, iata, name, lat, lng
+        FROM airports
+        WHERE id IN ({ph}) AND lat IS NOT NULL AND lng IS NOT NULL
+        """,
+        dest_ids,
+    )
+    by_id = {int(a["id"]): a for a in airports}
+    profit_by_dest = dict(ranked)
+    out: list[dict] = []
+    for did in dest_ids:
+        if did not in by_id:
+            continue
+        a = by_id[did]
+        out.append(
+            {
+                "iata": a["iata"],
+                "name": a.get("name") or "",
+                "lat": a["lat"],
+                "lng": a["lng"],
+                "profit_per_ac_day": profit_by_dest.get(did, 0.0),
+            }
+        )
+    return out
 
 
 def _parse_optional_float(s: str | None) -> float | None:
@@ -784,7 +849,10 @@ def api_heatmap_data(hub: str = Query(""), top_n: int = Query(100, ge=10, le=500
         return []
     hub_iata = hub.strip().upper()
 
-    conn = get_read_conn()
+    try:
+        conn = get_read_conn()
+    except FileNotFoundError:
+        return []
     try:
         hub_row = fetch_one(
             conn,
@@ -794,37 +862,7 @@ def api_heatmap_data(hub: str = Query(""), top_n: int = Query(100, ge=10, le=500
         if not hub_row:
             return []
         origin_id = int(hub_row["id"])
-    except FileNotFoundError:
-        return []
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-
-    sql = """
-        WITH top_dest AS (
-            SELECT ra.dest_id AS dest_id,
-                   MAX(ra.profit_per_ac_day) AS profit_per_ac_day
-            FROM route_aircraft ra
-            WHERE ra.is_valid = 1 AND ra.origin_id = ?
-            GROUP BY ra.dest_id
-            ORDER BY profit_per_ac_day DESC
-            LIMIT ?
-        )
-        SELECT ap.iata AS iata,
-               ap.name AS name,
-               ap.lat AS lat,
-               ap.lng AS lng,
-               td.profit_per_ac_day AS profit_per_ac_day
-        FROM top_dest td
-        JOIN airports ap ON td.dest_id = ap.id
-        WHERE ap.lat IS NOT NULL AND ap.lng IS NOT NULL
-        ORDER BY td.profit_per_ac_day DESC
-    """
-    conn = get_read_conn()
-    try:
-        rows = fetch_all(conn, sql, [origin_id, top_n])
+        rows = _heatmap_destination_rows(conn, origin_id, top_n)
     finally:
         conn.close()
 
@@ -867,30 +905,7 @@ def api_heatmap_panel(request: Request, hub: str = Query(""), top_n: int = Query
         if not hub_row:
             return HTMLResponse("<p class='am4-text-secondary p-4'>Unknown hub.</p>")
         origin_id = int(hub_row["id"])
-        rows = fetch_all(
-            conn,
-            """
-            WITH top_dest AS (
-                SELECT ra.dest_id AS dest_id,
-                       MAX(ra.profit_per_ac_day) AS profit_per_ac_day
-                FROM route_aircraft ra
-                WHERE ra.is_valid = 1 AND ra.origin_id = ?
-                GROUP BY ra.dest_id
-                ORDER BY profit_per_ac_day DESC
-                LIMIT ?
-            )
-            SELECT ap.iata AS iata,
-                   ap.name AS name,
-                   ap.lat AS lat,
-                   ap.lng AS lng,
-                   td.profit_per_ac_day AS profit_per_ac_day
-            FROM top_dest td
-            JOIN airports ap ON td.dest_id = ap.id
-            WHERE ap.lat IS NOT NULL AND ap.lng IS NOT NULL
-            ORDER BY td.profit_per_ac_day DESC
-            """,
-            [origin_id, top_n],
-        )
+        rows = _heatmap_destination_rows(conn, origin_id, top_n)
     finally:
         conn.close()
 

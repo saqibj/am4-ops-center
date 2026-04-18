@@ -23,7 +23,7 @@
     </div>
 </div>
 {% else %}
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
         <p class="am4-text-secondary text-xs uppercase tracking-wider">Viable routes</p>
         <p class="text-2xl font-bold font-mono">{{ stats.n or 0 }}</p>
@@ -35,6 +35,11 @@
     <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
         <p class="am4-text-secondary text-xs uppercase tracking-wider">Best profit / day</p>
         <p class="text-2xl font-bold font-mono text-emerald-300">${{ "{:,.0f}".format(stats.best_profit or 0) }}</p>
+    </div>
+    <div class="am4-card rounded-lg shadow-lg p-4 shadow-lg">
+        <p class="am4-text-secondary text-xs uppercase tracking-wider">Your routes / day</p>
+        <p class="text-2xl font-bold font-mono text-sky-200">${{ "{:,.0f}".format(stats.my_routes_daily_profit or 0) }}</p>
+        <p class="text-[10px] am4-text-muted mt-1">From <span class="font-mono">my_routes</span> (VIP-adjusted)</p>
     </div>
 </div>
 {% endif %}

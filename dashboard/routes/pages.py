@@ -22,6 +22,7 @@ from database.extraction_runs import list_completed_runs
 from database.schema import load_extract_config
 from dashboard.hub_freshness import STALE_AFTER_DAYS
 from dashboard.routes.api.saved_filters import FORM_IDS as SAVED_FILTER_FORM_IDS
+from dashboard.routes.api.shared import my_routes_daily_profit_by_hub
 from dashboard.server import templates
 from dashboard.ui_settings import ALLOWED_LANDING_PATHS
 from database.saved_filters import list_saved_filters
@@ -319,14 +320,8 @@ _HUB_ROI_SQL = """
 SELECT ho.iata AS hub,
        COUNT(DISTINCT mr.id) AS routes,
        SUM(mr.num_assigned) AS aircraft_deployed,
-       SUM(ac.cost * mr.num_assigned) AS capital_deployed,
-       SUM(COALESCE(ra.profit_per_ac_day, 0) * mr.num_assigned) AS daily_profit
+       SUM(ac.cost * mr.num_assigned) AS capital_deployed
 FROM my_routes mr
-JOIN route_aircraft ra
-     ON ra.origin_id = mr.origin_id
-    AND ra.dest_id = mr.dest_id
-    AND ra.aircraft_id = mr.aircraft_id
-    AND ra.is_valid = 1
 JOIN aircraft ac ON mr.aircraft_id = ac.id
 JOIN airports ho ON mr.origin_id = ho.id
 GROUP BY ho.id, ho.iata
@@ -339,6 +334,7 @@ def _hub_roi_summary() -> dict:
         conn = get_read_conn()
         try:
             raw = fetch_all(conn, _HUB_ROI_SQL)
+            profit_by_hub = my_routes_daily_profit_by_hub(conn)
         finally:
             conn.close()
     except FileNotFoundError:
@@ -358,7 +354,8 @@ def _hub_roi_summary() -> dict:
         routes = int(r["routes"] or 0)
         deployed = int(r["aircraft_deployed"] or 0)
         cap = float(r["capital_deployed"] or 0)
-        daily = float(r["daily_profit"] or 0)
+        hub_key = (r.get("hub") or "").strip().upper()
+        daily = float(profit_by_hub.get(hub_key, 0.0))
         avg_pa = daily / deployed if deployed else 0.0
         payback = cap / daily if daily > 1e-9 else None
         rows.append(

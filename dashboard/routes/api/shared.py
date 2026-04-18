@@ -342,3 +342,81 @@ def _my_routes_rows(
 
         out.append(d)
     return out
+
+
+def my_routes_daily_profit_by_hub(conn: sqlite3.Connection) -> dict[str, float]:
+    """Map hub IATA (upper) → sum of ``num_assigned × profit_per_ac_day`` (VIP-adjusted)."""
+    byh: dict[str, float] = {}
+    for r in _my_routes_rows(conn):
+        h = (r.get("hub") or "").strip().upper()
+        if not h:
+            continue
+        p = r.get("profit_per_ac_day")
+        if p is None:
+            continue
+        byh[h] = byh.get(h, 0.0) + float(r.get("num_assigned") or 0) * float(p)
+    return byh
+
+
+def daily_profit_sum_for_hub_iata(conn: sqlite3.Connection, hub_iata: str) -> float:
+    """Total ``num_assigned × profit_per_ac_day`` for ``my_routes`` at one hub (VIP-adjusted)."""
+    hub_u = (hub_iata or "").strip().upper()
+    if not hub_u:
+        return 0.0
+    return my_routes_daily_profit_by_hub(conn).get(hub_u, 0.0)
+
+
+def apply_user_assignment_profit_to_catalog_rows(
+    rows: list[dict],
+    conn: sqlite3.Connection,
+) -> list[dict]:
+    """When ``user_route_type`` is ``vip`` (from ``my_routes``), replace PAX profit with VIP-adjusted.
+
+    Expects optional keys ``user_route_type`` and ``trip_income`` (``route_aircraft.income`` per trip);
+    removes them from output dicts.
+    """
+    realism = is_realism(conn)
+    out: list[dict] = []
+    for row in rows:
+        d = dict(row)
+        ut = (d.pop("user_route_type", None) or "").strip().lower() or None
+        trip_income = d.pop("trip_income", None)
+        d["assignment_label"] = _ROUTE_TYPE_LABELS.get(ut, ut.upper()) if ut else None
+        if ut != "vip":
+            out.append(d)
+            continue
+        dist = d.get("distance_km")
+        ppt = d.get("profit_per_trip")
+        ppad = d.get("profit_per_ac_day")
+        if dist is None or ppt is None or ppad is None:
+            out.append(d)
+            continue
+        vip_row = {
+            "distance_km": float(dist),
+            "config_y": int(d.get("config_y") or 0),
+            "config_j": int(d.get("config_j") or 0),
+            "config_f": int(d.get("config_f") or 0),
+            "profit_per_trip": float(ppt),
+            "income_per_trip": float(trip_income)
+            if trip_income is not None
+            else None,
+            "trips_per_day": int(d.get("trips_per_day") or 0),
+            "profit_per_ac_day": float(ppad),
+        }
+        adj = adjust_rows_for_route_type([vip_row], "vip", realism)
+        if not adj:
+            out.append(d)
+            continue
+        new_pd = float(adj[0].get("profit_per_ac_day") or 0)
+        new_pt = float(adj[0].get("profit_per_trip") or 0)
+        old_pd = float(ppad)
+        d["profit_per_ac_day"] = new_pd
+        d["profit_per_trip"] = new_pt
+        old_inc = float(d.get("income_per_ac_day") or 0)
+        if old_pd and abs(old_pd) > 1e-9:
+            d["income_per_ac_day"] = old_inc * (new_pd / old_pd)
+        oc = float(d.get("contribution") or 0)
+        if old_pd and abs(old_pd) > 1e-9:
+            d["contribution"] = oc * (new_pd / old_pd)
+        out.append(d)
+    return out

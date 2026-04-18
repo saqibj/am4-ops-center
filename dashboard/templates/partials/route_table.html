@@ -1,5 +1,5 @@
 {% from 'partials/airport_badge.html' import airport_dest_route_cell %}
-{% set incl = "[name='hub'],[name='type'],[name='min_profit'],[name='max_dist'],[name='max_flight_hrs'],[name='hide_stopovers'],[name='limit']" %}
+{% set incl = "[name='hub'],[name='type'],[name='min_profit'],[name='max_dist'],[name='max_flight_hrs'],[name='hide_stopovers'],[name='mine_only'],[name='limit']" %}
 <div class="overflow-x-auto rounded-lg am4-bordered">
     <table class="am4-table w-full text-sm min-w-[1000px]">
         <thead class="am4-table-head text-xs uppercase tracking-wider">
@@ -13,6 +13,7 @@
                         hx-get="/api/hub-routes" hx-target="#hub-results" hx-include="{{ incl }}" hx-vals='{"sort":"aircraft"}' hx-indicator="#hub-spinner">Aircraft</button>
                 </th>
                 <th scope="col" class="px-3 py-3 text-left">Type</th>
+                <th scope="col" class="px-3 py-3 text-left text-[10px] normal-case">Saved as</th>
                 <th scope="col" class="px-3 py-3 text-right">
                     <button type="button" class="am4-sort-btn font-semibold cursor-pointer"
                         hx-get="/api/hub-routes" hx-target="#hub-results" hx-include="{{ incl }}" hx-vals='{"sort":"distance_km"}' hx-indicator="#hub-spinner">Dist km</button>
@@ -52,6 +53,13 @@
                 <td class="px-3 py-2">{{ airport_dest_route_cell(r) }}</td>
                 <td class="px-3 py-2 font-mono">{{ r.aircraft }}</td>
                 <td class="px-3 py-2 am4-text-secondary">{{ r.ac_type }}</td>
+                <td class="px-3 py-2 text-xs">
+                    {% if r.assignment_label %}
+                    <span class="inline-flex rounded px-1.5 py-0.5 border border-slate-600/70 bg-slate-800/50 font-mono text-[10px] uppercase">{{ r.assignment_label }}</span>
+                    {% else %}
+                    <span class="am4-text-muted">—</span>
+                    {% endif %}
+                </td>
                 <td class="px-3 py-2 text-right font-mono">{{ "{:,.0f}".format(r.distance_km or 0) }}</td>
                 <td class="px-3 py-2 text-center am4-text-secondary text-xs font-mono">{{ r.config_y }}/{{ r.config_j }}/{{ r.config_f }}</td>
                 <td class="px-3 py-2 text-right font-mono">${{ "{:,.0f}".format(r.profit_per_trip or 0) }}</td>

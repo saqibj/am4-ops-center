@@ -16,12 +16,73 @@ from dashboard.routes.api.shared import (
     HUB_SORT_COLUMNS,
     ROUTE_SORT,
     _ac_order,
-    _hub_order,
+    apply_user_assignment_profit_to_catalog_rows,
+    my_routes_daily_profit_by_hub,
+    _query_flag_on,
     _route_order,
     _truthy_stopover_hide,
 )
 
 router = APIRouter()
+
+_HUB_CATALOG_FROM = """
+FROM route_aircraft ra
+JOIN airports a_orig ON ra.origin_id = a_orig.id
+JOIN airports a_dest ON ra.dest_id = a_dest.id
+JOIN aircraft ac ON ra.aircraft_id = ac.id
+LEFT JOIN my_routes mr ON mr.origin_id = ra.origin_id
+    AND mr.dest_id = ra.dest_id
+    AND mr.aircraft_id = ra.aircraft_id
+WHERE ra.is_valid = 1
+  AND UPPER(TRIM(a_orig.iata)) = UPPER(TRIM(?))
+"""
+
+_HUB_CATALOG_SELECT = """
+SELECT
+    a_orig.iata AS hub,
+    a_dest.iata AS destination,
+    a_dest.country AS dest_country,
+    ac.shortname AS aircraft,
+    ac.type AS ac_type,
+    ra.distance_km,
+    ra.config_y, ra.config_j, ra.config_f,
+    ra.profit_per_trip,
+    ra.trips_per_day,
+    ra.profit_per_ac_day,
+    ra.income_per_ac_day,
+    ra.contribution,
+    ra.flight_time_hrs,
+    ra.needs_stopover,
+    ra.stopover_iata,
+    ra.warnings,
+    a_orig.name AS hub_name,
+    a_orig.country AS hub_country,
+    a_dest.name AS dest_name,
+    a_dest.fullname AS dest_fullname,
+    ra.income AS trip_income,
+    LOWER(TRIM(mr.route_type)) AS user_route_type
+"""
+
+
+def _hub_catalog_order_sql(sort_col: str) -> str:
+    """ORDER BY clause for hub catalog (``route_aircraft`` + joins)."""
+    colmap = {
+        "profit_per_ac_day": "ra.profit_per_ac_day",
+        "profit_per_trip": "ra.profit_per_trip",
+        "contribution": "ra.contribution",
+        "income_per_ac_day": "ra.income_per_ac_day",
+        "destination": "a_dest.iata",
+        "aircraft": "ac.shortname",
+        "distance_km": "ra.distance_km",
+        "flight_time_hrs": "ra.flight_time_hrs",
+        "trips_per_day": "ra.trips_per_day",
+        "hub": "a_orig.iata",
+        "ac_type": "ac.type",
+    }
+    expr = colmap.get(sort_col, "ra.profit_per_ac_day")
+    if sort_col in ("destination", "aircraft", "hub", "ac_type"):
+        return f"{expr} COLLATE NOCASE ASC"
+    return f"{expr} DESC"
 
 
 @router.get("/hub-routes", response_class=HTMLResponse)
@@ -36,34 +97,38 @@ def api_hub_routes(
     max_dist: float = Query(0.0),
     max_flight_hrs: float = Query(0.0),
     hide_stopovers: str = Query(""),
+    mine_only: str = Query(""),
 ):
     atype = filter_type.strip() or ac_type.strip()
     if not hub.strip():
         return HTMLResponse("<p class='am4-text-secondary'>Select a hub.</p>")
 
     sort_col = sort if sort in HUB_SORT_COLUMNS else "profit_per_ac_day"
-    order_sql = _hub_order(sort_col)
+    order_sql = _hub_catalog_order_sql(sort_col)
 
-    query = "SELECT * FROM v_best_routes WHERE hub = ?"
+    query = "SELECT " + _HUB_CATALOG_SELECT.strip() + " " + _HUB_CATALOG_FROM
     params: list = [hub.strip()]
 
+    if _query_flag_on(mine_only):
+        query += " AND mr.id IS NOT NULL"
+
     if atype:
-        query += " AND UPPER(ac_type) = UPPER(?)"
+        query += " AND UPPER(ac.type) = UPPER(?)"
         params.append(atype)
 
-    query += " AND profit_per_ac_day >= ?"
+    query += " AND ra.profit_per_ac_day >= ?"
     params.append(min_profit)
 
     if max_dist > 0:
-        query += " AND distance_km <= ?"
+        query += " AND ra.distance_km <= ?"
         params.append(max_dist)
 
     if max_flight_hrs > 0:
-        query += " AND flight_time_hrs <= ?"
+        query += " AND ra.flight_time_hrs <= ?"
         params.append(max_flight_hrs)
 
     if _truthy_stopover_hide(hide_stopovers):
-        query += " AND needs_stopover = 0"
+        query += " AND ra.needs_stopover = 0"
 
     query += f" ORDER BY {order_sql} LIMIT ?"
     params.append(limit)
@@ -71,6 +136,7 @@ def api_hub_routes(
     conn = get_read_conn()
     try:
         routes = fetch_all(conn, query, params)
+        routes = apply_user_assignment_profit_to_catalog_rows(routes, conn)
     finally:
         conn.close()
 
@@ -138,15 +204,20 @@ def api_hub_summary(
             q += " AND ra.needs_stopover = 0"
 
         row = fetch_one(conn, q, params)
+        profit_by_hub = my_routes_daily_profit_by_hub(conn)
+        hub_u = hub.strip().upper()
+        my_daily = float(profit_by_hub.get(hub_u, 0.0))
     finally:
         conn.close()
 
     if not row:
         return HTMLResponse("")
+    stats = dict(row)
+    stats["my_routes_daily_profit"] = my_daily
     return templates.TemplateResponse(
         request,
         "partials/stats_cards.html",
-        {"scope": "hub", "stats": row},
+        {"scope": "hub", "stats": stats},
     )
 
 
@@ -160,36 +231,37 @@ def api_hub_chart(
     max_dist: float = Query(0.0),
     max_flight_hrs: float = Query(0.0),
     hide_stopovers: str = Query(""),
+    mine_only: str = Query(""),
     limit: int = Query(20, ge=5, le=100),
 ):
     atype = filter_type.strip() or ac_type.strip()
     if not hub.strip():
         return HTMLResponse("<p class='am4-text-secondary text-sm'>Select a hub for the chart.</p>")
 
-    query = """
-        SELECT destination, aircraft, profit_per_ac_day FROM v_best_routes
-        WHERE hub = ?
-    """
+    query = "SELECT " + _HUB_CATALOG_SELECT.strip() + " " + _HUB_CATALOG_FROM
     params: list = [hub.strip()]
+    if _query_flag_on(mine_only):
+        query += " AND mr.id IS NOT NULL"
     if atype:
-        query += " AND UPPER(ac_type) = UPPER(?)"
+        query += " AND UPPER(ac.type) = UPPER(?)"
         params.append(atype)
-    query += " AND profit_per_ac_day >= ?"
+    query += " AND ra.profit_per_ac_day >= ?"
     params.append(min_profit)
     if max_dist > 0:
-        query += " AND distance_km <= ?"
+        query += " AND ra.distance_km <= ?"
         params.append(max_dist)
     if max_flight_hrs > 0:
-        query += " AND flight_time_hrs <= ?"
+        query += " AND ra.flight_time_hrs <= ?"
         params.append(max_flight_hrs)
     if _truthy_stopover_hide(hide_stopovers):
-        query += " AND needs_stopover = 0"
-    query += " ORDER BY profit_per_ac_day DESC LIMIT ?"
+        query += " AND ra.needs_stopover = 0"
+    query += " ORDER BY ra.profit_per_ac_day DESC LIMIT ?"
     params.append(limit)
 
     conn = get_read_conn()
     try:
         rows = fetch_all(conn, query, params)
+        rows = apply_user_assignment_profit_to_catalog_rows(rows, conn)
     finally:
         conn.close()
 

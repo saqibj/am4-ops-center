@@ -74,6 +74,15 @@
                class="h-4 w-4 rounded border am4-border accent-[var(--accent)]">
         <label for="hide_stop" class="text-sm am4-text-secondary">Hide stopover routes</label>
     </div>
+    <div class="flex items-center gap-2 pb-2">
+        <input type="checkbox" name="mine_only" value="1" id="hub-mine-only"
+               hx-get="/api/hub-routes"
+               hx-target="#hub-results"
+               hx-include="#hub-filters"
+               hx-indicator="#hub-spinner"
+               class="h-4 w-4 rounded border am4-border accent-[var(--accent)]">
+        <label for="hub-mine-only" class="text-sm am4-text-secondary">My assignments only</label>
+    </div>
     <div>
         <label class="block text-xs am4-text-secondary mb-1">Sort</label>
         <select name="sort"

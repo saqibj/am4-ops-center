@@ -56,7 +56,7 @@ For a **prebuilt app** (no compiler, no `pip install am4`):
 - **6+ hub support** — KHI, DXB, LHR, JFK, HKG, MJD (or any IATA code)
 - **336 aircraft** — all AM4 aircraft types with full specs
 - **3,900+ airports** — complete airport database with runway, market tier, hub costs
-- **SQLite storage** — 3.8M+ route rows queryable offline
+- **SQLite storage** — 3.8M+ route rows queryable offline with optimized fast application startup
 - **FastAPI dashboard** — web UI with **light / dark / system** themes, semantic styling (`theme.css`, `am4-*` utilities), Tailwind CSS (CDN) + HTMX (no page reloads)
 - **17 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, **Scenarios** (fuel/CO₂ vs extraction baselines), Fleet Planner, **Buy Next** / **Buy Next global** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Fleet Health**, **Demand utilization**, **Extraction deltas** (compare route snapshots between two extractions), **Hub ROI**, **Hub Manager** (managed hubs; per-hub and **stale** refresh run as **background jobs** with progress — no long-blocking HTTP request), Contributions, Heatmap, and **Settings** (`/settings`: themes, airline branding, default landing page, UI density, notification toggles; stored in browser **`localStorage`**)
 - **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; each saved route stores **`route_type`** (**PAX**, **VIP**, **Cargo**, or **Charter**); VIP profit uses AM4-style pricing derived from stored PAX economics; CSV import defaults to **merge**; optional **`route_type`** column on route imports; **`--replace`** overwrites counts; dashboard forms match the same semantics

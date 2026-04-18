@@ -37,8 +37,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Dependencies:** **`requirements.in`** as the source of truth; **`requirements.lock`** with pip **`--require-hashes`** for Docker installs ( **`am4`** Git install remains a documented exception — commit pin); **`scripts/update_deps.sh`** and **`scripts/strip_vcs_from_lock.py`** (SEC-17).
 - **Docker:** multi-stage build (compilers only in builder); runtime image runs as **`appuser`** (uid **1000**); **`docker-compose.yml`** publishes **`127.0.0.1:8000:8000`** by default (SEC-12 / SEC-13).
 
-### Added
-
 - **Buy Next global (`/buy-next/global`):** same flat **route × aircraft × config** table as hub **Buy next**, but every hub; **Hub** column in results; **`GET /api/buy-next-global`** for HTMX; default sort **total daily profit** at budget; **limit** capped at **100**; saved-filter page key **`buy-next-global`**.
 - **Extraction freshness:** `hub_freshness_context` in **`dashboard/db.py`** (merged into **`base_context`** with a single DB round-trip) exposes **`hub_freshness_by_iata`**, **`hub_freshness_list`**, and **`stale_hub_banner`**. Overview shows a **Data freshness** card (green ≤7d, yellow 8–14d, red &gt;14d). Hub / origin dropdowns and datalists append age suffixes like **`(3d)`** or **`(21d, stale)`**. When **`?hub=`** or **`?origin=`** is stale (&gt;14d), **`base.html`** shows a refresh banner with **`extract --refresh-hubs`** and Hub Manager link.
 - **Demand utilization (`/demand-utilization`):** compares **My Routes** seat supply (Y/J/F config × trips × assigned copies) to **`route_demands`** per cabin; classifies each cabin as Underserved / Saturated / Wasted (±10% band); hub, aircraft type, and “any cabin matches” filters; per-route cards with mini bars (demand fill + offered marker) and AM4 demand caveat in the header. **`GET /api/demand-utilization`** returns the HTMX fragment.
@@ -76,6 +74,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **README:** Docker section, auth / token documentation, extract option table (id max, runway note), breakeven and troubleshooting updates; **Windows (native)** install with **Visual Studio Build Tools** / MSVC (pinned **saqibj/am4** fork), PowerShell quick start, and **WSL** as optional.
 
 ### Fixed
+
+- **Startup Performance:** introduced `_migrations` tracking table to ensure migrations and `ANALYZE` execute only when necessary; optimized `ensure_route_aircraft_baseline_prices` with an early return to prevent redundant full-table scans, reducing startup time significantly.
+- **Database constraints:** temporarily disable foreign key constraints in `database/schema.py` (`replace_master_tables`) during master table updates to prevent constraint violations from `my_fleet` and `my_routes`.
+- **Codebase Maintenance:** cleaned up unused `os` import in `dashboard/db.py` and removed redundant `DROP INDEX` statement from migration `004_idx_ra_origin_extracted.sql`.
 
 - **SQLite:** shared connections are safe for use across threads where required (e.g. background hub refresh worker).
 

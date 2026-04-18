@@ -20,7 +20,7 @@
           hx-target="#add-route-inventory"
           hx-swap="innerHTML"
           hx-indicator="#add-route-save-spinner"
-          hx-on::after-request="if (event.detail.elt !== event.currentTarget) return; if (event.detail.successful &amp;&amp; event.detail.xhr.responseText.indexOf('data-routes-error') === -1) { var d=document.getElementById('add-route-dest'); if (d) d.value=''; var h=document.getElementById('add-route-hub'); if (h) { htmx.ajax('GET', '/api/routes/eligible-aircraft', {target:'#aircraft-select-target', swap:'innerHTML', values:{hub:h.value.trim(), dest:''}}); } htmx.ajax('GET', '/api/routes/summary', {target:'#add-route-routes-summary', swap:'innerHTML'}); }"></form>
+          hx-on::after-request="if (event.detail.elt !== event.currentTarget) return; if (event.detail.successful &amp;&amp; event.detail.xhr.responseText.indexOf('data-routes-error') === -1) { var d=document.getElementById('add-route-dest'); if (d) d.value=''; var h=document.getElementById('add-route-hub'); var rt=document.getElementById('route-type-select'); var rtv=(rt&amp;&amp;rt.value)?rt.value.trim():'pax'; if (h) { htmx.ajax('GET', '/api/routes/eligible-aircraft', {target:'#aircraft-select-target', swap:'innerHTML', values:{hub:h.value.trim(), dest:'', route_type:rtv}}); } htmx.ajax('GET', '/api/routes/summary', {target:'#add-route-routes-summary', swap:'innerHTML'}); }"></form>
 
     <div class="flex flex-wrap gap-4 items-end mb-4">
         <div class="min-w-[11rem]">
@@ -35,6 +35,17 @@
             {% if not hubs %}
             <p class="text-amber-400 text-xs mt-1">No explorer hubs yet — add hubs in <a href="/my-hubs" class="underline">Hub Manager</a> and run extract.</p>
             {% endif %}
+        </div>
+        <div class="min-w-[9rem]">
+            <label class="block text-xs am4-text-secondary mb-1">Route type</label>
+            <select name="route_type" id="route-type-select" form="add-route-main" required
+                    class="am4-input rounded-md px-3 py-2 w-full text-sm">
+                {% set prt = prefill_route_type|default('pax') %}
+                <option value="pax" {% if prt == 'pax' %}selected{% endif %}>Passenger</option>
+                <option value="vip" {% if prt == 'vip' %}selected{% endif %}>VIP</option>
+                <option value="cargo" {% if prt == 'cargo' %}selected{% endif %}>Cargo</option>
+                <option value="charter" {% if prt == 'charter' %}selected{% endif %}>Charter</option>
+            </select>
         </div>
         <div class="relative min-w-[11rem] flex-1 max-w-md">
             <label class="block text-xs am4-text-secondary mb-1">Destination (IATA)</label>
@@ -59,8 +70,8 @@
         <span id="add-route-ac-spinner" class="htmx-indicator am4-accent text-xs">Loading…</span>
         <div id="aircraft-select-target"
              hx-get="/api/routes/eligible-aircraft"
-             hx-trigger="load, change from:#add-route-hub, change from:#add-route-dest, blur from:#add-route-dest"
-             hx-vals="js:{hub: (document.getElementById('add-route-hub')||{value:''}).value.trim(), dest: (document.getElementById('add-route-dest')||{value:''}).value.trim()}"
+             hx-trigger="load, change from:#add-route-hub, change from:#add-route-dest, change from:#route-type-select, blur from:#add-route-dest"
+             hx-vals="js:{hub: (document.getElementById('add-route-hub')||{value:''}).value.trim(), dest: (document.getElementById('add-route-dest')||{value:''}).value.trim(), route_type: (document.getElementById('route-type-select')||{value:'pax'}).value.trim()}"
              hx-swap="innerHTML"
              hx-indicator="#add-route-ac-spinner">
             <p class="text-sm am4-text-secondary">Choose hub and destination…</p>

@@ -294,6 +294,7 @@ def get_eligible_aircraft(
                 "aircraft_id": ac_id,
                 "shortname": row["shortname"],
                 "name": row["name"],
+                "ac_type": ac_type,
                 "range_km": range_km,
                 "runway_m": ac_rwy,
                 "seats_y": seats_y,

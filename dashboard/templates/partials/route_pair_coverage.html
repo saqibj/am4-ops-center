@@ -3,7 +3,12 @@
 {% else %}
 <div class="mt-3 space-y-3 text-sm am4-bordered rounded-lg p-3 am4-sunken">
     <div>
-        <p class="am4-text-secondary text-xs uppercase tracking-wider mb-1">My routes — {{ hub }} → {{ dest }}</p>
+        <p class="am4-text-secondary text-xs uppercase tracking-wider mb-1 flex flex-wrap items-center gap-2">
+            <span>My routes — {{ hub }} → {{ dest }}</span>
+            {% if route_type_label %}
+            <span class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium border border-slate-600/80 bg-slate-800/60 text-slate-200">{{ route_type_label }}</span>
+            {% endif %}
+        </p>
         {% if not my_rows %}
         <p class="am4-text-muted text-xs">No rows in <code class="am4-text-secondary">my_routes</code> for this pair yet.</p>
         {% else %}
@@ -16,7 +21,12 @@
     </div>
     {% if extract_rows %}
     <div>
-        <p class="am4-text-secondary text-xs uppercase tracking-wider mb-1">Top extracted (profit / ac / day)</p>
+        <p class="am4-text-secondary text-xs uppercase tracking-wider mb-1 flex flex-wrap items-center gap-2">
+            <span>Top extracted (profit / ac / day)</span>
+            {% if route_type == 'vip' %}
+            <span class="text-[10px] font-normal normal-case text-amber-300/90" title="VIP demand applied to listed profits">VIP-adjusted</span>
+            {% endif %}
+        </p>
         <ul class="font-mono am4-text-secondary space-y-1 text-xs">
             {% for r in extract_rows %}
             <li><span class="text-sky-300">{{ r.shortname }}</span> — ${{ "{:,.0f}".format(r.profit_per_ac_day or 0) }}</li>

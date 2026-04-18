@@ -475,11 +475,16 @@ def page_add_route(
     destination: str = Query("", description="Prefill destination IATA"),
     dest: str = Query("", description="Alias for destination"),
     aircraft: str = Query("", description="Prefill aircraft shortname after eligible list loads"),
+    route_type: str = Query("", description="Prefill route type (pax, vip, cargo, charter)"),
 ):
     hubs = _origin_hub_iatas_for_fleet_plan()
     hub_u = (hub or "").strip().upper()
     dest_u = (destination or dest or "").strip().upper()
     ac_u = (aircraft or "").strip().lower()
+    rt_q = (route_type or "").strip().lower()
+    prefill_route_type = (
+        rt_q if rt_q in ("pax", "vip", "cargo", "charter") else "pax"
+    )
     default_hub = hub_u if hub_u and hub_u in hubs else (hubs[0] if hubs else "")
     ctx = base_context(request, conn)
     recent_adds: list = []
@@ -498,6 +503,7 @@ def page_add_route(
             "default_hub": default_hub,
             "prefill_destination": dest_u,
             "prefill_aircraft": ac_u,
+            "prefill_route_type": prefill_route_type,
             "airports": _airports_with_iata(),
             "recent_adds": recent_adds,
         }

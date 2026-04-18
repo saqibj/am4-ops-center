@@ -26,3 +26,4 @@ def test_routes_add_page_renders(tmp_path, monkeypatch) -> None:
     assert "Add route" in r.text
     assert "aircraft-select-target" in r.text
     assert "add-route-hub" in r.text
+    assert "route-type-select" in r.text

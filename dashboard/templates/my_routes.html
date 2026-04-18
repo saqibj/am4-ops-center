@@ -44,6 +44,15 @@
                    hx-vals='{"field_id": "destination_iata"}'>
             <div id="dest-air-search-panel" class="search-ac-panel absolute z-30 left-0 right-0 top-full mt-1"></div>
         </div>
+        <div class="min-w-[9rem]">
+            <label class="block text-xs am4-text-secondary mb-1">Route type</label>
+            <select name="route_type" class="am4-input rounded-md px-3 py-2 w-full text-sm">
+                <option value="pax" selected>Passenger</option>
+                <option value="vip">VIP</option>
+                <option value="cargo">Cargo</option>
+                <option value="charter">Charter</option>
+            </select>
+        </div>
         <div class="relative min-w-[11rem]">
             <label class="block text-xs am4-text-secondary mb-1">Aircraft</label>
             <input type="text" id="aircraft_route" name="aircraft" list="routes-ac-list" required placeholder="b738"

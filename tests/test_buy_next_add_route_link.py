@@ -69,6 +69,7 @@ def test_per_hub_none_tier_renders_add_route_with_encoded_params() -> None:
     assert q["hub"] == ["LAX"]
     assert q["destination"] == ["DXB"]
     assert q["aircraft"] == ["A333-800"]
+    assert q["route_type"] == ["pax"]
     assert 'title="Add route for A333-800 to DXB"' in html
 
 
@@ -147,6 +148,8 @@ def test_global_uses_row_hub_iata_not_outer_hub() -> None:
     assert q0["destination"] == ["NRT"]
     assert q1["hub"] == ["YVR"]
     assert q1["destination"] == ["LHR"]
+    assert q0.get("route_type") == ["pax"]
+    assert q1.get("route_type") == ["pax"]
 
 
 def test_aircraft_shortname_with_hyphen_round_trips_in_query_string() -> None:

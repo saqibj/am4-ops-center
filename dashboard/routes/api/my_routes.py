@@ -20,6 +20,9 @@ from dashboard.auth import check_auth_token
 from dashboard.db import HTML_DB_NOT_FOUND, fetch_all, fetch_one, get_db, get_read_db
 from dashboard.server import templates
 
+from app.core.vip_pricing import adjust_rows_for_route_type
+from core.game_mode import is_realism
+from database.my_routes_dao import normalize_route_type
 from database.schema import ensure_my_fleet_optional_schema, ensure_my_routes_inventory_schema
 
 from dashboard.routes.api.shared import _airline_est_profit_from_my_routes, _my_routes_rows
@@ -33,6 +36,41 @@ from dashboard.services.add_route_undo import (
 )
 
 router = APIRouter()
+
+_ROUTE_TYPE_LABELS = {
+    "pax": "Passenger",
+    "vip": "VIP",
+    "cargo": "Cargo",
+    "charter": "Charter",
+}
+
+
+def _safe_route_type_query(raw: str | None) -> str:
+    try:
+        return normalize_route_type(raw)
+    except ValueError:
+        return "pax"
+
+
+def _filter_eligible_aircraft_by_route_type(aircraft: list[dict], route_type: str) -> list[dict]:
+    rt = (route_type or "pax").strip().lower()
+    out: list[dict] = []
+    for a in aircraft:
+        u = str(a.get("ac_type") or "").strip().upper()
+        if rt == "cargo":
+            if u == "CARGO":
+                out.append(a)
+        elif u != "CARGO":
+            out.append(a)
+    return out
+
+
+def _aircraft_type_matches_route_type(ac_type: str | None, route_type: str) -> bool:
+    u = str(ac_type or "").strip().upper()
+    rt = (route_type or "pax").strip().lower()
+    if rt == "cargo":
+        return u == "CARGO"
+    return u != "CARGO"
 
 
 def _referer_is_add_route_page(request: Request) -> bool:
@@ -159,6 +197,7 @@ def api_routes_eligible_aircraft(
     dest: str = Query("", description="Destination IATA"),
     hub_iata: str = Query("", description="Alias for hub"),
     destination_iata: str = Query("", description="Alias for dest"),
+    route_type: str = Query("pax"),
     distance_km: float | None = Query(
         None,
         description="Override route distance in km (otherwise demand, route_aircraft, or haversine)",
@@ -167,6 +206,7 @@ def api_routes_eligible_aircraft(
     """Eligible ``my_fleet`` aircraft for a candidate hub→dest pair (HTML for HTMX, JSON with format=json)."""
     h = (hub or hub_iata or "").strip()
     d = (dest or destination_iata or "").strip()
+    route_rt = _safe_route_type_query(route_type)
     mode = _eligible_aircraft_response_mode(request)
     hub_u = h.upper()
     dest_u = d.upper()
@@ -312,6 +352,7 @@ def api_routes_eligible_aircraft(
 
     try:
         aircraft = get_eligible_aircraft(conn, h, d, dist)
+        aircraft = _filter_eligible_aircraft_by_route_type(aircraft, route_rt)
     except ValueError as exc:
         msg = str(exc)
         if mode == "json":
@@ -464,16 +505,25 @@ def api_routes_pair_coverage(
     conn: sqlite3.Connection | None = Depends(get_read_db),
     hub_iata: str = Query(""),
     destination_iata: str = Query(""),
+    route_type: str = Query("pax"),
 ):
     hub = hub_iata.strip().upper()
     dest = destination_iata.strip().upper()
+    route_rt = _safe_route_type_query(route_type)
     my_rows: list[dict] = []
     extract_rows: list[dict] = []
     if not hub or not dest:
         return templates.TemplateResponse(
             request,
             "partials/route_pair_coverage.html",
-            {"hub": hub, "dest": dest, "my_rows": [], "extract_rows": []},
+            {
+                "hub": hub,
+                "dest": dest,
+                "my_rows": [],
+                "extract_rows": [],
+                "route_type": route_rt,
+                "route_type_label": _ROUTE_TYPE_LABELS.get(route_rt, route_rt),
+            },
         )
     if conn is None:
         pass
@@ -505,19 +555,45 @@ def api_routes_pair_coverage(
                     """,
                     [oid, did],
                 )
-                extract_rows = fetch_all(
+                raw_extract = fetch_all(
                     conn,
                     """
-                    SELECT ac.shortname, MAX(ra.profit_per_ac_day) AS profit_per_ac_day
+                    SELECT ac.shortname,
+                           ra.aircraft_id,
+                           UPPER(TRIM(ac.type)) AS ac_type,
+                           ra.distance_km,
+                           ra.config_y, ra.config_j, ra.config_f,
+                           ra.profit_per_trip,
+                           ra.trips_per_day,
+                           ra.profit_per_ac_day,
+                           ra.income AS income_per_trip
                     FROM route_aircraft ra
                     JOIN aircraft ac ON ra.aircraft_id = ac.id
                     WHERE ra.is_valid = 1 AND ra.origin_id = ? AND ra.dest_id = ?
-                    GROUP BY ra.aircraft_id
-                    ORDER BY profit_per_ac_day DESC
-                    LIMIT 8
+                    ORDER BY ra.profit_per_ac_day DESC
+                    LIMIT 64
                     """,
                     [oid, did],
                 )
+                best_by_ac: dict[int, dict] = {}
+                for row in raw_extract:
+                    r = dict(row)
+                    aid = int(r["aircraft_id"])
+                    if aid not in best_by_ac:
+                        best_by_ac[aid] = r
+                extract_rows = list(best_by_ac.values())
+                extract_rows.sort(
+                    key=lambda x: float(x.get("profit_per_ac_day") or 0.0), reverse=True
+                )
+                extract_rows = [
+                    r
+                    for r in extract_rows
+                    if _aircraft_type_matches_route_type(r.get("ac_type"), route_rt)
+                ][:8]
+                if route_rt == "vip" and extract_rows:
+                    extract_rows = adjust_rows_for_route_type(
+                        extract_rows, "vip", is_realism(conn)
+                    )
         except sqlite3.OperationalError:
             pass
     return templates.TemplateResponse(
@@ -528,6 +604,8 @@ def api_routes_pair_coverage(
             "dest": dest,
             "my_rows": my_rows,
             "extract_rows": extract_rows,
+            "route_type": route_rt,
+            "route_type_label": _ROUTE_TYPE_LABELS.get(route_rt, route_rt),
         },
     )
 
@@ -605,6 +683,7 @@ def api_routes_add(
     hub_iata: str = Form(""),
     destination_iata: str = Form(""),
     aircraft: str = Form(""),
+    route_type: str = Form(""),
     num_assigned: int = Form(1),
     notes: str = Form(""),
     inline_fleet_quantity: str = Form(""),
@@ -646,7 +725,7 @@ def api_routes_add(
             )
             ac = fetch_one(
                 conn,
-                "SELECT id FROM aircraft WHERE LOWER(TRIM(shortname)) = LOWER(TRIM(?)) LIMIT 1",
+                "SELECT id, type FROM aircraft WHERE LOWER(TRIM(shortname)) = LOWER(TRIM(?)) LIMIT 1",
                 [aircraft.strip()],
             )
             if not hub:
@@ -656,206 +735,232 @@ def api_routes_add(
             elif not ac:
                 msg = "Unknown aircraft shortname."
             else:
-                hub_id = int(hub["id"])
-                dest_id = int(dest["id"])
-                ac_id = int(ac["id"])
-                fleet_row_before = fetch_one(
-                    conn,
-                    "SELECT id FROM my_fleet WHERE aircraft_id = ? LIMIT 1",
-                    [ac_id],
-                )
-                iq = _parse_inline_fleet_quantity(inline_fleet_quantity)
-                if iq > 0:
-                    ipp = None
-                    ipp_raw = (inline_fleet_purchase_price or "").strip()
-                    if ipp_raw:
-                        ipp = max(0, int(ipp_raw))
-                    fn = (inline_fleet_notes or "").strip() or None
-                    conn.execute(
-                        """
-                        INSERT INTO my_fleet (aircraft_id, quantity, engine, mods, purchase_price, notes, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-                        ON CONFLICT(aircraft_id) DO UPDATE SET
-                            quantity = MIN(999, my_fleet.quantity + excluded.quantity),
-                            engine = CASE
-                                WHEN excluded.engine IS NOT NULL AND TRIM(excluded.engine) != ''
-                                THEN excluded.engine
-                                ELSE my_fleet.engine
-                            END,
-                            mods = CASE
-                                WHEN excluded.mods IS NOT NULL AND TRIM(excluded.mods) != ''
-                                THEN excluded.mods
-                                ELSE my_fleet.mods
-                            END,
-                            purchase_price = COALESCE(excluded.purchase_price, my_fleet.purchase_price),
-                            notes = CASE
-                                WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
-                                THEN excluded.notes
-                                ELSE my_fleet.notes
-                            END,
-                            updated_at = datetime('now')
-                        """,
-                        (
-                            ac_id,
-                            iq,
-                            (inline_fleet_engine or "").strip() or None,
-                            (inline_fleet_mods or "").strip() or None,
-                            ipp,
-                            fn,
-                        ),
-                    )
-
-                vcfg = _validate_route_config_from_form(
-                    route_config_y,
-                    route_config_j,
-                    route_config_f,
-                    route_cargo_l,
-                    route_cargo_h,
-                )
-                vr = validate_route(
-                    conn,
-                    hub_iata.strip(),
-                    destination_iata.strip(),
-                    aircraft.strip(),
-                    vcfg if vcfg else None,
-                )
-                if vr["errors"]:
-                    msg = "; ".join(vr["errors"])
+                try:
+                    rt = normalize_route_type((route_type or "").strip() or None)
+                except ValueError as exc:
+                    msg = str(exc)
                     use_flash_err = True
                     conn.rollback()
                 else:
-                    n = int(num_assigned) if num_assigned else 1
-                    n = max(1, min(999, n))
-                    avail = available_aircraft_at_hub(conn, ac_id)
-                    if n > avail:
+                    ac_type_u = (ac["type"] or "").strip().upper()
+                    if not _aircraft_type_matches_route_type(ac_type_u, rt):
                         msg = (
-                            f"Only {avail} of this aircraft type available "
-                            f"(fleet minus assignments across all hubs); cannot assign {n}."
+                            "Route type does not match aircraft: cargo routes require cargo "
+                            "aircraft; passenger, VIP, and charter routes require non-cargo aircraft."
                         )
                         use_flash_err = True
                         conn.rollback()
                     else:
-                        prev = fetch_one(
+                        hub_id = int(hub["id"])
+                        dest_id = int(dest["id"])
+                        ac_id = int(ac["id"])
+                        fleet_row_before = fetch_one(
                             conn,
-                            """
-                            SELECT num_assigned FROM my_routes
-                            WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
-                            """,
-                            [hub_id, dest_id, ac_id],
+                            "SELECT id FROM my_fleet WHERE aircraft_id = ? LIMIT 1",
+                            [ac_id],
                         )
-                        ex_needed = (
-                            1
-                            if (iq > 0 and not _has_valid_route_aircraft_row(conn, hub_id, dest_id, ac_id))
-                            else 0
-                        )
-                        conn.execute(
-                            """
-                            INSERT INTO my_routes (
-                                origin_id, dest_id, aircraft_id, num_assigned, notes,
-                                needs_extraction_refresh, updated_at
-                            )
-                            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-                            ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
-                                num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
-                                notes = CASE
-                                    WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
-                                    THEN excluded.notes
-                                    ELSE my_routes.notes
-                                END,
-                                needs_extraction_refresh = CASE
-                                    WHEN excluded.needs_extraction_refresh = 1 THEN 1
-                                    ELSE my_routes.needs_extraction_refresh
-                                END,
-                                updated_at = datetime('now')
-                            """,
-                            (
-                                hub_id,
-                                dest_id,
-                                ac_id,
-                                n,
-                                notes.strip() or None,
-                                ex_needed,
-                            ),
-                        )
-                        after = fetch_one(
-                            conn,
-                            """
-                            SELECT num_assigned FROM my_routes
-                            WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
-                            """,
-                            [hub_id, dest_id, ac_id],
-                        )
-                        rid_row = fetch_one(
-                            conn,
-                            """
-                            SELECT id FROM my_routes
-                            WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
-                            """,
-                            [hub_id, dest_id, ac_id],
-                        )
-                        hub_u = hub_iata.strip().upper()
-                        dest_u = destination_iata.strip().upper()
-                        ac_u = aircraft.strip()
-                        if rid_row:
-                            rid = int(rid_row["id"])
-                            success_route = {
-                                "id": rid,
-                                "add_another_href": "/routes/add?"
-                                + urlencode({"hub": hub_u, "destination": dest_u, "aircraft": ac_u}),
-                                "my_routes_href": "/my-routes?"
-                                + urlencode({"highlight": str(rid), "fresh": "1"}),
-                            }
-                        parts: list[str] = []
+                        iq = _parse_inline_fleet_quantity(inline_fleet_quantity)
                         if iq > 0:
-                            parts.append(f"Added {iq} × {aircraft.strip()} to fleet.")
-                        if prev:
-                            parts.append(
-                                f"Merged +{n} (now {int(after['num_assigned']) if after else n} assigned for "
-                                f"{hub_u} → {dest_u} / {ac_u})."
-                            )
-                        else:
-                            parts.append(f"Added {n} × {ac_u} on {hub_u} → {dest_u}.")
-                        if vr["warnings"]:
-                            parts.append(" ".join(vr["warnings"]))
-                        msg = " ".join(parts)
-                        if prev is None and rid_row:
-                            fleet_id_for_undo: int | None = None
-                            if iq > 0 and fleet_row_before is None:
-                                fr = fetch_one(
-                                    conn,
-                                    "SELECT id FROM my_fleet WHERE aircraft_id = ? LIMIT 1",
-                                    [ac_id],
-                                )
-                                if fr:
-                                    fleet_id_for_undo = int(fr["id"])
-                            rid = int(rid_row["id"])
-                            undo_token = create_undo_token(conn, rid, fleet_id_for_undo)
-                            undo_origin = hub_u
-                            undo_dest = dest_u
-                            exp = fetch_one(
-                                conn,
+                            ipp = None
+                            ipp_raw = (inline_fleet_purchase_price or "").strip()
+                            if ipp_raw:
+                                ipp = max(0, int(ipp_raw))
+                            fn = (inline_fleet_notes or "").strip() or None
+                            conn.execute(
                                 """
-                                SELECT
-                                    CAST(strftime('%s', expires_at) AS INTEGER) AS eu,
-                                    CAST(strftime('%s', 'now') AS INTEGER) AS nowu
-                                FROM route_add_undos
-                                WHERE token = ?
+                                INSERT INTO my_fleet (aircraft_id, quantity, engine, mods, purchase_price, notes, updated_at)
+                                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+                                ON CONFLICT(aircraft_id) DO UPDATE SET
+                                    quantity = MIN(999, my_fleet.quantity + excluded.quantity),
+                                    engine = CASE
+                                        WHEN excluded.engine IS NOT NULL AND TRIM(excluded.engine) != ''
+                                        THEN excluded.engine
+                                        ELSE my_fleet.engine
+                                    END,
+                                    mods = CASE
+                                        WHEN excluded.mods IS NOT NULL AND TRIM(excluded.mods) != ''
+                                        THEN excluded.mods
+                                        ELSE my_fleet.mods
+                                    END,
+                                    purchase_price = COALESCE(excluded.purchase_price, my_fleet.purchase_price),
+                                    notes = CASE
+                                        WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                                        THEN excluded.notes
+                                        ELSE my_fleet.notes
+                                    END,
+                                    updated_at = datetime('now')
                                 """,
-                                (undo_token,),
+                                (
+                                    ac_id,
+                                    iq,
+                                    (inline_fleet_engine or "").strip() or None,
+                                    (inline_fleet_mods or "").strip() or None,
+                                    ipp,
+                                    fn,
+                                ),
                             )
-                            if exp and exp["eu"] is not None and exp["nowu"] is not None:
-                                eu = int(exp["eu"])
-                                nowu = int(exp["nowu"])
-                                seconds_remaining = max(0, eu - nowu)
-                                expires_at_ms = eu * 1000
-                            supp_only: list[str] = []
-                            if iq > 0:
-                                supp_only.append(f"Added {iq} × {aircraft.strip()} to fleet.")
-                            if vr["warnings"]:
-                                supp_only.append(" ".join(vr["warnings"]))
-                            flash_supplement = " ".join(supp_only).strip() or None
-                            msg = None
-                        conn.commit()
+
+                        vcfg = _validate_route_config_from_form(
+                            route_config_y,
+                            route_config_j,
+                            route_config_f,
+                            route_cargo_l,
+                            route_cargo_h,
+                        )
+                        vr = validate_route(
+                            conn,
+                            hub_iata.strip(),
+                            destination_iata.strip(),
+                            aircraft.strip(),
+                            vcfg if vcfg else None,
+                        )
+                        if vr["errors"]:
+                            msg = "; ".join(vr["errors"])
+                            use_flash_err = True
+                            conn.rollback()
+                        else:
+                            n = int(num_assigned) if num_assigned else 1
+                            n = max(1, min(999, n))
+                            avail = available_aircraft_at_hub(conn, ac_id)
+                            if n > avail:
+                                msg = (
+                                    f"Only {avail} of this aircraft type available "
+                                    f"(fleet minus assignments across all hubs); cannot assign {n}."
+                                )
+                                use_flash_err = True
+                                conn.rollback()
+                            else:
+                                prev = fetch_one(
+                                    conn,
+                                    """
+                                    SELECT num_assigned FROM my_routes
+                                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                                    """,
+                                    [hub_id, dest_id, ac_id],
+                                )
+                                ex_needed = (
+                                    1
+                                    if (iq > 0 and not _has_valid_route_aircraft_row(conn, hub_id, dest_id, ac_id))
+                                    else 0
+                                )
+                                conn.execute(
+                                    """
+                                    INSERT INTO my_routes (
+                                        origin_id, dest_id, aircraft_id, num_assigned, notes,
+                                        route_type,
+                                        needs_extraction_refresh, updated_at
+                                    )
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                                    ON CONFLICT(origin_id, dest_id, aircraft_id) DO UPDATE SET
+                                        num_assigned = MIN(999, my_routes.num_assigned + excluded.num_assigned),
+                                        notes = CASE
+                                            WHEN excluded.notes IS NOT NULL AND TRIM(excluded.notes) != ''
+                                            THEN excluded.notes
+                                            ELSE my_routes.notes
+                                        END,
+                                        route_type = excluded.route_type,
+                                        needs_extraction_refresh = CASE
+                                            WHEN excluded.needs_extraction_refresh = 1 THEN 1
+                                            ELSE my_routes.needs_extraction_refresh
+                                        END,
+                                        updated_at = datetime('now')
+                                    """,
+                                    (
+                                        hub_id,
+                                        dest_id,
+                                        ac_id,
+                                        n,
+                                        notes.strip() or None,
+                                        rt,
+                                        ex_needed,
+                                    ),
+                                )
+                                after = fetch_one(
+                                    conn,
+                                    """
+                                    SELECT num_assigned FROM my_routes
+                                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                                    """,
+                                    [hub_id, dest_id, ac_id],
+                                )
+                                rid_row = fetch_one(
+                                    conn,
+                                    """
+                                    SELECT id FROM my_routes
+                                    WHERE origin_id = ? AND dest_id = ? AND aircraft_id = ?
+                                    """,
+                                    [hub_id, dest_id, ac_id],
+                                )
+                                hub_u = hub_iata.strip().upper()
+                                dest_u = destination_iata.strip().upper()
+                                ac_u = aircraft.strip()
+                                if rid_row:
+                                    rid = int(rid_row["id"])
+                                    success_route = {
+                                        "id": rid,
+                                        "add_another_href": "/routes/add?"
+                                        + urlencode(
+                                            {
+                                                "hub": hub_u,
+                                                "destination": dest_u,
+                                                "aircraft": ac_u,
+                                                "route_type": rt,
+                                            }
+                                        ),
+                                        "my_routes_href": "/my-routes?"
+                                        + urlencode({"highlight": str(rid), "fresh": "1"}),
+                                    }
+                                parts: list[str] = []
+                                if iq > 0:
+                                    parts.append(f"Added {iq} × {aircraft.strip()} to fleet.")
+                                if prev:
+                                    parts.append(
+                                        f"Merged +{n} (now {int(after['num_assigned']) if after else n} assigned for "
+                                        f"{hub_u} → {dest_u} / {ac_u})."
+                                    )
+                                else:
+                                    parts.append(f"Added {n} × {ac_u} on {hub_u} → {dest_u}.")
+                                if vr["warnings"]:
+                                    parts.append(" ".join(vr["warnings"]))
+                                msg = " ".join(parts)
+                                if prev is None and rid_row:
+                                    fleet_id_for_undo: int | None = None
+                                    if iq > 0 and fleet_row_before is None:
+                                        fr = fetch_one(
+                                            conn,
+                                            "SELECT id FROM my_fleet WHERE aircraft_id = ? LIMIT 1",
+                                            [ac_id],
+                                        )
+                                        if fr:
+                                            fleet_id_for_undo = int(fr["id"])
+                                    rid = int(rid_row["id"])
+                                    undo_token = create_undo_token(conn, rid, fleet_id_for_undo)
+                                    undo_origin = hub_u
+                                    undo_dest = dest_u
+                                    exp = fetch_one(
+                                        conn,
+                                        """
+                                        SELECT
+                                            CAST(strftime('%s', expires_at) AS INTEGER) AS eu,
+                                            CAST(strftime('%s', 'now') AS INTEGER) AS nowu
+                                        FROM route_add_undos
+                                        WHERE token = ?
+                                        """,
+                                        (undo_token,),
+                                    )
+                                    if exp and exp["eu"] is not None and exp["nowu"] is not None:
+                                        eu = int(exp["eu"])
+                                        nowu = int(exp["nowu"])
+                                        seconds_remaining = max(0, eu - nowu)
+                                        expires_at_ms = eu * 1000
+                                    supp_only: list[str] = []
+                                    if iq > 0:
+                                        supp_only.append(f"Added {iq} × {aircraft.strip()} to fleet.")
+                                    if vr["warnings"]:
+                                        supp_only.append(" ".join(vr["warnings"]))
+                                    flash_supplement = " ".join(supp_only).strip() or None
+                                    msg = None
+                                conn.commit()
             if not hub or not dest or not ac:
                 conn.rollback()
         except sqlite3.OperationalError:

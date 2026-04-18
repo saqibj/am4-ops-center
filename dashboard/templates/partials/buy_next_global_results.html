@@ -69,7 +69,7 @@
                 </td>
                 {% if r.match_tier != 'exact' and r.match_tier != 'route' and r.destination %}
                 <td class="py-1 px-1 text-center w-8 max-w-[2rem]">
-                    <a href="/routes/add?{{ {'hub': r.hub_iata, 'destination': r.destination, 'aircraft': r.ac_shortname}|urlencode }}"
+                    <a href="/routes/add?{{ {'hub': r.hub_iata, 'destination': r.destination, 'aircraft': r.ac_shortname, 'route_type': rt}|urlencode }}"
                        class="inline-block text-[14px] leading-none am4-text-muted hover:text-[var(--accent)] no-underline"
                        title="Add route for {{ r.ac_shortname }} to {{ r.destination }}">➕</a>
                 </td>

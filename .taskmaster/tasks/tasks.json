@@ -2,109 +2,105 @@
   "master": {
     "tasks": [
       {
-        "id": "1",
-        "title": "Delete stale merged branches",
-        "description": "Remove feature/game-mode-setting and feature/sqlite-concurrency-overhaul locally and on origin. Both are already merged into main.",
-        "details": "Starting on main with a clean working tree, run:\n\ngit branch --show-current   (must output 'main')\ngit status --short          (must be empty)\ngit branch --merged main    (confirm both feature/game-mode-setting and feature/sqlite-concurrency-overhaul appear in the merged list; if either is missing STOP and report)\n\ngit branch -d feature/game-mode-setting\ngit branch -d feature/sqlite-concurrency-overhaul\ngit push origin --delete feature/game-mode-setting\ngit push origin --delete feature/sqlite-concurrency-overhaul\ngit remote prune origin\n\nDo NOT use -D (force delete). If -d refuses for either branch, STOP and report - that means it wasn't actually merged and we need to investigate before deleting.",
-        "testStrategy": "git branch -a must show only: main, remotes/origin/HEAD -> origin/main, remotes/origin/main. No other local or remote branches. No commit is made on main itself.",
-        "priority": "low",
+        "id": "0",
+        "title": "Branch setup + Buy Next Global nav item",
+        "description": "Create a feature branch for route-type work and add 'Buy Next Global' as a proper sidebar nav item under ROUTES.",
+        "details": "## Step 1 — Create branch\n\n```\ngit checkout main\ngit pull\ngit checkout -b feature/route-type-selector\n```\n\nIf there are uncommitted changes on main, stash them first.\n\n## Step 2 — Add Buy Next Global nav item\n\nOpen the sidebar nav template (likely `templates/partials/sidebar.html` or `templates/base.html` — wherever the nav items are defined).\n\nIn the ROUTES section, the current nav items are:\n  - All routes (⌘R)\n  - Add route (⌘N)\n  - Buy next (⌘C)\n  - Profitability (⌘F)\n\nAdd a new item AFTER 'Buy next':\n  - Buy next global\n\nThe new nav item should link to whatever URL the 'Browse globally instead →' link on the /buy-next page currently points to. Check the href on that link in the template — it is probably `/buy-next?global=1` or `/buy-next-global`.\n\nMatch the styling of the other nav items exactly: same text size, icon spacing, hover state, active state highlighting. Use a globe icon (or similar) to visually distinguish it from the hub-scoped 'Buy next'.\n\nKeep the 'Browse globally instead →' link on /buy-next as well — it doesn't hurt, and provides in-context discoverability.\n\n## Step 3 — Commit\n\n```\ngit add -A\ngit commit -m \"feat: add Buy Next Global nav item + create feature/route-type-selector branch\"\n```",
+        "testStrategy": "1. Sidebar shows 'Buy next global' under ROUTES, below 'Buy next'. 2. Clicking it loads the global buy-next view. 3. Active state highlights correctly when on that page. 4. All other nav items still work. 5. `git log --oneline -1` shows the commit. 6. `git branch --show-current` shows feature/route-type-selector.",
+        "priority": "high",
         "dependencies": [],
         "status": "done",
         "subtasks": [],
-        "updatedAt": "2026-04-16T16:40:49.715Z"
+        "updatedAt": "2026-04-18T07:51:31.279Z"
+      },
+      {
+        "id": "1",
+        "title": "Core VIP pricing module",
+        "description": "Create a self-contained Python module that computes VIP ticket prices and profit from existing PAX route_aircraft data, using the documented AM4 VIP formulae.",
+        "details": "Create `app/core/vip_pricing.py` (new file).\n\nThe module exposes two functions:\n\n```python\ndef vip_ticket_prices(distance_km: float, realism: bool) -> tuple[float, float, float]:\n    \"\"\"Return (ticket_y, ticket_j, ticket_f) for VIP pricing.\"\"\"\n\ndef compute_vip_profit(\n    distance_km: float,\n    config_y: int, config_j: int, config_f: int,\n    pax_profit_per_trip: float,\n    pax_income_per_trip: float | None,\n    trips_per_day: int,\n    realism: bool\n) -> dict:\n    \"\"\"Return dict with vip_income_per_trip, vip_profit_per_trip,\n    vip_profit_per_ac_day.\"\"\"\n```\n\nFormulae (from am4 docs):\n\nEasy mode PAX base prices:\n  Y = 0.4d + 170\n  J = 0.8d + 560\n  F = 1.2d + 1200\n\nRealism mode PAX base prices:\n  Y = 0.3d + 150\n  J = 0.6d + 500\n  F = 0.9d + 1000\n\nPAX optimal multipliers: Y × 1.10, J × 1.08, F × 1.06\nVIP multiplier on base: × 1.7489\nVIP optimal multipliers: Y × 1.22, J × 1.195, F × 1.175\n\nSo VIP ticket per seat:\n  vip_ticket_y = base_y × 1.7489 × 1.22\n  vip_ticket_j = base_j × 1.7489 × 1.195\n  vip_ticket_f = base_f × 1.7489 × 1.175\n\nPAX ticket per seat (for deriving costs):\n  pax_ticket_y = base_y × 1.10\n  pax_ticket_j = base_j × 1.08\n  pax_ticket_f = base_f × 1.06\n\nTo compute VIP profit from stored PAX data:\n  1. Compute pax_income_per_trip from config × pax_tickets (if not passed in)\n  2. Derive costs_per_trip = pax_income_per_trip - pax_profit_per_trip\n  3. Compute vip_income_per_trip = config_y × vip_ticket_y + config_j × vip_ticket_j + config_f × vip_ticket_f\n  4. vip_profit_per_trip = vip_income_per_trip - costs_per_trip\n  5. vip_profit_per_ac_day = vip_profit_per_trip × trips_per_day\n\nAlso expose a convenience function:\n\n```python\ndef adjust_rows_for_route_type(\n    rows: list[dict],\n    route_type: str,\n    realism: bool\n) -> list[dict]:\n    \"\"\"Given a list of route_aircraft row dicts, return adjusted copies.\n    - 'pax' or 'charter': return as-is\n    - 'vip': recompute profit fields using VIP pricing\n    - 'cargo': return as-is (cargo pricing is native)\n    \"\"\"\n```\n\nWrite unit tests in `tests/test_vip_pricing.py`:\n  - Known distance (e.g. 5000 km) → verify VIP ticket prices match hand-calculated values\n  - Given a mock PAX row, verify VIP profit is higher than PAX profit (VIP pricing > PAX pricing)\n  - 'charter' route type returns rows unchanged\n  - Realism vs Easy produce different ticket prices\n  - Edge case: config with 0 seats in a class → no division errors\n\nThis module must NOT import anything from dashboard/, database/, or FastAPI. Pure computation only.\n\n## Commit\n\n```\ngit add -A\ngit commit -m \"feat(route-type): add VIP pricing module with unit tests\"\n```",
+        "testStrategy": "Run `pytest tests/test_vip_pricing.py -v`. All tests pass. Manually verify: for d=5000km Easy mode, PAX Y ticket = (0.4×5000+170)×1.10 = $2387, VIP Y ticket = (0.4×5000+170)×1.7489×1.22 = $4637.78. The VIP ticket should be ~1.94× the PAX ticket.",
+        "priority": "high",
+        "dependencies": [
+          "0"
+        ],
+        "status": "pending",
+        "subtasks": []
       },
       {
         "id": "2",
-        "title": "Investigate _invalidate_dashboard_static_caches - keep, fix, or remove",
-        "description": "Audit notes flagged this helper as 'dead' but it is still defined at main.py:36 and called from main.py:116, 207, 316. Determine whether it is a no-op, functional, or genuinely dead, then act accordingly.",
-        "details": "Read main.py:30-50 for the definition and main.py:100-130, 200-220, 310-325 for the three call sites. For each call site, note what the caller is trying to invalidate and whether the function body actually does anything useful.\n\nThree possible outcomes:\n\nA. The body is a no-op or try/except-pass shield that never runs useful code. Remove the definition and all three call sites. Run tests.\n\nB. The body does real work but nothing in the dashboard currently reads the caches it invalidates (they were removed during the Phase 1 perf sweep). Remove the definition and all three call sites. Run tests.\n\nC. The body does real work and something still depends on it. Leave it alone, add a one-line docstring explaining what it invalidates, and mark this task done with 'kept as-is, documented'.\n\nDeliverable is a short report stating which outcome applied, the diff if any, and the test count before and after. Do NOT rename or refactor beyond removal.",
-        "testStrategy": "Run pytest --collect-only -q before and after any change. Test count must stay at 174 or higher. If any code is removed, also start the server once and hit /, /my-fleet, /my-routes, /buy-next, /hub-explorer, /contributions and confirm all 200. No regression in server startup log.",
-        "priority": "low",
-        "dependencies": [],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-16T16:40:49.743Z"
+        "title": "Schema: add route_type to my_routes table",
+        "description": "Add a `route_type` column to the `my_routes` table via ALTER TABLE migration, defaulting existing rows to 'pax'.",
+        "details": "In `database/schema.py` (or wherever schema migrations live), add:\n\n```sql\nALTER TABLE my_routes ADD COLUMN route_type TEXT NOT NULL DEFAULT 'pax'\n```\n\nGuard with the standard column-existence check:\n```python\ncols = {r[1] for r in conn.execute('PRAGMA table_info(my_routes)').fetchall()}\nif 'route_type' not in cols:\n    conn.execute(\"ALTER TABLE my_routes ADD COLUMN route_type TEXT NOT NULL DEFAULT 'pax'\")\n```\n\nNote: SQLite does not support CHECK constraints on ALTER TABLE ADD COLUMN. Enforce validity in application code (the DAO insert/update) AND via triggers:\n\n```sql\nCREATE TRIGGER IF NOT EXISTS trg_my_routes_route_type_check\nBEFORE INSERT ON my_routes\nBEGIN\n  SELECT RAISE(ABORT, 'Invalid route_type')\n  WHERE NEW.route_type NOT IN ('pax', 'vip', 'cargo', 'charter');\nEND;\n\nCREATE TRIGGER IF NOT EXISTS trg_my_routes_route_type_check_update\nBEFORE UPDATE OF route_type ON my_routes\nBEGIN\n  SELECT RAISE(ABORT, 'Invalid route_type')\n  WHERE NEW.route_type NOT IN ('pax', 'vip', 'cargo', 'charter');\nEND;\n```\n\nUpdate the my_routes DAO (whatever function does INSERT/UPDATE for my_routes) to accept and persist route_type. Default to 'pax' if not provided.\n\nFiles touched: database/schema.py (migration + triggers), the my_routes DAO file (add route_type parameter).\n\nDo NOT touch any templates, API handlers, or page handlers in this task.\n\n## Commit\n\n```\ngit add -A\ngit commit -m \"feat(route-type): add route_type column to my_routes with validation triggers\"\n```",
+        "testStrategy": "1. Start the app against a DB that does NOT have route_type column → migration runs, column appears with all existing rows defaulted to 'pax'. 2. Insert a row with route_type='vip' via DAO → succeeds. 3. Insert a row with route_type='invalid' → trigger fires ABORT. 4. Existing tests still pass (route_type defaults to 'pax').",
+        "priority": "high",
+        "dependencies": [
+          "0"
+        ],
+        "status": "pending",
+        "subtasks": []
       },
       {
         "id": "3",
-        "title": "Re-enable hub freshness banners (base_context stub removal)",
-        "description": "Replace the 21 base_context(request, None) stub call sites with base_context(request, conn) where conn is the request's read connection, so hub freshness banners render again.",
-        "details": "Grep for base_context(request, None) to locate all 21 sites:\n- 20 in dashboard/routes/pages.py (lines 136, 151, 169, 184, 191, 205, 216, 234, 260, 280, 288, 296, 390, 397, 450, 474, 516, 525, 532)\n- 1 in dashboard/routes/settings.py (line 58)\n\nFor each site, the enclosing handler already has (or can trivially obtain) a read connection via the get_read_db dependency. Thread conn through to base_context. Confirm base_context(request, conn) when given a real conn produces the same HubFreshness context shape the templates originally consumed - grep the templates for the freshness variable names and confirm they are set non-empty in at least one page.\n\nIf any handler does NOT currently have a conn in scope, add the dependency to the signature rather than building a new connection inside the handler - the concurrency model requires all reads go through get_read_db.\n\nScope constraint: this task is ONLY the stub removal plus dependency threading. Do NOT rewrite base_context, do NOT touch the hub freshness SQL, do NOT change templates. If base_context itself is broken under a real conn, STOP and surface it - that is a separate task.",
-        "testStrategy": "Start the server and load each affected page once. Confirm: (a) no 500 errors in the log; (b) the hub freshness banner actually appears (or is intentionally absent for valid reasons) on at least /my-hubs, /my-routes, and /; (c) pytest --collect-only reports 174 or higher; (d) pytest -q passes 174/174. Grep after the change: grep -rn 'base_context(request, None)' dashboard/ must return zero hits.",
+        "title": "Buy Next: route_type selector replaces Type filter",
+        "description": "Replace the existing 'Type' dropdown (All/Passenger/Cargo/VIP) on /buy-next with a route_type dropdown (PAX/VIP/Cargo/Charter). When VIP is selected, recompute profit using the VIP pricing module. When Cargo is selected, filter to cargo aircraft only. Apply the same change to Buy Next Global.",
+        "details": "This task touches 3 files:\n\n1. **Template: `templates/buy_next.html`** (and/or the global variant if separate)\n   - Replace the `Type` dropdown (currently `<select name=\"ac_type\">` with options All/Passenger/Cargo/VIP) with a `route_type` dropdown:\n     ```html\n     <label class=\"block text-xs text-gray-400 mb-1\">Route Type</label>\n     <select name=\"route_type\" ...>\n       <option value=\"pax\" selected>Passenger</option>\n       <option value=\"vip\">VIP</option>\n       <option value=\"cargo\">Cargo</option>\n       <option value=\"charter\">Charter</option>\n     </select>\n     ```\n   - Remove the old `ac_type` select entirely.\n   - Keep all other filters (hub, budget, sort_by, exclude_owned, hide stopover routes, hide routes I already operate) unchanged.\n   - Wire the new dropdown with the same hx-get/hx-target/hx-include/hx-indicator pattern as the old one.\n\n2. **API handler: the /api/buy-next endpoint** (and /api/buy-next-global if separate)\n   - Read `route_type` from query params (default 'pax'). Validate against {'pax', 'vip', 'cargo', 'charter'}.\n   - Aircraft filtering logic:\n     - route_type in ('pax', 'vip', 'charter') → filter to PAX-type aircraft (same as old ac_type='pax' filter — exclude cargo aircraft)\n     - route_type == 'cargo' → filter to CARGO-type aircraft only\n   - Profit adjustment:\n     - route_type in ('pax', 'charter', 'cargo') → use profit numbers from route_aircraft as-is\n     - route_type == 'vip' → after fetching rows, call `adjust_rows_for_route_type(rows, 'vip', is_realism())` from the VIP pricing module (task 1). This recomputes profit_per_trip, profit_per_ac_day, and derived fields (payback_days, avg_daily_profit, etc.) using VIP pricing.\n   - Pass `route_type` to the results template so it can display the active mode.\n   - IMPORTANT: ensure the query SELECTs `distance_km`, `config_y`, `config_j`, `config_f`, `profit_per_trip`, `trips_per_day` — the VIP module needs all of these. If any are missing from the current SELECT, add them.\n\n3. **Results partial: `templates/partials/buy_next_results.html`**\n   - Show a small colored badge indicating the active route type in the results header area: PAX (green), VIP (purple), Cargo (amber), Charter (blue).\n   - Profit columns reflect the recomputed values (they already will if the handler passes adjusted data).\n\nIMPORTANT: The VIP adjustment must be applied to BOTH the per-aircraft aggregate numbers AND the individual `top_routes` within each aircraft recommendation. Apply the adjustment at the route level first, then recompute aggregates (avg_daily_profit, best_daily_profit, payback_days).\n\n## Commit\n\n```\ngit add -A\ngit commit -m \"feat(route-type): route_type selector on Buy Next + Buy Next Global with VIP pricing\"\n```",
+        "testStrategy": "1. Open /buy-next → default selection is 'Passenger', results match current behavior exactly (regression check). 2. Select 'VIP' → same aircraft appear but profit numbers are higher (VIP pricing > PAX). Verify one manually: pick a route, compute VIP ticket prices by hand, confirm profit matches. 3. Select 'Cargo' → only cargo aircraft appear (e.g. B747-400F). 4. Select 'Charter' → same results as PAX (charter = pax pricing). 5. Change hub filter while VIP is selected → results update correctly. 6. Budget filter + VIP → payback_days reflects VIP profit (shorter payback than PAX for same aircraft). 7. Buy Next Global also has the route_type dropdown and works identically. 8. The old ac_type parameter is no longer read — passing ac_type=cargo in the URL does nothing.",
         "priority": "high",
-        "dependencies": [],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-16T16:40:49.751Z"
+        "dependencies": [
+          "1"
+        ],
+        "status": "pending",
+        "subtasks": []
       },
       {
         "id": "4",
-        "title": "Add engine, mods, purchase_price columns to my_fleet (original task 6a)",
-        "description": "Add the three missing my_fleet columns that were specified in the original Add Route task 6a but never shipped. Thread them through the inline fleet entry form, POST /api/routes/add handler, and any read paths that surface fleet details.",
-        "details": "Schema migration in database/schema.py:\n- engine TEXT (nullable; string identifier from the am4 engine catalog)\n- mods TEXT (nullable; comma-separated mod codes or JSON list - match whatever convention my_routes already uses if any, otherwise comma-separated string)\n- purchase_price INTEGER (nullable; in game currency units, matches other price columns)\n\nMigration must be idempotent using the existing _migrate_* pattern (check PRAGMA table_info, ALTER TABLE ADD COLUMN if missing). Update SCHEMA_SQL canonical definition too.\n\nForm and handler:\n- dashboard/templates/add_route.html inline fleet expansion: add optional engine dropdown (sourced from am4 catalog), mods multi-select or text input, purchase_price number input\n- dashboard/routes/api/routes.py POST /api/routes/add: accept the three new fields on inline_fleet payload, persist on my_fleet insert/upsert, all inside the existing transaction\n\nRead paths: grep for places that SELECT from my_fleet and surface row contents - /my-fleet page, Fleet Explorer, any APIs. Add the three new columns to their outputs if they make sense; leave template formatting minimal (just show the raw values).\n\nValues are all optional - existing rows with NULL for the three new columns must continue to work everywhere.",
-        "testStrategy": "Run migration on a copy of the live DB and on a fresh DB; PRAGMA table_info(my_fleet) must include the three new columns with correct types. Add an aircraft via the inline fleet form with all three new fields populated, confirm the row persists with correct values (query directly via python). Then add another aircraft leaving the three fields empty and confirm that also works. Load /my-fleet and confirm no template errors. pytest -q must pass, ideally with new tests for the schema migration and the POST handler accepting the new fields (target 176+ tests).",
+        "title": "Add Route: route_type selector in the form",
+        "description": "Add a route_type dropdown to the Add Route form. The selected route_type is stored in my_routes. The 'Top Extracted' panel and profit display adjust based on selected route_type.",
+        "details": "This task touches up to 3 files:\n\n1. **Add Route form template** (wherever the hub/destination/aircraft form lives)\n   - Add a `route_type` dropdown in the filter/form area:\n     ```html\n     <select name=\"route_type\" id=\"route-type-select\" ...>\n       <option value=\"pax\" selected>Passenger</option>\n       <option value=\"vip\">VIP</option>\n       <option value=\"cargo\">Cargo</option>\n       <option value=\"charter\">Charter</option>\n     </select>\n     ```\n   - Wire it with hx-trigger so changing route_type refreshes any dependent panels (Top Extracted, profit display).\n   - When route_type='cargo' is selected, the aircraft dropdown should filter to cargo-type aircraft. When 'pax'/'vip'/'charter', filter to PAX-type aircraft.\n\n2. **Add Route API handler** (the POST endpoint that saves a new route)\n   - Accept `route_type` from the form payload.\n   - Validate: must be in {'pax', 'vip', 'cargo', 'charter'}. Default to 'pax' if missing.\n   - Pass route_type to the DAO insert (task 2 already added the column).\n\n3. **Top Extracted panel** (the HTMX partial that shows best aircraft for a selected route)\n   - When route_type='vip', apply VIP pricing adjustment to the extracted profit numbers before rendering.\n   - Import and use `adjust_rows_for_route_type` from the VIP pricing module.\n   - The panel should indicate the active route type visually.\n\nPrefill behavior: if the user arrives at Add Route via the Buy Next → 'Add Route' prefill link, the route_type should be carried through as a query parameter and pre-selected in the dropdown.\n\nDo NOT modify the extraction pipeline, schema, or Buy Next page in this task.\n\n## Commit\n\n```\ngit add -A\ngit commit -m \"feat(route-type): route_type selector on Add Route form with VIP-adjusted Top Extracted\"\n```",
+        "testStrategy": "1. Open Add Route → route_type defaults to 'Passenger'. Save a route → my_routes row has route_type='pax'. 2. Select 'VIP', pick a PAX aircraft, save → my_routes row has route_type='vip'. 3. Select 'Cargo' → aircraft dropdown shows only cargo aircraft. 4. Top Extracted panel with VIP selected shows higher profit than with PAX selected for the same route. 5. Navigate from Buy Next (VIP mode) via 'Add Route' link → route_type pre-selects 'VIP'. 6. Try to save with an invalid route_type (e.g. via curl) → rejected by trigger.",
         "priority": "high",
-        "dependencies": [],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-16T16:40:49.759Z"
+        "dependencies": [
+          "1",
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
       },
       {
         "id": "5",
-        "title": "Fix /api/heatmap-panel 7s query (Global Heatmap blank)",
-        "description": "The /api/heatmap-panel endpoint runs one query that takes ~7 seconds, almost certainly due to a missing index on the hub/destination join. The slow response is why the Global Heatmap renders blank - the frontend likely times out or the user navigates away.",
-        "details": "Endpoint at dashboard/routes/api/recommendations.py:719-720. Read the handler and extract the single slow query.\n\nDiagnose first, fix second:\n\n1. Get EXPLAIN QUERY PLAN output for the query against the live DB (via a python script, not sqlite3 CLI since it is not on PATH). Look for SCAN TABLE route_aircraft or SCAN TABLE any large table without USING INDEX - that is the bottleneck.\n\n2. Based on the plan, add a composite index. Most likely needed is on route_aircraft(origin_id, dest_id) or similar. Do NOT add a partial index (partial indexes do not support ON CONFLICT and have bitten us before). Add the index via a _migrate_* function in database/schema.py following the existing idempotent pattern, AND update SCHEMA_SQL.\n\n3. Re-run EXPLAIN QUERY PLAN after the migration, confirm SEARCH USING INDEX, confirm the endpoint completes in <500ms warm.\n\n4. Run ANALYZE after adding the index so the planner picks it up (ensure_analyze_stats or equivalent already exists - use it).\n\nIf EXPLAIN shows the query is already using an index and the 7s is from row volume or Python post-processing, STOP and report - the fix is different (likely a materialized cache or query rewrite) and should be its own task.",
-        "testStrategy": "Before: curl http://127.0.0.1:8000/api/heatmap-panel with Measure-Command or time it in the profiling log. Record baseline. After migration: same endpoint must return in <500ms warm, <2s cold. Load the Global Heatmap page in a browser and confirm it now renders with data. pytest -q still passes. Run the migration on a fresh DB copy AND on the live DB copy and confirm idempotency (running it twice does not error).",
-        "priority": "high",
-        "dependencies": [],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-16T17:28:44.125Z"
+        "title": "My Routes: display and filter by route_type",
+        "description": "Show the route_type column in the My Routes table and add a filter dropdown. Profit columns should reflect the route's stored route_type (VIP routes show VIP profit).",
+        "details": "This task touches up to 3 files:\n\n1. **My Routes page template**\n   - Add a `route_type` filter dropdown in the filter bar (alongside any existing hub/aircraft filters):\n     ```html\n     <select name=\"route_type\">\n       <option value=\"\">All Types</option>\n       <option value=\"pax\">Passenger</option>\n       <option value=\"vip\">VIP</option>\n       <option value=\"cargo\">Cargo</option>\n       <option value=\"charter\">Charter</option>\n     </select>\n     ```\n   - In the routes table, add a 'Type' column showing a colored badge: PAX (green), VIP (purple), Cargo (amber), Charter (blue).\n   - For VIP routes, the profit columns (profit/AC/day, total daily profit) should show VIP-adjusted numbers.\n\n2. **My Routes API handler** (the endpoint that returns the routes table data)\n   - Accept optional `route_type` filter param. When set, add `WHERE mr.route_type = ?` to the query.\n   - For rows where route_type='vip', apply VIP profit adjustment using the pricing module before returning to the template.\n   - For 'pax', 'charter', 'cargo' → return as-is.\n   - Pass route_type to each row dict so the template can render the badge.\n\n3. **My Routes summary cards** (if they exist at the top of the page)\n   - If there are summary cards (total daily profit, best/worst route, etc.), these should respect the route_type filter and use VIP-adjusted profit for VIP routes.\n   - Update the route count breakdown to show counts by type: e.g. 'PAX: 120 | VIP: 15 | Cargo: 8 | Charter: 31'.\n\nIMPORTANT: existing edit/delete functionality must continue to work. When editing a route, the route_type should be preserved on update.\n\n## Commit\n\n```\ngit add -A\ngit commit -m \"feat(route-type): route_type column, filter, and VIP profit display on My Routes\"\n```",
+        "testStrategy": "1. Open /my-routes → all routes shown with Type column. Existing PAX routes show green 'PAX' badge. 2. Filter to 'VIP' → only VIP-typed routes shown (if any exist from task 4 testing). 3. A VIP route's profit column shows VIP-adjusted profit (higher than same route would show as PAX). 4. Summary cards update when filter changes. 5. Delete a route → still works. 6. Total daily profit sums correctly across mixed route types.",
+        "priority": "medium",
+        "dependencies": [
+          "1",
+          "2"
+        ],
+        "status": "pending",
+        "subtasks": []
       },
       {
         "id": "6",
-        "title": "Fix /api/extraction-deltas O(n²) Python diff",
-        "description": "Endpoint returns in 19.8s with only 1.7ms spent in the DB and 5 queries. The remaining ~19s is Python work, almost certainly an O(n²) diff computation on the deltas list.",
-        "details": "Endpoint at dashboard/routes/api/extraction_deltas.py:49-50. Read the handler and identify the diff computation.\n\nTypical O(n²) pattern is a nested loop where for each row in list A, the code searches list B for a match using `any()`, `next()`, or `[x for x in B if ...]`. The fix is to build a dict keyed by the matching field once (O(n)), then do O(1) lookups in the inner loop (O(n) total = O(n) overall instead of O(n²)).\n\nScope constraint: do NOT rewrite the SQL or restructure the endpoint shape. Just fix the Python diff. The output JSON must be byte-identical to the current output for the same input data - add a test that captures current output before the fix and asserts equality after.\n\nIf the computation is NOT a nested-loop diff (e.g., it is a JSON serialization cost on a huge payload, or a Python-side aggregation that should be pushed to SQL), STOP and report - that is a different fix with different tradeoffs.",
-        "testStrategy": "Capture current JSON output for a representative request, save as a golden file under tests/. After the fix, assert the endpoint output matches the golden file byte-for-byte (or with a sorted-keys normalization if dict ordering matters). Measure endpoint latency before and after via the profiling log: target <500ms warm. pytest -q passes, ideally with a new golden-file test added (test count 175+).",
-        "priority": "medium",
-        "dependencies": [],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-16T18:49:47.601Z"
-      },
-      {
-        "id": "7",
-        "title": "Diagnose and fix /api/hub-summary cold ~6s",
-        "description": "Endpoint at dashboard/routes/api/analytics.py:84-85 takes ~6 seconds on cold hits. Pre-existing, not yet investigated.",
-        "details": "Diagnose-first task. Do NOT apply a fix until the root cause is identified and reported.\n\n1. Read the handler.\n2. Add per-step timing inside the handler (or use the existing profiling middleware's query-level output) to identify whether the 6s is one slow query, many medium queries, Python post-processing, or template rendering.\n3. For each slow SQL, run EXPLAIN QUERY PLAN.\n4. Produce a diagnostic report with: handler code summary, timing breakdown (ms for each step), EXPLAIN output for every query, and a proposed fix category (index, query rewrite, materialized cache, Python refactor, or other).\n\nOnly AFTER the diagnostic is delivered should the fix be implemented, and only if it fits in the same task scope (single composite index or single query tweak). If the fix requires a materialized cache, a schema change, or touches more than ~3 files, STOP after the diagnostic and spin out a follow-up task.\n\nCold vs warm matters: measure both. 6s cold / <500ms warm is a cache-warming issue (different fix - touch SQLite cache or add a warmup on startup). 6s in both is a real query problem.",
-        "testStrategy": "Diagnostic phase: deliver the report with measured timings and EXPLAIN output. Fix phase (if in-scope): cold hit <2s, warm hit <500ms. pytest -q passes 174+. Run the migration (if any) idempotently on fresh + live DB copies.",
-        "priority": "medium",
-        "dependencies": [],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-16T20:37:46.553Z"
-      },
-      {
-        "id": "8",
-        "title": "Fix ghost-hub architectural root in dashboard/db.py:235-242",
-        "description": "Hub origin enumeration still groups route_aircraft by origin_id instead of reading from v_my_hubs. This is the architectural root of the original ghost-hub bug (which was previously patched at the symptom level only). Any hub deleted from my_hubs that still has route_aircraft rows will reappear as a ghost.",
-        "details": "HIGHEST-RISK task in this batch - do last. Touches the query that every hub-aware page downstream consumes.\n\n1. Read dashboard/db.py:225-260 and identify the enclosing function. Understand what its callers expect: a list of hub IATAs? a list of (iata, id) tuples? with metadata like route counts? The v_my_hubs view and the route_aircraft grouping may currently expose different shapes.\n\n2. Rewrite the function to read from v_my_hubs as its source of truth for WHICH hubs exist. If callers also need per-hub metrics (route count, total capacity, etc.), compute those by joining v_my_hubs to route_aircraft - NOT by enumerating from route_aircraft first.\n\n3. Before committing, grep for every caller of this function across dashboard/ and confirm the new return shape is compatible. If any caller expects a shape only available via the route_aircraft grouping, either (a) preserve the metric by joining, or (b) flag that caller as needing its own follow-up and keep the new function's contract clean.\n\n4. Add a test: insert a row into my_hubs, then delete it, and confirm it does NOT appear in the function's output even if route_aircraft rows for that origin_id still exist (simulating the ghost-hub scenario).\n\n5. The is_active / last_extract_status filter from the original ghost-hub prevention spec: if v_my_hubs already filters on these, good; if not, check whether the prevention task-master spec was ever applied. Flag any gap but do not expand scope here.",
-        "testStrategy": "New regression test: create a hub in my_hubs, populate route_aircraft rows for it, delete from my_hubs, call the audited function, assert the deleted hub is NOT returned. Run full pytest -q - must pass 174+ with the new test bringing it to 175+. Manually test Hub Explorer, /my-hubs, dashboard home - all hub lists must match what is in my_hubs (no ghosts). If the change breaks any caller that was depending on the old behavior, STOP and report BEFORE adjusting callers - that is a signal the scope is growing.",
+        "title": "Route type in Hub Explorer and analytics pages",
+        "description": "Thread route_type awareness into Hub Explorer, Hub Summary, and any other analytics page that displays route profit data from my_routes.",
+        "details": "Audit and update the following pages/endpoints to respect route_type:\n\n1. **Hub Explorer** — if it shows per-route profit or allows route browsing, VIP-typed routes should display VIP profit. Add a route_type filter if the page has a filter bar.\n\n2. **Hub Summary / Hub ROI** — daily profit aggregation should use VIP-adjusted profit for VIP routes and PAX profit for PAX routes. The SQL query likely sums profit_per_ac_day × num_assigned — for VIP routes, the VIP-adjusted profit must be used instead.\n\n3. **Global Heatmap** — if route colors/sizes are based on profit, VIP routes should use VIP profit.\n\n4. **Extraction Deltas** — if the delta page shows profit changes, VIP routes should show VIP profit in the comparison.\n\nApproach:\n- First, grep the codebase for all handlers that read from my_routes and join to route_aircraft for profit data. Produce a checklist.\n- For each handler, determine if it needs VIP adjustment. If a handler aggregates profit across multiple routes (like hub summary), it needs to apply VIP adjustment per-route before aggregating.\n- Use the `adjust_rows_for_route_type` helper consistently.\n\nThis is a sweep task. If more than 3 files need changes, split the remaining into a follow-up task. Prioritize Hub Explorer and Hub Summary first.\n\nDo NOT modify extraction, schema, Buy Next, Add Route, or My Routes — those are handled in tasks 0-5.\n\n## Commit\n\n```\ngit add -A\ngit commit -m \"feat(route-type): thread route_type through Hub Explorer and analytics pages\"\n```",
+        "testStrategy": "1. Hub Explorer: navigate to a hub with mixed PAX and VIP routes → VIP routes show higher profit than their PAX equivalent. 2. Hub Summary: total daily profit for a hub with VIP routes should be higher than if all routes were PAX. 3. Verify no regressions on pages that don't have VIP routes.",
         "priority": "medium",
         "dependencies": [
-          "3"
+          "1",
+          "2",
+          "5"
         ],
-        "status": "done",
-        "subtasks": [],
-        "updatedAt": "2026-04-16T22:01:52.364Z"
+        "status": "pending",
+        "subtasks": []
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-04-16T22:01:52.365Z",
-      "taskCount": 8,
-      "completedCount": 8,
+      "lastModified": "2026-04-18T07:51:31.280Z",
+      "taskCount": 7,
+      "completedCount": 1,
       "tags": [
         "master"
       ]

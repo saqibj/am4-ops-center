@@ -9,18 +9,18 @@
         "testStrategy": "Run `git branch --show-current` and confirm output is `feature/per-aircraft-ci`. Run `git status` and confirm working tree is clean.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
         "id": 2,
-        "title": "Add ci column to my_fleet with migration",
+        "title": "Add ci column to my_fleet with migration (pre-existing + migration fix)",
         "description": "Add a `ci` INTEGER column (default 200) to the `my_fleet` table. This is schema + migration only — no UI changes yet.",
         "details": "Files touched (max 3):\n\n1. `database/schema.py` — Two changes:\n   a. Update the canonical `my_fleet` CREATE TABLE DDL to include `ci INTEGER NOT NULL DEFAULT 200 CHECK (ci >= 0 AND ci <= 200)` after the `quantity` column.\n   b. Add an idempotent migration function (following the existing `_migrate_*` pattern): check `PRAGMA table_info(my_fleet)` for the `ci` column; if missing, `ALTER TABLE my_fleet ADD COLUMN ci INTEGER NOT NULL DEFAULT 200`. Do NOT add a CHECK constraint via ALTER (SQLite doesn't support it) — the CHECK goes only in the canonical CREATE TABLE for fresh DBs. Register the migration call in the existing migration runner so it runs at startup.\n\n2. `database/fleet_dao.py` (or wherever my_fleet CRUD lives) — Update any INSERT/UPDATE functions to accept and persist `ci`. Update SELECT queries that return fleet rows to include `ci` in the result set. The default for new inserts where ci is not specified should be 200.\n\n3. `tests/test_fleet_dao.py` (or equivalent) — Add tests: (a) fresh DB has ci column with default 200, (b) inserting a fleet entry with ci=150 persists correctly, (c) inserting without specifying ci defaults to 200, (d) ci=201 or ci=-1 is rejected on fresh DBs (CHECK constraint), (e) migration on existing DB adds the column with default 200 for all existing rows.\n\nIMPORTANT: The `route_aircraft` table already has a `ci` column storing the CI used during extraction. That column is unrelated to this change — do NOT modify `route_aircraft` in this task. The new `my_fleet.ci` column stores the player's *desired* CI per aircraft type, which will later be fed into extraction.",
         "testStrategy": "Run pytest on the fleet DAO tests — all pass. Start the server against an existing DB with fleet entries, then query: `SELECT aircraft_id, ci FROM my_fleet LIMIT 5` — all existing rows should show ci=200. Insert a new fleet entry via the existing UI/API and confirm ci=200 is stored. Manually UPDATE one row to ci=150, confirm it persists across server restart.",
         "priority": "high",
         "dependencies": [1],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -31,18 +31,18 @@
         "testStrategy": "Load /my-fleet — CI column appears with 200 for all aircraft. Change one aircraft's CI to 150, confirm the save indicator fires and the value persists on page reload. Try entering 201 — browser validation blocks it. Try entering -1 — blocked. Open dev tools network tab, confirm the PATCH request fires and returns 200.",
         "priority": "high",
         "dependencies": [2],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
         "id": 4,
-        "title": "Thread per-aircraft CI through extraction",
+        "title": "Post-extraction CI recalculation (am4 hardcodes CI=200)",
         "description": "Modify the route extraction to look up each aircraft's CI from my_fleet instead of using the global hardcoded CI=200. Routes for aircraft not in my_fleet still default to 200.",
         "details": "Files touched (max 3):\n\n1. `extractors/routes.py` (or equivalent extraction module) — This is the critical change. Currently the extraction builds a `UserConfig` with a single `ci` value (200) and passes it to every `AircraftRoute` / `RoutesSearch` call. Change this to:\n   a. At the start of extraction, query `my_fleet` to build a dict: `fleet_ci = {aircraft_id: ci for aircraft_id, ci in conn.execute('SELECT aircraft_id, ci FROM my_fleet')}`\n   b. In the per-aircraft loop, look up `ci = fleet_ci.get(current_aircraft_id, 200)` and pass that CI to the am4 package call for this specific aircraft.\n   c. The `ci` column in `route_aircraft` already stores the CI used — it will now correctly reflect per-aircraft values instead of a flat 200.\n\n   IMPORTANT: Understand how the am4 package accepts CI. Check whether it's on the `User` object, passed to `AircraftRoute`, or a parameter on `RoutesSearch`. Grep for `ci` and `cost_index` in the am4 package imports and usage. The CI must be set per-aircraft-iteration, not once globally.\n\n2. `dashboard/routes/api_routes.py` (or wherever hub refresh triggers extraction) — If the dashboard's hub refresh endpoint constructs a `UserConfig` and passes CI, update it to either omit the global CI (since extraction now looks it up per-aircraft) or pass it as a fallback default. Do NOT break the existing hub refresh flow.\n\n3. `config.py` (if it exists and hardcodes `ci=200`) — Either remove the hardcoded default, mark it as a fallback-only value with a comment explaining that `my_fleet.ci` takes precedence, or leave it as the default for aircraft not in my_fleet. Do NOT remove the CLI `--ci` flag if it exists — keep it as the fallback for aircraft without a fleet entry.\n\nEdge cases:\n- Aircraft in route_aircraft but NOT in my_fleet: use fallback CI (200 or CLI value)\n- my_fleet entry with ci=0: valid, means slowest speed — do not skip or error\n- Extraction running while user edits CI on /my-fleet: fine, extraction reads CI at start and uses that snapshot",
         "testStrategy": "1. Set one aircraft in my_fleet to ci=100 via the UI (task 3). 2. Trigger a hub refresh for a hub that uses that aircraft. 3. After extraction completes, query: `SELECT aircraft_id, ci, contribution FROM route_aircraft WHERE aircraft_id = <that_aircraft> LIMIT 5` — ci should be 100, and contribution should differ from the ci=200 routes. 4. Check another aircraft that was left at ci=200 — its routes should still show ci=200. 5. Confirm the Contribution Optimizer page now shows varying contribution values for aircraft with different CIs.",
         "priority": "high",
         "dependencies": [3],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -53,7 +53,7 @@
         "testStrategy": "Load /contributions — contribution column shows values like $83.47, $83.37 etc. (not flat $83). C/P ratio shows non-zero values with enough precision to differentiate routes. Sort by contribution — ordering should now visibly differ between routes. Sort by C/P ratio — should produce a meaningful ranking.",
         "priority": "medium",
         "dependencies": [2],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       },
       {
@@ -70,7 +70,7 @@
     ],
     "metadata": {
       "created": "2026-04-19T03:00:00Z",
-      "updated": "2026-04-19T03:00:00Z",
+      "updated": "2026-04-19T07:00:00Z",
       "description": "Add per-aircraft CI (Cost Index) to my_fleet, replacing the global hardcoded CI=200. Each aircraft type gets its own CI (default 200) stored in my_fleet, editable via the My Fleet page, and threaded through extraction so route_aircraft.contribution reflects the actual CI per aircraft. Also fixes the Contribution Optimizer display to show decimal precision instead of truncated whole dollars."
     }
   }

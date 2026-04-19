@@ -999,7 +999,9 @@ def _migrate_my_fleet_optional_columns(conn: sqlite3.Connection) -> bool:
 
 def ensure_my_fleet_optional_schema(conn: sqlite3.Connection) -> None:
     """Idempotent: add optional my_fleet columns and refresh views if needed."""
-    if _migrate_my_fleet_optional_columns(conn):
+    changed = _migrate_my_fleet_optional_columns(conn)
+    _migrate_my_fleet_ci(conn)
+    if changed:
         _recreate_dashboard_views(conn)
 
 

@@ -18,6 +18,7 @@
                     <th scope="col" class="text-right px-3 py-3">Owned</th>
                     <th scope="col" class="text-right px-3 py-3">Asgn</th>
                     <th scope="col" class="text-right px-3 py-3">Free</th>
+                    <th scope="col" class="text-right px-3 py-3">CI</th>
                     <th scope="col" class="text-right px-3 py-3">Each</th>
                     <th scope="col" class="text-right px-3 py-3">Total</th>
                     <th scope="col" class="text-right px-3 py-3">Purchase</th>
@@ -36,6 +37,15 @@
                     <td class="px-3 py-3 text-right font-mono">{{ f.quantity }}</td>
                     <td class="px-3 py-3 text-right font-mono text-amber-200/80">{{ f.assigned }}</td>
                     <td class="px-3 py-3 text-right font-mono text-sky-300/80">{{ f.free }}</td>
+                    <td class="px-3 py-3 text-right" id="fleet-ci-{{ f.id }}">
+                        <div class="relative inline-flex items-center">
+                            <input type="number" name="ci" value="{{ f.ci }}" min="0" max="200" step="1"
+                                   hx-patch="/api/fleet/{{ f.id }}/ci"
+                                   hx-trigger="change"
+                                   hx-target="#fleet-ci-{{ f.id }}"
+                                   class="am4-input rounded px-1 py-1 w-16 font-mono text-xs text-right">
+                        </div>
+                    </td>
                     <td class="px-3 py-3 text-right font-mono am4-text-secondary">${{ "{:,.0f}".format(f.unit_cost | float) }}</td>
                     <td class="px-3 py-3 text-right font-mono am4-text-secondary">${{ "{:,.0f}".format(f.total_value | float) }}</td>
                     <td class="px-3 py-3 text-right font-mono am4-text-secondary">{% if f.purchase_price is not none %}${{ "{:,.0f}".format(f.purchase_price | float) }}{% else %}—{% endif %}</td>

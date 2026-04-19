@@ -228,6 +228,7 @@ def _my_fleet_rows(conn: sqlite3.Connection) -> list[dict]:
                v.ac_name,
                v.ac_type,
                v.quantity,
+               v.ci,
                v.engine,
                v.mods,
                v.purchase_price,

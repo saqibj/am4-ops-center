@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Callable
 log = logging.getLogger(__name__)
 
 from config import GameMode, UserConfig
+from core.ci_recalc import apply_ci_adjustments, build_fleet_ci_map
 from core.game_mode import as_am4_kwargs, is_realism
 from database.extraction_runs import (
     finish_extraction_run,
@@ -378,6 +379,8 @@ def _aircraft_rows_from_db(conn: sqlite3.Connection) -> list[dict]:
     ]
 
 
+
+
 def upsert_airport_from_am4(
     conn: sqlite3.Connection, cfg: UserConfig, hub_iata: str
 ) -> tuple[int | None, str | None]:
@@ -545,8 +548,9 @@ def refresh_single_hub_conn(
         options = _aircraft_route_options(cfg)
         game_mode_label = read_game_mode(conn)
         rr, dd = extract_routes_for_hub(
-            iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label
+            iata_for_extract, aircraft_rows, cfg, user, options, game_mode_label,
         )
+        rr = apply_ci_adjustments(conn, rr)
         _insert_batches_chunked(
             conn,
             rr,
@@ -646,6 +650,8 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
 
     print(f"[3/3] Computing routes for {len(hubs)} hubs × {len(aircraft_rows)} aircraft (workers={cfg.max_workers})…")
 
+    fleet_ci_map = build_fleet_ci_map(conn)
+
     total_routes = 0
     total_demand_rows = 0
 
@@ -656,8 +662,9 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
             user, options = _build_user_and_options()
             for hub in tqdm(hubs):
                 rr, dd = extract_routes_for_hub(
-                    hub, aircraft_rows, cfg, user, options, game_mode_label
+                    hub, aircraft_rows, cfg, user, options, game_mode_label,
                 )
+                rr = apply_ci_adjustments(conn, rr, fleet_ci_map=fleet_ci_map)
                 _insert_batches(conn, rr, _demands_to_map(dd), run_id=run_id)
                 total_routes += len(rr)
                 total_demand_rows += len(dd)
@@ -669,7 +676,7 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
                     def _task(h: str = hub) -> tuple[list[dict], list[dict]]:
                         user, options = _build_user_and_options()
                         return extract_routes_for_hub(
-                            h, aircraft_rows, cfg, user, options, game_mode_label
+                            h, aircraft_rows, cfg, user, options, game_mode_label,
                         )
 
                     futs[ex.submit(_task)] = hub
@@ -680,6 +687,7 @@ def run_bulk_extraction(db_path: str, cfg: UserConfig) -> None:
                     except Exception as exc:
                         log.warning("hub extraction failed for %s: %s", hub, exc)
                         continue
+                    rr = apply_ci_adjustments(conn, rr, fleet_ci_map=fleet_ci_map)
                     _insert_batches(conn, rr, _demands_to_map(dd), run_id=run_id)
                     total_routes += len(rr)
                     total_demand_rows += len(dd)

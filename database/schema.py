@@ -179,6 +179,7 @@ CREATE TABLE IF NOT EXISTS my_fleet (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     aircraft_id     INTEGER NOT NULL UNIQUE,
     quantity        INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 1 AND quantity <= 999),
+    ci              INTEGER NOT NULL DEFAULT 200 CHECK (ci >= 0 AND ci <= 200),
     engine          TEXT,
     mods            TEXT,
     purchase_price  INTEGER,
@@ -265,6 +266,7 @@ SELECT
     mf.id,
     mf.aircraft_id,
     mf.quantity,
+    mf.ci,
     mf.engine,
     mf.mods,
     mf.purchase_price,
@@ -383,6 +385,7 @@ SELECT
     mf.id,
     mf.aircraft_id,
     mf.quantity,
+    mf.ci,
     mf.engine,
     mf.mods,
     mf.purchase_price,
@@ -996,8 +999,16 @@ def _migrate_my_fleet_optional_columns(conn: sqlite3.Connection) -> bool:
 
 def ensure_my_fleet_optional_schema(conn: sqlite3.Connection) -> None:
     """Idempotent: add optional my_fleet columns and refresh views if needed."""
-    if _migrate_my_fleet_optional_columns(conn):
+    changed = _migrate_my_fleet_optional_columns(conn)
+    _migrate_my_fleet_ci(conn)
+    if changed:
         _recreate_dashboard_views(conn)
+
+
+def _migrate_my_fleet_ci(conn: sqlite3.Connection) -> None:
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(my_fleet)").fetchall()}
+    if "ci" not in cols:
+        conn.execute("ALTER TABLE my_fleet ADD COLUMN ci INTEGER NOT NULL DEFAULT 200")
 
 
 def ensure_my_routes_inventory_schema(conn: sqlite3.Connection) -> None:
@@ -1048,6 +1059,7 @@ def migrate_add_unique_constraints(conn: sqlite3.Connection) -> None:
         _migrate_my_routes_needs_extraction_refresh(conn)
         _migrate_my_routes_route_type(conn)
         _migrate_my_fleet_optional_columns(conn)
+        _migrate_my_fleet_ci(conn)
         _ensure_my_routes_route_type_triggers(conn)
         ensure_route_aircraft_indexes(conn)
         ensure_app_settings_schema(conn)

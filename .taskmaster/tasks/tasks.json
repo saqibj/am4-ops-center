@@ -64,7 +64,7 @@
         "testStrategy": "All 7 steps above must pass. The verification report must include concrete contribution numbers for two aircraft with different CIs on the same route, demonstrating that per-aircraft CI produces different contribution values.",
         "priority": "high",
         "dependencies": [4, 5],
-        "status": "pending",
+        "status": "done",
         "subtasks": []
       }
     ],

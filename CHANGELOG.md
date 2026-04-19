@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Per-Aircraft Cost Index (CI):**
+  - **Schema:** `my_fleet.ci` column (`INTEGER NOT NULL DEFAULT 200 CHECK (ci >= 0 AND ci <= 200)`); idempotent migration in `database/schema.py`; `v_my_fleet` view updated to include `ci`.
+  - **UI:** Inline-editable **CI** column on the **My Fleet** (`/my-fleet`) dashboard; `PATCH /api/fleet/{id}/ci` endpoint validates and persists changes via HTMX.
+  - **Recalculation Engine:** `core/ci_recalc.py` implements scaling factors for flight time, fuel, CO2, and contribution based on AM4's published formulae.
+  - **Extraction:** Automatic post-extraction CI adjustment in `refresh_single_hub_conn` and `run_bulk_extraction` paths; overrides the am4 C++ baseline (CI=200) with user-configured values.
+- **Improved Optimization Precision:**
+  - **Contribution display:** updated from `$XX` to `$XX.XX` (2 decimal places) in the **Contributions** table and optimizer views.
+  - **C/P Ratio:** precision increased to 6 decimal places (`%.6f`) for more granular alliance contribution insights.
+
 - **Route type (PAX / VIP / Cargo / Charter) for saved assignments (`my_routes`):**
   - **Schema:** `my_routes.route_type` (`TEXT NOT NULL DEFAULT 'pax'`), SQLite triggers enforcing `pax` / `vip` / `cargo` / `charter`; migration in `database/schema.py`; CSV import accepts optional **`route_type`** column (`commands/airline.py`).
   - **VIP pricing:** `app/core/vip_pricing.py` — VIP ticket prices and profit derived from stored PAX `route_aircraft` economics (AM4 formulae); `adjust_rows_for_route_type()` for catalog/inventory rows.

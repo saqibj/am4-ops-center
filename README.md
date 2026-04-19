@@ -59,7 +59,8 @@ For a **prebuilt app** (no compiler, no `pip install am4`):
 - **SQLite storage** — 3.8M+ route rows queryable offline with optimized fast application startup
 - **FastAPI dashboard** — web UI with **light / dark / system** themes, semantic styling (`theme.css`, `am4-*` utilities), Tailwind CSS (CDN) + HTMX (no page reloads)
 - **17 dashboard pages** — Overview, Hub Explorer, Aircraft, Route Analyzer, **Scenarios** (fuel/CO₂ vs extraction baselines), Fleet Planner, **Buy Next** / **Buy Next global** (budget-ranked purchase candidates; same data as Fleet Planner / `recommend`), My Fleet, My Routes, **Fleet Health**, **Demand utilization**, **Extraction deltas** (compare route snapshots between two extractions), **Hub ROI**, **Hub Manager** (managed hubs; per-hub and **stale** refresh run as **background jobs** with progress — no long-blocking HTTP request), Contributions, Heatmap, and **Settings** (`/settings`: themes, airline branding, default landing page, UI density, notification toggles; stored in browser **`localStorage`**)
-- **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; each saved route stores **`route_type`** (**PAX**, **VIP**, **Cargo**, or **Charter**); VIP profit uses AM4-style pricing derived from stored PAX economics; CSV import defaults to **merge**; optional **`route_type`** column on route imports; **`--replace`** overwrites counts; dashboard forms match the same semantics
+- **Fleet & routes** — `my_fleet` / `my_routes` in SQLite; each saved route stores **`route_type`** (**PAX**, **VIP**, **Cargo**, or **Charter**); VIP profit uses AM4-style pricing derived from stored PAX economics; each aircraft in `my_fleet` has a per-type **Cost Index (0–200)** that overrides extraction defaults; CSV import defaults to **merge**; optional **`route_type`** column on route imports; **`--replace`** overwrites counts; dashboard forms match the same semantics
+- **CI Recalculation Engine** — automated scaling of flight time, fuel, and contribution when `my_fleet` CI differs from the extraction baseline, using reverse-engineered AM4 formulae
 - **CLI `recommend`** / **Buy Next** (`/buy-next`, `/buy-next/global`) — budget-ranked aircraft from extracted `route_aircraft` (shared logic with **Fleet Planner**); **`route_type`** filter (cargo vs non-cargo aircraft, VIP profit when VIP is selected); eligible rows include a **➕** link to **`/routes/add`** with hub, destination, aircraft, and **`route_type`** **prefilled**
 - **CSV/Excel export** — dump tables for spreadsheet analysis
 - **Fully offline** — after initial setup, no internet needed
@@ -258,7 +259,7 @@ python3 main.py extract --refresh-hubs --hubs KHI,DXB --mode easy --workers 4
 | `--all-hubs` | `false` | Process all airports as hubs (**full rebuild only**; not with `--refresh-hubs`) |
 | `--refresh-hubs` | `false` | **Hub-only** route recompute for `--hubs` only |
 | `--mode` | `easy` | Game mode: `easy` or `realism` |
-| `--ci` | `200` | Cost Index (0–200) |
+| `--ci` | `200` | Global fallback Cost Index (0–200); **per-aircraft CI from `my_fleet` takes precedence** |
 | `--reputation` | `87.0` | Player reputation (0–100) |
 | `--aircraft` | all | Filter by aircraft: `b738,a388` |
 | `--db` | `app.paths.db_path()` (`…/am4ops.db`) | SQLite path; override with `--db` or **`AM4_OPS_CENTER_DB`** (legacy **`AM4_ROUTEMINE_DB`**) |

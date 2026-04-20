@@ -106,7 +106,7 @@ def api_hub_routes(
     sort_col = sort if sort in HUB_SORT_COLUMNS else "profit_per_ac_day"
     order_sql = _hub_catalog_order_sql(sort_col)
 
-    query = "SELECT " + _HUB_CATALOG_SELECT.strip() + " " + _HUB_CATALOG_FROM
+    query = _HUB_CATALOG_SELECT.strip() + " " + _HUB_CATALOG_FROM
     params: list = [hub.strip()]
 
     if _query_flag_on(mine_only):
@@ -238,7 +238,7 @@ def api_hub_chart(
     if not hub.strip():
         return HTMLResponse("<p class='am4-text-secondary text-sm'>Select a hub for the chart.</p>")
 
-    query = "SELECT " + _HUB_CATALOG_SELECT.strip() + " " + _HUB_CATALOG_FROM
+    query = _HUB_CATALOG_SELECT.strip() + " " + _HUB_CATALOG_FROM
     params: list = [hub.strip()]
     if _query_flag_on(mine_only):
         query += " AND mr.id IS NOT NULL"

@@ -43,4 +43,16 @@
   window.Am4Notifications = {
     enabled: notificationEnabled,
   };
+
+  /**
+   * Visibility-based throttling for system status polling.
+   * Prevents HTMX requests to /api/system/status when the tab is hidden (pure waste).
+   */
+  document.addEventListener("htmx:beforeRequest", function (evt) {
+    if (evt.detail.pathInfo.requestPath === "/api/system/status") {
+      if (document.hidden) {
+        evt.preventDefault();
+      }
+    }
+  });
 })();

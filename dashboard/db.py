@@ -283,14 +283,10 @@ def _freshness_dot_class(tier: str) -> str:
 # no valid routes yet still appear (latest NULL). Outer GROUP BY hub IATA if multiple
 # my_hubs rows ever shared one IATA.
 _HUB_FRESHNESS_SQL = """
-    SELECT UPPER(TRIM(v.iata)) AS hub, MAX(mx.latest) AS latest
+    SELECT UPPER(TRIM(v.iata)) AS hub, 
+           (SELECT MAX(extracted_at) FROM route_aircraft 
+            WHERE origin_id = v.airport_id AND is_valid = 1) AS latest
     FROM v_my_hubs v
-    LEFT JOIN (
-        SELECT origin_id, MAX(extracted_at) AS latest
-        FROM route_aircraft
-        WHERE is_valid = 1
-        GROUP BY origin_id
-    ) AS mx ON mx.origin_id = v.airport_id
     WHERE v.iata IS NOT NULL AND TRIM(v.iata) != ''
     GROUP BY UPPER(TRIM(v.iata))
 """

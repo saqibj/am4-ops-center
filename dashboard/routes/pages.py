@@ -82,13 +82,46 @@ def _hubs_with_names() -> list[dict]:
         return []
 
 
+import time
+
+_INDEX_CACHE: dict = {}
+_INDEX_TTL = 30  # 30-second TTL for homepage data
+
+
 @router.get("/", response_class=HTMLResponse)
 def page_index(request: Request):
     from dashboard.db import db_file_size_bytes, fetch_one
+    global _INDEX_CACHE
+
+    now = time.time()
+    if "stats" in _INDEX_CACHE and (now - _INDEX_CACHE["ts"]) < _INDEX_TTL:
+        cache = _INDEX_CACHE
+        # We still need a connection for base_context, but we avoid the heavy queries
+        conn_ctx = None
+        try:
+            conn_ctx = get_read_conn()
+        except FileNotFoundError:
+            pass
+        ctx = base_context(request, conn_ctx)
+        if conn_ctx is not None:
+            conn_ctx.close()
+        ctx.update(
+            {
+                "stats": cache["stats"],
+                "top_routes": cache["top_routes"],
+                "hub_chart_labels": cache["hub_chart_labels"],
+                "hub_chart_values": cache["hub_chart_values"],
+                "db_size_bytes": cache["db_size_bytes"],
+            }
+        )
+        return templates.TemplateResponse(request, "index.html", ctx)
 
     try:
         conn = get_read_conn()
         try:
+            # Optimized subqueries: use indexes for MAX and COUNT.
+            # idx_ra_valid_extracted (is_valid, extracted_at DESC)
+            # idx_ra_valid_profit (is_valid, aircraft_id, profit_per_ac_day DESC)
             stats = fetch_one(
                 conn,
                 """
@@ -142,13 +175,28 @@ def page_index(request: Request):
     ctx = base_context(request, conn_ctx)
     if conn_ctx is not None:
         conn_ctx.close()
+
+    db_size = db_file_size_bytes()
+    hub_labels = [str(h["hub"]) for h in top_hubs]
+    hub_values = [round(float(h["avg_profit"] or 0), 2) for h in top_hubs]
+
+    # Update cache
+    _INDEX_CACHE = {
+        "ts": now,
+        "stats": stats,
+        "top_routes": top_routes,
+        "hub_chart_labels": hub_labels,
+        "hub_chart_values": hub_values,
+        "db_size_bytes": db_size,
+    }
+
     ctx.update(
         {
             "stats": stats,
             "top_routes": top_routes,
-            "hub_chart_labels": [str(h["hub"]) for h in top_hubs],
-            "hub_chart_values": [round(float(h["avg_profit"] or 0), 2) for h in top_hubs],
-            "db_size_bytes": db_file_size_bytes(),
+            "hub_chart_labels": hub_labels,
+            "hub_chart_values": hub_values,
+            "db_size_bytes": db_size,
         }
     )
     return templates.TemplateResponse(request, "index.html", ctx)

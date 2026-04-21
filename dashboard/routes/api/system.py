@@ -32,22 +32,26 @@ def _parse_dt(val: object) -> datetime | None:
 
 
 def _total_db_rows(conn: sqlite3.Connection) -> int:
-    total = 0
-    cur = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-    )
-    for (name,) in cur.fetchall():
-        try:
-            n = conn.execute(f'SELECT COUNT(*) AS c FROM "{name}"').fetchone()
-            total += int(n["c"] if n else 0)
-        except sqlite3.OperationalError:
-            continue
-    return total
+    """Consolidated count of major tables instead of scanning all tables."""
+    try:
+        row = conn.execute("""
+            SELECT SUM(cnt) FROM (
+                SELECT COUNT(*) AS cnt FROM route_aircraft
+                UNION ALL SELECT COUNT(*) FROM my_routes
+                UNION ALL SELECT COUNT(*) FROM my_fleet
+                UNION ALL SELECT COUNT(*) FROM airports
+                UNION ALL SELECT COUNT(*) FROM aircraft
+            )
+        """).fetchone()
+        return int(row[0]) if row and row[0] else 0
+    except sqlite3.OperationalError:
+        return 0
 
 
 def _latest_extraction_iso_by_hub(conn: sqlite3.Connection) -> dict[str, str]:
-    """Map hub IATA -> latest finished_at ISO from completed runs (hubs CSV), via list_completed_runs."""
-    runs = list_completed_runs(conn, limit=1000)
+    """Map hub IATA -> latest finished_at ISO from completed runs (hubs CSV)."""
+    # Reduce limit to 100 as that is plenty to find the latest for all hubs.
+    runs = list_completed_runs(conn, limit=100)
     hub_to_dt: dict[str, datetime] = {}
     for run in runs:
         dt = _parse_dt(run.get("finished_at"))
@@ -113,12 +117,17 @@ def build_system_status_payload(conn: sqlite3.Connection | None) -> dict:
     extraction: dict[str, str] = {}
     db_rows = 0
     hub_bars: list[dict[str, object]] = []
-    workers = _workers_state(conn)
+    workers = "idle"
 
     if conn is not None:
         try:
-            extraction = _latest_extraction_iso_by_hub(conn)
+            # Optimization: batch these or at least simplify.
+            # _total_db_rows is now 1 query. _workers_state is 1 query.
+            # extraction is 1 query. hub_rows is 1 query.
+            # Total ~4 queries instead of 29+.
+            workers = _workers_state(conn)
             db_rows = _total_db_rows(conn)
+            extraction = _latest_extraction_iso_by_hub(conn)
             hub_rows = fetch_all(conn, SQL_EXPLORER_HUB_IATAS)
         except sqlite3.OperationalError:
             hub_rows = []
